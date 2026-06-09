@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  /* --- Estuary navy neutrals (ink) ------------------------------------- */
+  --color-ink-50: #eef4fa;
+  --color-ink-100: #dbe6f1;
+  --color-ink-200: #b6cadf;
+  --color-ink-300: #8aa6c4;
+  --color-ink-400: #5e83a8;
+  --color-ink-500: #406890;
+  --color-ink-600: #2c4f73;
+  --color-ink-700: #1c3a5a;
+  --color-ink-800: #122a45;
+  --color-ink-900: #0d2138;
+  --color-ink-950: #08172a;
+
+  /* --- Seafoam accent (teal) — brand seafoam #7FD1B9 at 400 ------------ */
+  --color-teal-50: #eafaf4;
+  --color-teal-100: #cdf2e4;
+  --color-teal-200: #a9e7d2;
+  --color-teal-300: #8edcc4;
+  --color-teal-400: #7fd1b9;
+  --color-teal-500: #5bbfa1;
+  --color-teal-600: #46a588;
+  --color-teal-700: #3a8670;
+  --color-teal-800: #2f6a59;
+  --color-teal-900: #244f43;
+
+  /* --- River blue secondary — brand River Blue #3F72AF at 500 ---------- */
+  --color-river-300: #7ba3d4;
+  --color-river-400: #5b8fc9;
+  --color-river-500: #3f72af;
+  --color-river-600: #335f93;
+  --color-river-700: #284a73;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    background-color: var(--color-ink-950);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background-color: var(--color-ink-950);
+    color: var(--color-ink-100);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    /* safe-area padding for iPhone home-screen PWA */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+  }
+  /* Ambient gradient on a fixed layer so it's anchored to the viewport and
+     never repeats or seams as the page scrolls. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(127, 209, 185, 0.1), transparent 60%),
+      radial-gradient(900px 500px at -10% 10%, rgba(63, 114, 175, 0.14), transparent 55%);
+  }
+  /* tabular numerals for money */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-ink-700);
+    border-radius: 9999px;
+  }
+}

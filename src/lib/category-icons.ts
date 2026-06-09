@@ -1,0 +1,87 @@
+import {
+  Baby,
+  Banknote,
+  BedDouble,
+  Briefcase,
+  Bus,
+  Car,
+  Coffee,
+  CreditCard,
+  Dumbbell,
+  Film,
+  Fuel,
+  Gift,
+  GraduationCap,
+  HeartHandshake,
+  HeartPulse,
+  Home,
+  Luggage,
+  Map,
+  PawPrint,
+  PiggyBank,
+  Plane,
+  Receipt,
+  Repeat,
+  Scissors,
+  Shield,
+  ShoppingBag,
+  ShoppingCart,
+  Smartphone,
+  Tag,
+  TrendingUp,
+  Users,
+  Utensils,
+  Wallet,
+  Wifi,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
+
+/**
+ * Named icons a category can use (stored as the key in `categories.icon`).
+ * Insertion order drives the picker grid.
+ */
+export const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  "shopping-cart": ShoppingCart,
+  utensils: Utensils,
+  coffee: Coffee,
+  bus: Bus,
+  car: Car,
+  fuel: Fuel,
+  plane: Plane,
+  bed: BedDouble,
+  luggage: Luggage,
+  map: Map,
+  home: Home,
+  zap: Zap,
+  wifi: Wifi,
+  smartphone: Smartphone,
+  "heart-pulse": HeartPulse,
+  dumbbell: Dumbbell,
+  shield: Shield,
+  "shopping-bag": ShoppingBag,
+  gift: Gift,
+  repeat: Repeat,
+  "credit-card": CreditCard,
+  film: Film,
+  scissors: Scissors,
+  "graduation-cap": GraduationCap,
+  users: Users,
+  "heart-handshake": HeartHandshake,
+  baby: Baby,
+  "paw-print": PawPrint,
+  receipt: Receipt,
+  banknote: Banknote,
+  wallet: Wallet,
+  "piggy-bank": PiggyBank,
+  "trending-up": TrendingUp,
+  briefcase: Briefcase,
+  tag: Tag,
+};
+
+export const CATEGORY_ICON_NAMES = Object.keys(CATEGORY_ICONS);
+
+/** Resolve a stored icon name to a component, falling back to a generic tag. */
+export function iconFor(name: string | null | undefined): LucideIcon {
+  return (name && CATEGORY_ICONS[name]) || Tag;
+}

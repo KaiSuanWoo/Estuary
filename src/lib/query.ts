@@ -1,0 +1,29 @@
+import { QueryClient } from "@tanstack/react-query";
+
+/** Single shared client. Tuned for a personal app on a phone: data is cheap to
+ *  refetch, but we don't want a refetch storm every time the PWA regains focus. */
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+/** Centralised query keys so invalidation stays consistent. */
+export const qk = {
+  session: ["session"] as const,
+  settings: ["settings"] as const,
+  accounts: ["accounts"] as const,
+  categories: ["categories"] as const,
+  fxRates: ["fx_rates"] as const,
+  liveRates: (base: string) => ["live_rates", base] as const,
+  counterparties: ["counterparties"] as const,
+  tags: ["tags"] as const,
+  transactions: (filters?: Record<string, unknown>) =>
+    filters ? (["transactions", filters] as const) : (["transactions"] as const),
+  importBatches: ["import_batches"] as const,
+  categorizationRules: ["categorization_rules"] as const,
+};
