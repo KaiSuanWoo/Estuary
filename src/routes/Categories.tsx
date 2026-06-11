@@ -28,7 +28,7 @@ import { useRateMap } from "@/hooks/useFxRates";
 import { spendingByCategory, monthBounds } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { Button, Card, Sheet, Spinner } from "@/components/ui";
+import { Button, Card, Sheet, Skeleton, Spinner } from "@/components/ui";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { CATEGORY_ICONS, CATEGORY_ICON_NAMES } from "@/lib/category-icons";
 import type { Category, CategoryKind } from "@/lib/types";
@@ -218,9 +218,19 @@ export function Categories() {
       </header>
 
       {isLoading ? (
-        <Card className="flex justify-center py-8">
-          <Spinner />
-        </Card>
+        <div className="space-y-6">
+          {[0, 1].map((g) => (
+            <Card key={g} className="divide-y divide-ink-800/70 py-0">
+              {[0, 1, 2].map((r) => (
+                <div key={r} className="flex items-center gap-3 px-1 py-3">
+                  <Skeleton className="size-9 shrink-0 rounded-full" />
+                  <Skeleton className="h-3.5 w-32 flex-1" />
+                  <Skeleton className="h-3 w-12" />
+                </div>
+              ))}
+            </Card>
+          ))}
+        </div>
       ) : data.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-ink-700/70 px-6 py-12 text-center">
           <div className="mb-3 text-ink-500">
