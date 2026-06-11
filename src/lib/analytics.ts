@@ -6,6 +6,7 @@ import {
 } from "date-fns";
 import type { Category, Transaction } from "./types";
 import { convert, type RateMap } from "./fx";
+import { reimbursementLinks } from "./reimbursements";
 
 /** Convert to base currency, dropping anything we can't (no rate set). */
 function inBase(
@@ -55,12 +56,10 @@ function buildReimbursedMap(
 ): Map<string, number> {
   const map = new Map<string, number>();
   for (const t of txns) {
-    if (t.type === "income" && t.linked_transaction_id) {
-      const amt = inBase(t.amount, t.currency, base, rates);
-      map.set(
-        t.linked_transaction_id,
-        (map.get(t.linked_transaction_id) ?? 0) + amt,
-      );
+    if (t.type !== "income") continue;
+    for (const link of reimbursementLinks(t)) {
+      const amt = inBase(link.amount, t.currency, base, rates);
+      map.set(link.expense_id, (map.get(link.expense_id) ?? 0) + amt);
     }
   }
   return map;
@@ -70,7 +69,7 @@ function buildReimbursedMap(
  * Income/expense/net across a date range, expressed in the base currency.
  *
  * mode = "net" (default):
- *   - Income with `linked_transaction_id` → excluded (cost-share repayment)
+ *   - Income with reimbursement links → excluded (cost-share repayment)
  *   - Reimbursable expenses → shown at net cost (gross − total reimbursed)
  *
  * mode = "gross":
@@ -96,8 +95,17 @@ export function cashflowForRange(
     if (t.excluded_from_cashflow) continue;
 
     if (t.type === "income") {
-      // In net mode: skip reimbursements (they're not real income)
-      if (mode === "net" && t.linked_transaction_id) continue;
+      // In net mode a repayment isn't real income — only the part not allocated
+      // to expenses counts (usually nothing).
+      if (mode === "net") {
+        const links = reimbursementLinks(t);
+        if (links.length > 0) {
+          const allocated = links.reduce((s, l) => s + l.amount, 0);
+          const remainder = Math.max(0, t.amount - allocated);
+          if (remainder > 0) income += inBase(remainder, t.currency, base, rates);
+          continue;
+        }
+      }
       income += inBase(t.amount, t.currency, base, rates);
     } else if (t.type === "expense") {
       const gross = inBase(t.amount, t.currency, base, rates);

@@ -3,16 +3,14 @@ import {
   ArrowUpRight,
   ArrowLeftRight,
   Ban,
+  Flag,
   SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatSignedMoney } from "@/lib/format";
+import { iconFor } from "@/lib/category-icons";
+import { isReimbursement, reimbursementLinks } from "@/lib/reimbursements";
 import type { Transaction } from "@/lib/types";
-
-/** True when this income transaction is a cost-share repayment, not real income. */
-export function isReimbursement(tx: Transaction): boolean {
-  return tx.type === "income" && tx.linked_transaction_id != null;
-}
 
 const ICON = {
   income: ArrowDownLeft,
@@ -38,6 +36,8 @@ const TYPE_STYLE: Record<
 export function TransactionRow({
   tx,
   categoryName,
+  categoryIcon,
+  categoryColor,
   accountName,
   toAccountName,
   reimbursedAmount,
@@ -45,6 +45,8 @@ export function TransactionRow({
 }: {
   tx: Transaction;
   categoryName?: string;
+  categoryIcon?: string | null;
+  categoryColor?: string | null;
   /** Name of the source account (used in transfer subtitle). */
   accountName?: string;
   /** Name of the destination account (used in transfer title). */
@@ -60,14 +62,33 @@ export function TransactionRow({
   const isTransfer = tx.type === "transfer";
   const reimb = isReimbursement(tx);
   const isSplit = tx.type === "expense" && tx.is_reimbursable;
+  // A reimbursable expense you haven't marked settled yet → still owed.
+  const unsettled = isSplit && tx.reimbursement_status !== "settled";
   const isExcluded = tx.excluded_from_cashflow;
   const style = TYPE_STYLE[tx.type];
+
+  // Show the category's icon (tinted with its colour) as the avatar for
+  // categorised income/expense; otherwise fall back to the type icon.
+  const showCategory =
+    !reimb &&
+    (tx.type === "expense" || tx.type === "income") &&
+    !!categoryColor;
+  const CategoryGlyph = iconFor(categoryIcon);
 
   // Net amount after reimbursements — only meaningful for reimbursable expenses
   const netAmt =
     isSplit && reimbursedAmount && reimbursedAmount > 0
       ? Math.max(0, tx.amount - reimbursedAmount)
       : null;
+
+  // For a repayment, the "net" income is whatever wasn't allocated to expenses.
+  const reimbNet = reimb
+    ? Math.max(
+        0,
+        tx.amount -
+          reimbursementLinks(tx).reduce((s, l) => s + l.amount, 0),
+      )
+    : 0;
 
   const title = isTransfer
     ? // Prefer the imported description so you know what the transfer was for;
@@ -95,17 +116,38 @@ export function TransactionRow({
       )}
       onClick={onClick}
     >
-      <div
-        className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-full",
-          reimb ? "bg-ink-800 text-ink-400" : style.icon,
-        )}
-      >
-        <Icon className="size-5" />
-      </div>
+      {showCategory ? (
+        <div
+          className="flex size-10 shrink-0 items-center justify-center rounded-full"
+          style={{
+            backgroundColor: `${categoryColor}26`,
+            color: categoryColor ?? undefined,
+          }}
+        >
+          <CategoryGlyph className="size-5" />
+        </div>
+      ) : (
+        <div
+          className={cn(
+            "flex size-10 shrink-0 items-center justify-center rounded-full",
+            reimb ? "bg-ink-800 text-ink-400" : style.icon,
+          )}
+        >
+          <Icon className="size-5" />
+        </div>
+      )}
 
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-ink-100">{title}</p>
+        <div className="flex items-center gap-1.5">
+          {tx.flagged && (
+            <Flag
+              className="size-3 shrink-0 text-amber-400"
+              fill="currentColor"
+              aria-label="Flagged for review"
+            />
+          )}
+          <p className="truncate font-medium text-ink-100">{title}</p>
+        </div>
         {(detail || accountName) && (
           <p className="truncate text-sm text-ink-500">
             {detail && (
@@ -143,23 +185,32 @@ export function TransactionRow({
             </span>
             <span className="text-[10px] text-ink-500">net</span>
           </>
-        ) : (
-          // Normal display
+        ) : reimb ? (
+          // Repayment — gross struck through, net (unallocated) income below
           <>
+            <span className="tnum text-xs font-medium text-ink-600 line-through">
+              {formatSignedMoney(tx.amount, tx.currency, tx.type)}
+            </span>
             <span
               className={cn(
                 "tnum font-medium",
-                reimb ? "text-ink-100" : style.amount,
+                reimbNet > 0 ? "text-teal-400" : "text-ink-400",
               )}
             >
-              {formatSignedMoney(tx.amount, tx.currency, tx.type)}
+              {formatSignedMoney(reimbNet, tx.currency, tx.type)}
             </span>
-            {isSplit && (
-              <span className="rounded-full bg-ink-800 px-1.5 py-px text-[10px] font-medium text-ink-500">
-                split
-              </span>
-            )}
+            <span className="text-[10px] text-ink-500">net</span>
           </>
+        ) : (
+          // Normal display
+          <span className={cn("tnum font-medium", style.amount)}>
+            {formatSignedMoney(tx.amount, tx.currency, tx.type)}
+          </span>
+        )}
+        {unsettled && (
+          <span className="rounded-full bg-amber-500/15 px-1.5 py-px text-[10px] font-medium text-amber-400">
+            owed
+          </span>
         )}
       </div>
     </div>

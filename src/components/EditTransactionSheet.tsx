@@ -1,7 +1,8 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowRight, SlidersHorizontal, Trash2 } from "lucide-react";
+import { ArrowRight, Check, Flag, SlidersHorizontal, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatMoney } from "@/lib/format";
+import { reimbursementLinks } from "@/lib/reimbursements";
 import { Button, Sheet } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -10,6 +11,7 @@ import {
   useUpdateTransaction,
   useDeleteTransaction,
   useReimbursableExpenses,
+  useTransactionsByIds,
 } from "@/hooks/useTransactions";
 import type { Transaction, TransactionType } from "@/lib/types";
 import type { ReimbursementStatus } from "@/lib/database.types";
@@ -56,13 +58,38 @@ export function EditTransactionSheet({
   const [merchant, setMerchant] = useState(tx.merchant ?? "");
   const [notes, setNotes] = useState(tx.notes ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [flagged, setFlagged] = useState(tx.flagged);
   const [isReimbursable, setIsReimbursable] = useState(tx.is_reimbursable);
   const [reimbStatus, setReimbStatus] = useState<ReimbursementStatus>(
-    tx.reimbursement_status,
+    // "partial" is retired — treat any existing partial as pending.
+    tx.reimbursement_status === "partial" ? "pending" : tx.reimbursement_status,
   );
-  const [linkedId, setLinkedId] = useState(tx.linked_transaction_id ?? "");
+  // expense_id → allocated amount (string), in this income's currency.
+  const [alloc, setAlloc] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const l of reimbursementLinks(tx)) init[l.expense_id] = String(l.amount);
+    return init;
+  });
 
   const { data: reimbursableExpenses = [] } = useReimbursableExpenses();
+  // Also load any expenses this income is already linked to (they may be
+  // settled / off the reimbursable list), so every allocation stays visible.
+  const linkedIds = useMemo(
+    () => reimbursementLinks(tx).map((l) => l.expense_id),
+    [tx],
+  );
+  const { data: linkedExpenses = [] } = useTransactionsByIds(linkedIds);
+  // No cross-currency reimbursement: only offer expenses in the income's own
+  // currency. Already-linked expenses stay visible so old links are manageable.
+  const expenseChoices = useMemo(() => {
+    const map = new Map<string, Transaction>();
+    for (const e of linkedExpenses) map.set(e.id, e);
+    for (const e of reimbursableExpenses) {
+      if (e.currency === tx.currency) map.set(e.id, e);
+    }
+    return [...map.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
+  }, [reimbursableExpenses, linkedExpenses, tx.currency]);
+
   const accountMap = useMemo(
     () => new Map(accounts.map((a) => [a.id, a.name])),
     [accounts],
@@ -122,6 +149,33 @@ export function EditTransactionSheet({
     return true;
   })();
 
+  // ── Reimbursement allocations (income only) ─────────────────────────────────
+  function toggleAlloc(expense: Transaction) {
+    setAlloc((prev) => {
+      const next = { ...prev };
+      if (expense.id in next) {
+        delete next[expense.id];
+        return next;
+      }
+      // Default to the still-unallocated repayment, capped at the expense's amount.
+      const allocated = Object.values(next).reduce(
+        (s, a) => s + (Number(a) || 0),
+        0,
+      );
+      const remaining = Math.max(0, (Number(amount) || 0) - allocated);
+      const def = remaining > 0 ? Math.min(remaining, expense.amount) : expense.amount;
+      next[expense.id] = String(Number(def.toFixed(2)));
+      return next;
+    });
+  }
+  function setAllocAmount(id: string, v: string) {
+    setAlloc((prev) => ({ ...prev, [id]: v }));
+  }
+  const links = Object.entries(alloc)
+    .map(([expense_id, a]) => ({ expense_id, amount: Number(a) }))
+    .filter((l) => Number.isFinite(l.amount) && l.amount > 0);
+  const allocatedTotal = links.reduce((s, l) => s + l.amount, 0);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!from) return;
@@ -147,6 +201,8 @@ export function EditTransactionSheet({
           is_reimbursable: false,
           reimbursement_status: "none",
           linked_transaction_id: null,
+          reimbursement_links: null,
+          flagged,
         },
       });
     } else {
@@ -168,8 +224,10 @@ export function EditTransactionSheet({
           is_reimbursable: type === "expense" ? isReimbursable : false,
           reimbursement_status:
             type === "expense" && isReimbursable ? reimbStatus : "none",
-          linked_transaction_id:
-            type === "income" && linkedId ? linkedId : null,
+          linked_transaction_id: null,
+          reimbursement_links:
+            type === "income" && links.length ? links : null,
+          flagged,
         },
       });
     }
@@ -426,9 +484,7 @@ export function EditTransactionSheet({
 
               {isReimbursable && (
                 <div className="mt-3 flex gap-1.5">
-                  {(
-                    ["pending", "partial", "settled"] as ReimbursementStatus[]
-                  ).map((s) => (
+                  {(["pending", "settled"] as ReimbursementStatus[]).map((s) => (
                     <button
                       key={s}
                       type="button"
@@ -450,38 +506,126 @@ export function EditTransactionSheet({
             </div>
           )}
 
-          {/* ── Reimbursement link (income only) ── */}
+          {/* ── Reimbursement allocations (income only) ── */}
           {type === "income" && (
             <div className="rounded-xl border border-ink-700/60 bg-ink-950/30 p-3">
-              <p className="mb-2 text-sm font-medium text-ink-200">
-                Reimbursement for…
-              </p>
-              {reimbursableExpenses.length === 0 ? (
+              <div className="mb-2 flex items-baseline justify-between gap-2">
+                <p className="text-sm font-medium text-ink-200">
+                  Reimburses…
+                </p>
+                {links.length > 0 && (
+                  <p
+                    className={cn(
+                      "tnum text-xs",
+                      allocatedTotal > Number(amount)
+                        ? "text-amber-400"
+                        : "text-ink-500",
+                    )}
+                  >
+                    {formatMoney(allocatedTotal, entryCurrency)} of{" "}
+                    {formatMoney(Number(amount) || 0, entryCurrency)}
+                  </p>
+                )}
+              </div>
+
+              {expenseChoices.length === 0 ? (
                 <p className="text-xs text-ink-500">
                   No open reimbursable expenses found. Mark an expense as
                   "Reimbursable" first.
                 </p>
               ) : (
-                <select
-                  value={linkedId}
-                  onChange={(e) => setLinkedId(e.target.value)}
-                  className="h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 focus:border-teal-500 focus:outline-none"
-                >
-                  <option value="">— not a reimbursement —</option>
-                  {reimbursableExpenses.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.merchant ?? "Expense"} ·{" "}
-                      {formatMoney(e.amount, e.currency)}
-                      {accountMap.get(e.account_id)
-                        ? ` · ${accountMap.get(e.account_id)}`
-                        : ""}{" "}
-                      · {e.date}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-1.5">
+                  <p className="text-xs text-ink-500">
+                    Pick one or more expenses this repayment covers.
+                  </p>
+                  {expenseChoices.map((e) => {
+                    const selected = e.id in alloc;
+                    return (
+                      <div key={e.id} className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={selected}
+                          onClick={() => toggleAlloc(e)}
+                          className={cn(
+                            "flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors",
+                            selected
+                              ? "border-teal-500 bg-teal-500 text-ink-950"
+                              : "border-ink-600 text-transparent hover:border-ink-500",
+                          )}
+                        >
+                          <Check className="size-3.5" strokeWidth={3} />
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm text-ink-100">
+                            {e.merchant ?? "Expense"}
+                          </p>
+                          <p className="truncate text-xs text-ink-500">
+                            {formatMoney(e.amount, e.currency)}
+                            {accountMap.get(e.account_id)
+                              ? ` · ${accountMap.get(e.account_id)}`
+                              : ""}{" "}
+                            · {e.date}
+                          </p>
+                        </div>
+                        {selected && (
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step="0.01"
+                            min="0"
+                            value={alloc[e.id]}
+                            onChange={(ev) =>
+                              setAllocAmount(e.id, ev.target.value)
+                            }
+                            aria-label={`Amount allocated to ${e.merchant ?? "expense"}`}
+                            className="tnum h-8 w-20 shrink-0 rounded-lg border border-ink-700 bg-ink-950/60 px-2 text-right text-sm text-ink-50 focus:border-teal-500 focus:outline-none"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
+
+          {/* ── Flag for review ── */}
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-ink-700/60 bg-ink-950/30 p-3">
+            <div className="flex items-center gap-2">
+              <Flag
+                className={cn(
+                  "size-4 shrink-0",
+                  flagged ? "text-amber-400" : "text-ink-500",
+                )}
+              />
+              <div>
+                <p className="text-sm font-medium text-ink-200">
+                  Flag for review
+                </p>
+                <p className="text-xs text-ink-500">
+                  Mark to come back to it later
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={flagged}
+              onClick={() => setFlagged((v) => !v)}
+              className={cn(
+                "relative h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors",
+                flagged ? "bg-amber-500" : "bg-ink-700",
+              )}
+            >
+              <span
+                className={cn(
+                  "block h-4 w-4 rounded-full bg-white shadow transition-transform",
+                  flagged ? "translate-x-5" : "translate-x-0.5",
+                )}
+              />
+            </button>
+          </label>
 
           {anyError && (
             <p className="text-xs text-red-400">

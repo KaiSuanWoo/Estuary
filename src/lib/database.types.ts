@@ -266,6 +266,8 @@ export interface Database {
           is_reimbursable: boolean;
           reimbursement_status: ReimbursementStatus;
           linked_transaction_id: string | null;
+          reimbursement_links: Json | null;
+          flagged: boolean;
           excluded_from_cashflow: boolean;
           receipt_image_path: string | null;
           destination_account_id: string | null;
@@ -291,6 +293,8 @@ export interface Database {
           is_reimbursable?: boolean;
           reimbursement_status?: ReimbursementStatus;
           linked_transaction_id?: string | null;
+          reimbursement_links?: Json | null;
+          flagged?: boolean;
           excluded_from_cashflow?: boolean;
           receipt_image_path?: string | null;
           destination_account_id?: string | null;
@@ -316,6 +320,8 @@ export interface Database {
           is_reimbursable?: boolean;
           reimbursement_status?: ReimbursementStatus;
           linked_transaction_id?: string | null;
+          reimbursement_links?: Json | null;
+          flagged?: boolean;
           excluded_from_cashflow?: boolean;
           receipt_image_path?: string | null;
           destination_account_id?: string | null;

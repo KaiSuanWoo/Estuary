@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { LayoutDashboard, ListPlus, Settings, Wallet } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Logo } from "@/components/Logo";
+import { BackToTop } from "@/components/BackToTop";
 
 interface NavItem {
   to: string;
@@ -61,6 +62,8 @@ export function AppShell() {
       <main className="mx-auto w-full max-w-md px-4 pb-28 pt-6 lg:max-w-6xl lg:px-10 lg:pb-12 lg:pt-8">
         <Outlet />
       </main>
+
+      <BackToTop />
 
       <nav
         className="fixed inset-x-0 bottom-0 z-10 border-t border-ink-800/80 bg-ink-950/85 backdrop-blur-lg lg:hidden"
