@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import { convert } from "@/lib/fx";
+import { reimbursementLinks } from "@/lib/reimbursements";
 import type { Transaction, TransactionInsert, TransactionUpdate } from "@/lib/types";
 
 export interface TransactionFilters {
@@ -114,6 +115,24 @@ export function useReimbursableExpenses() {
   });
 }
 
+/** Fetch specific transactions by id (e.g. expenses already linked to a repayment). */
+export function useTransactionsByIds(ids: string[]) {
+  const { user } = useAuth();
+  const sorted = [...ids].sort();
+  return useQuery({
+    queryKey: ["transactions", "by_ids", sorted] as const,
+    enabled: !!user && sorted.length > 0,
+    queryFn: async (): Promise<Transaction[]> => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .in("id", sorted);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 /**
  * Map of expenseId → total reimbursed, expressed in the **base currency**.
  *
@@ -137,7 +156,7 @@ export function useReimbursedAmountMap(): Map<string, number> {
         .from("transactions")
         .select("*")
         .eq("type", "income")
-        .not("linked_transaction_id", "is", null);
+        .not("reimbursement_links", "is", null);
       if (error) throw error;
       return data ?? [];
     },
@@ -146,13 +165,13 @@ export function useReimbursedAmountMap(): Map<string, number> {
   return useMemo(() => {
     const map = new Map<string, number>();
     for (const tx of data) {
-      if (!tx.linked_transaction_id) continue;
-      // Convert to base currency so cross-currency pairs compare correctly
-      const inBase = convert(tx.amount, tx.currency, baseCurrency, rates) ?? tx.amount;
-      map.set(
-        tx.linked_transaction_id,
-        (map.get(tx.linked_transaction_id) ?? 0) + inBase,
-      );
+      // Each income may allocate to several expenses; convert each allocation
+      // to base currency so cross-currency pairs compare correctly.
+      for (const link of reimbursementLinks(tx)) {
+        const inBase =
+          convert(link.amount, tx.currency, baseCurrency, rates) ?? link.amount;
+        map.set(link.expense_id, (map.get(link.expense_id) ?? 0) + inBase);
+      }
     }
     return map;
   }, [data, baseCurrency, rates]);

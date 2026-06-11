@@ -1,11 +1,24 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, Pencil, Plus, Sparkles, Tag, Trash2, Wand2 } from "lucide-react";
+import {
+  ArrowUpDown,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronUp,
+  Pencil,
+  Plus,
+  Sparkles,
+  Tag,
+  Trash2,
+  Wand2,
+} from "lucide-react";
 import {
   useCategories,
   useCreateCategory,
   useUpdateCategory,
   useArchiveCategory,
+  useReorderCategories,
   useSeedCategories,
   type SeedCategory,
 } from "@/hooks/useCategories";
@@ -132,12 +145,23 @@ const SEED_CATEGORIES: SeedCategory[] = [
 export function Categories() {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
+  const [reordering, setReordering] = useState(false);
   const { data = [], isLoading } = useCategories();
   const { data: txns = [] } = useTransactions();
   const archive = useArchiveCategory();
   const seed = useSeedCategories();
+  const reorder = useReorderCategories();
   const baseCurrency = useBaseCurrency();
   const rates = useRateMap();
+
+  // Persist a group's new order — only the rows whose position changed.
+  function persistOrder(ordered: Category[]) {
+    const changed = ordered
+      .map((c, i) => ({ id: c.id, display_order: i, was: c.display_order }))
+      .filter((r) => r.was !== r.display_order)
+      .map(({ id, display_order }) => ({ id, display_order }));
+    if (changed.length) reorder.mutate(changed);
+  }
 
   const { from, to } = monthBounds();
   const spendMap = new Map(
@@ -164,18 +188,33 @@ export function Categories() {
             Categories
           </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            to="/rules"
-            aria-label="Auto-categorise rules"
-            className="flex size-9 items-center justify-center rounded-xl bg-ink-800/60 text-ink-200 transition-colors hover:bg-ink-700/60"
-          >
-            <Wand2 className="size-4" />
-          </Link>
-          <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
-            <Plus className="size-4" /> Add
+        {reordering ? (
+          <Button size="sm" onClick={() => setReordering(false)}>
+            <Check className="size-4" /> Done
           </Button>
-        </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            {data.length > 1 && (
+              <button
+                onClick={() => setReordering(true)}
+                aria-label="Reorder categories"
+                className="flex size-9 items-center justify-center rounded-xl bg-ink-800/60 text-ink-200 transition-colors hover:bg-ink-700/60"
+              >
+                <ArrowUpDown className="size-4" />
+              </button>
+            )}
+            <Link
+              to="/rules"
+              aria-label="Auto-categorise rules"
+              className="flex size-9 items-center justify-center rounded-xl bg-ink-800/60 text-ink-200 transition-colors hover:bg-ink-700/60"
+            >
+              <Wand2 className="size-4" />
+            </Link>
+            <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+              <Plus className="size-4" /> Add
+            </Button>
+          </div>
+        )}
       </header>
 
       {isLoading ? (
@@ -220,6 +259,8 @@ export function Categories() {
             items={expense}
             baseCurrency={baseCurrency}
             spendMap={spendMap}
+            reordering={reordering}
+            onReorder={persistOrder}
             onEdit={setEditing}
             onArchive={archive}
           />
@@ -228,6 +269,8 @@ export function Categories() {
             items={income}
             baseCurrency={baseCurrency}
             spendMap={spendMap}
+            reordering={reordering}
+            onReorder={persistOrder}
             onEdit={setEditing}
             onArchive={archive}
           />
@@ -250,6 +293,8 @@ function Group({
   items,
   baseCurrency,
   spendMap,
+  reordering,
+  onReorder,
   onEdit,
   onArchive,
 }: {
@@ -257,17 +302,28 @@ function Group({
   items: Category[];
   baseCurrency: string;
   spendMap: Map<string, number>;
+  reordering: boolean;
+  onReorder: (ordered: Category[]) => void;
   onEdit: (c: Category) => void;
   onArchive: (id: string) => void;
 }) {
   if (items.length === 0) return null;
+
+  function move(index: number, dir: -1 | 1) {
+    const target = index + dir;
+    if (target < 0 || target >= items.length) return;
+    const next = [...items];
+    [next[index], next[target]] = [next[target], next[index]];
+    onReorder(next);
+  }
+
   return (
     <section>
       <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
         {title}
       </h2>
       <Card className="divide-y divide-ink-800/70 py-0">
-        {items.map((c) => {
+        {items.map((c, i) => {
           const spent = spendMap.get(c.id) ?? 0;
           const budget = c.monthly_budget;
           const pct = budget != null && budget > 0 ? Math.min(spent / budget, 1) : null;
@@ -279,39 +335,63 @@ function Group({
                 <span className="flex-1 truncate font-medium text-ink-100">
                   {c.name}
                 </span>
-                {budget != null ? (
-                  <span
-                    className={cn(
-                      "tnum text-sm",
-                      over ? "text-red-400" : "text-ink-400",
-                    )}
-                  >
-                    {formatMoney(spent, baseCurrency)}{" "}
-                    <span className="text-ink-600">
-                      / {formatMoney(budget, baseCurrency)}
-                    </span>
-                  </span>
-                ) : spent > 0 ? (
-                  <span className="tnum text-sm text-ink-400">
-                    {formatMoney(spent, baseCurrency)}
-                  </span>
-                ) : null}
-                <button
-                  onClick={() => onEdit(c)}
-                  aria-label={`Edit ${c.name}`}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-600 hover:bg-ink-800 hover:text-ink-200 transition-colors"
-                >
-                  <Pencil className="size-3.5" />
-                </button>
-                <button
-                  onClick={() => onArchive(c.id)}
-                  aria-label={`Archive ${c.name}`}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-600 hover:text-red-400 transition-colors"
-                >
-                  <Trash2 className="size-4" />
-                </button>
+
+                {reordering ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      onClick={() => move(i, -1)}
+                      disabled={i === 0}
+                      aria-label={`Move ${c.name} up`}
+                      className="flex size-8 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-ink-800 hover:text-ink-100 disabled:opacity-25"
+                    >
+                      <ChevronUp className="size-4" />
+                    </button>
+                    <button
+                      onClick={() => move(i, 1)}
+                      disabled={i === items.length - 1}
+                      aria-label={`Move ${c.name} down`}
+                      className="flex size-8 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-ink-800 hover:text-ink-100 disabled:opacity-25"
+                    >
+                      <ChevronDown className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {budget != null ? (
+                      <span
+                        className={cn(
+                          "tnum text-sm",
+                          over ? "text-red-400" : "text-ink-400",
+                        )}
+                      >
+                        {formatMoney(spent, baseCurrency)}{" "}
+                        <span className="text-ink-600">
+                          / {formatMoney(budget, baseCurrency)}
+                        </span>
+                      </span>
+                    ) : spent > 0 ? (
+                      <span className="tnum text-sm text-ink-400">
+                        {formatMoney(spent, baseCurrency)}
+                      </span>
+                    ) : null}
+                    <button
+                      onClick={() => onEdit(c)}
+                      aria-label={`Edit ${c.name}`}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-600 hover:bg-ink-800 hover:text-ink-200 transition-colors"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={() => onArchive(c.id)}
+                      aria-label={`Archive ${c.name}`}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-600 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </>
+                )}
               </div>
-              {pct !== null && (
+              {!reordering && pct !== null && (
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800">
                   <div
                     className={cn(
@@ -383,6 +463,8 @@ function EditCategorySheet({
 
           <ColorPicker value={color} onChange={setColor} />
 
+          <IconPicker value={icon} color={color} onChange={setIcon} />
+
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-ink-400">
               Monthly budget{" "}
@@ -449,6 +531,7 @@ function AddCategorySheet({ onClose }: { onClose: () => void }) {
   const [kind, setKind] = useState<CategoryKind>("expense");
   const [name, setName] = useState("");
   const [color, setColor] = useState(SWATCHES[0]);
+  const [icon, setIcon] = useState("");
   const [budget, setBudget] = useState("");
 
   async function onSubmit(e: FormEvent) {
@@ -457,6 +540,7 @@ function AddCategorySheet({ onClose }: { onClose: () => void }) {
       name: name.trim(),
       kind,
       color,
+      icon: icon || null,
       monthly_budget: budget ? Number(budget) : null,
     });
     onClose();
@@ -497,6 +581,8 @@ function AddCategorySheet({ onClose }: { onClose: () => void }) {
           </label>
 
           <ColorPicker value={color} onChange={setColor} />
+
+          <IconPicker value={icon} color={color} onChange={setIcon} />
 
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-ink-400">

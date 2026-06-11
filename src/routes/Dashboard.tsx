@@ -371,25 +371,28 @@ export function Dashboard() {
             />
           ) : (
             <div className="divide-y divide-ink-800/70">
-              {recentQ.data!.map((tx) => (
-                <TransactionRow
-                  key={tx.id}
-                  tx={tx}
-                  categoryName={
-                    tx.category_id
-                      ? categoryMap.get(tx.category_id)?.name
-                      : undefined
-                  }
-                  accountName={accountMap.get(tx.account_id)}
-                  toAccountName={
-                    tx.destination_account_id
-                      ? accountMap.get(tx.destination_account_id)
-                      : undefined
-                  }
-                  reimbursedAmount={reimbursedInTxCurrency.get(tx.id)}
-                  onClick={() => setEditing(tx)}
-                />
-              ))}
+              {recentQ.data!.map((tx) => {
+                const cat = tx.category_id
+                  ? categoryMap.get(tx.category_id)
+                  : undefined;
+                return (
+                  <TransactionRow
+                    key={tx.id}
+                    tx={tx}
+                    categoryName={cat?.name}
+                    categoryIcon={cat?.icon}
+                    categoryColor={cat?.color}
+                    accountName={accountMap.get(tx.account_id)}
+                    toAccountName={
+                      tx.destination_account_id
+                        ? accountMap.get(tx.destination_account_id)
+                        : undefined
+                    }
+                    reimbursedAmount={reimbursedInTxCurrency.get(tx.id)}
+                    onClick={() => setEditing(tx)}
+                  />
+                );
+              })}
             </div>
           )}
         </Widget>

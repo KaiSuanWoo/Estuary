@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { endOfMonth, format, parseISO, startOfMonth, subMonths } from "date-fns";
-import { ChevronDown, Plus, Receipt, Search, X } from "lucide-react";
+import { ChevronDown, Flag, Plus, Receipt, Search, X } from "lucide-react";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories, useCategoryMap } from "@/hooks/useCategories";
@@ -183,6 +183,16 @@ export function Transactions() {
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [search, setSearch] = useState("");
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Reveal the floating search button once the top search bar has scrolled away.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 500);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Multi-select filters — empty Set means "all" (no restriction)
   const [typeFilters, setTypeFilters] = useState<Set<TransactionType>>(new Set());
@@ -191,6 +201,10 @@ export function Transactions() {
     return param ? new Set([param]) : new Set();
   });
   const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
+  // Quick toggle: only reimbursable expenses (money you've fronted).
+  const [reimbOnly, setReimbOnly] = useState(false);
+  // Quick toggle: only transactions flagged for review.
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
 
   // Date filter — preset period or custom range
   const [dateMode, setDateMode] = useState<DateMode>("all");
@@ -264,6 +278,8 @@ export function Transactions() {
   // ── filtered list ─────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let txns = data ?? [];
+    if (reimbOnly) txns = txns.filter((t) => t.is_reimbursable);
+    if (flaggedOnly) txns = txns.filter((t) => t.flagged);
     if (typeFilters.size > 0)
       txns = txns.filter((t) => typeFilters.has(t.type));
     if (accountFilters.size > 0)
@@ -293,6 +309,8 @@ export function Transactions() {
     return txns;
   }, [
     data,
+    reimbOnly,
+    flaggedOnly,
     typeFilters,
     accountFilters,
     categoryFilters,
@@ -320,6 +338,8 @@ export function Transactions() {
     dateMode !== "all" && !(dateMode === "custom" && !customFrom && !customTo);
   const hasFilters =
     search.trim() !== "" ||
+    reimbOnly ||
+    flaggedOnly ||
     typeFilters.size > 0 ||
     accountFilters.size > 0 ||
     categoryFilters.size > 0 ||
@@ -327,6 +347,8 @@ export function Transactions() {
 
   function clearAll() {
     setSearch("");
+    setReimbOnly(false);
+    setFlaggedOnly(false);
     setTypeFilters(new Set());
     setAccountFilters(new Set());
     setCategoryFilters(new Set());
@@ -368,6 +390,7 @@ export function Transactions() {
             {search && (
               <button
                 onClick={() => setSearch("")}
+                aria-label="Clear search"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-500 hover:text-ink-200"
               >
                 <X className="size-4" />
@@ -568,29 +591,104 @@ export function Transactions() {
                 {dayLabel(day)}
               </h2>
               <Card className="divide-y divide-ink-800/70 py-0">
-                {txns.map((tx) => (
-                  <TransactionRow
-                    key={tx.id}
-                    tx={tx}
-                    categoryName={
-                      tx.category_id
-                        ? categories.get(tx.category_id)?.name
-                        : undefined
-                    }
-                    accountName={accountMap.get(tx.account_id)}
-                    toAccountName={
-                      tx.destination_account_id
-                        ? accountMap.get(tx.destination_account_id)
-                        : undefined
-                    }
-                    reimbursedAmount={reimbursedInTxCurrency.get(tx.id)}
-                    onClick={() => setEditing(tx)}
-                  />
-                ))}
+                {txns.map((tx) => {
+                  const cat = tx.category_id
+                    ? categories.get(tx.category_id)
+                    : undefined;
+                  return (
+                    <TransactionRow
+                      key={tx.id}
+                      tx={tx}
+                      categoryName={cat?.name}
+                      categoryIcon={cat?.icon}
+                      categoryColor={cat?.color}
+                      accountName={accountMap.get(tx.account_id)}
+                      toAccountName={
+                        tx.destination_account_id
+                          ? accountMap.get(tx.destination_account_id)
+                          : undefined
+                      }
+                      reimbursedAmount={reimbursedInTxCurrency.get(tx.id)}
+                      onClick={() => setEditing(tx)}
+                    />
+                  );
+                })}
               </Card>
             </section>
           ))}
         </div>
+      )}
+
+      {hasData && (
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Search transactions"
+          tabIndex={scrolled ? 0 : -1}
+          className={cn(
+            "fixed bottom-40 left-5 z-30 flex size-11 items-center justify-center rounded-full",
+            "border border-ink-700 bg-ink-900/90 text-ink-200 shadow-lg shadow-ink-950/40 backdrop-blur",
+            "transition-all hover:bg-ink-800 hover:text-ink-50",
+            "lg:bottom-24 lg:left-auto lg:right-8",
+            scrolled
+              ? "opacity-100"
+              : "pointer-events-none translate-y-1 opacity-0",
+          )}
+        >
+          <Search className="size-5" />
+        </button>
+      )}
+
+      {hasData && (
+        <button
+          type="button"
+          onClick={() => setReimbOnly((v) => !v)}
+          aria-pressed={reimbOnly}
+          aria-label="Show reimbursable only"
+          className={cn(
+            "fixed bottom-24 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-ink-950/40 backdrop-blur transition-colors",
+            "lg:bottom-8 lg:left-auto lg:right-8",
+            reimbOnly
+              ? "border border-teal-500/60 bg-teal-500/15 text-teal-300 hover:bg-teal-500/25"
+              : "border border-ink-700 bg-ink-900/90 text-ink-200 hover:bg-ink-800 hover:text-ink-50",
+          )}
+        >
+          <Receipt className="size-5" />
+        </button>
+      )}
+
+      {hasData && (
+        <button
+          type="button"
+          onClick={() => setFlaggedOnly((v) => !v)}
+          aria-pressed={flaggedOnly}
+          aria-label="Show flagged only"
+          className={cn(
+            "fixed bottom-56 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-ink-950/40 backdrop-blur transition-colors",
+            "lg:bottom-40 lg:left-auto lg:right-8",
+            flaggedOnly
+              ? "border border-amber-500/60 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
+              : "border border-ink-700 bg-ink-900/90 text-ink-200 hover:bg-ink-800 hover:text-ink-50",
+          )}
+        >
+          <Flag className="size-5" />
+        </button>
+      )}
+
+      {searchOpen && (
+        <SearchOverlay
+          search={search}
+          onSearch={setSearch}
+          results={filtered}
+          categories={categories}
+          accountMap={accountMap}
+          reimbursedInTxCurrency={reimbursedInTxCurrency}
+          onPick={(tx) => {
+            setSearchOpen(false);
+            setEditing(tx);
+          }}
+          onClose={() => setSearchOpen(false)}
+        />
       )}
 
       <FloatingAdd onClick={() => setAdding(true)} />
@@ -611,4 +709,116 @@ function groupByDay(txns: Transaction[]): [string, Transaction[]][] {
     else map.set(tx.date, [tx]);
   }
   return [...map.entries()];
+}
+
+// ─── Pop-up search ─────────────────────────────────────────────────────────────
+
+/** A focused search overlay — type and pick a result without leaving your spot. */
+function SearchOverlay({
+  search,
+  onSearch,
+  results,
+  categories,
+  accountMap,
+  reimbursedInTxCurrency,
+  onPick,
+  onClose,
+}: {
+  search: string;
+  onSearch: (q: string) => void;
+  results: Transaction[];
+  categories: Map<string, Category>;
+  accountMap: Map<string, string>;
+  reimbursedInTxCurrency: Map<string, number>;
+  onPick: (tx: Transaction) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Search transactions"
+      className="fixed inset-0 z-[60] flex items-start justify-center px-4 pb-24 pt-10 lg:items-center lg:py-8"
+    >
+      <button
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm"
+      />
+      <div className="relative flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-3xl border border-ink-800 bg-ink-900 shadow-2xl shadow-ink-950/40 lg:max-w-lg">
+        {/* Search input */}
+        <div className="flex items-center gap-2 border-b border-ink-800 px-4 py-3">
+          <Search className="size-4 shrink-0 text-ink-500" />
+          <input
+            autoFocus
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && onClose()}
+            placeholder="Search transactions…"
+            aria-label="Search transactions"
+            className="w-full bg-transparent text-sm text-ink-50 placeholder:text-ink-600 focus:outline-none"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => onSearch("")}
+              aria-label="Clear search"
+              className="text-ink-500 transition-colors hover:text-ink-200"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex size-7 shrink-0 items-center justify-center rounded-full bg-ink-800 text-ink-300 transition-colors hover:bg-ink-700 hover:text-ink-100"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+
+        {/* Results */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
+          {results.length === 0 ? (
+            <p className="px-2 py-10 text-center text-sm text-ink-500">
+              {search.trim()
+                ? `No matches for “${search}”.`
+                : "Type to search your transactions."}
+            </p>
+          ) : (
+            <div className="divide-y divide-ink-800/70">
+              {results.slice(0, 50).map((tx) => {
+                const cat = tx.category_id
+                  ? categories.get(tx.category_id)
+                  : undefined;
+                return (
+                  <TransactionRow
+                    key={tx.id}
+                    tx={tx}
+                    categoryName={cat?.name}
+                    categoryIcon={cat?.icon}
+                    categoryColor={cat?.color}
+                    accountName={accountMap.get(tx.account_id)}
+                    toAccountName={
+                      tx.destination_account_id
+                        ? accountMap.get(tx.destination_account_id)
+                        : undefined
+                    }
+                    reimbursedAmount={reimbursedInTxCurrency.get(tx.id)}
+                    onClick={() => onPick(tx)}
+                  />
+                );
+              })}
+              {results.length > 50 && (
+                <p className="py-3 text-center text-xs text-ink-500">
+                  +{results.length - 50} more — refine your search
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

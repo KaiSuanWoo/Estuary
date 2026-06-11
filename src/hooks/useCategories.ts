@@ -73,6 +73,48 @@ export function useArchiveCategory() {
   return (id: string) => update.mutate({ id, patch: { is_archived: true } });
 }
 
+/**
+ * Persist a new ordering. Accepts the rows whose `display_order` changed.
+ * Optimistically reorders the cache so the move feels instant.
+ */
+export function useReorderCategories() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (items: { id: string; display_order: number }[]) => {
+      for (const it of items) {
+        const { error } = await supabase
+          .from("categories")
+          .update({ display_order: it.display_order })
+          .eq("id", it.id);
+        if (error) throw error;
+      }
+    },
+    onMutate: async (items) => {
+      await client.cancelQueries({ queryKey: qk.categories });
+      const prev = client.getQueryData<Category[]>(qk.categories);
+      if (prev) {
+        const orderMap = new Map(items.map((i) => [i.id, i.display_order]));
+        const next = [...prev]
+          .map((c) =>
+            orderMap.has(c.id)
+              ? { ...c, display_order: orderMap.get(c.id)! }
+              : c,
+          )
+          .sort(
+            (a, b) =>
+              a.display_order - b.display_order || a.name.localeCompare(b.name),
+          );
+        client.setQueryData(qk.categories, next);
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) client.setQueryData(qk.categories, ctx.prev);
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: qk.categories }),
+  });
+}
+
 export interface SeedCategory {
   name: string;
   kind: "expense" | "income";
