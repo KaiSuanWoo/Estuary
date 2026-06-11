@@ -24,6 +24,18 @@ export const qk = {
   tags: ["tags"] as const,
   transactions: (filters?: Record<string, unknown>) =>
     filters ? (["transactions", filters] as const) : (["transactions"] as const),
+  // Activity-list variants. All start with "transactions" so the existing
+  // create/update/delete invalidations (which target ["transactions"]) clear
+  // them by prefix automatically.
+  transactionsInfinite: (filters?: Record<string, unknown>) =>
+    ["transactions", "infinite", filters ?? {}] as const,
+  transactionsPaged: (
+    filters: Record<string, unknown>,
+    page: number,
+    size: number,
+  ) => ["transactions", "paged", filters, page, size] as const,
+  transactionsSearch: (term: string, filters: Record<string, unknown>) =>
+    ["transactions", "search", term, filters] as const,
   importBatches: ["import_batches"] as const,
   categorizationRules: ["categorization_rules"] as const,
 };

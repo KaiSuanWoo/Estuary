@@ -1,17 +1,48 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { endOfMonth, format, parseISO, startOfMonth, subMonths } from "date-fns";
-import { ChevronDown, Flag, Plus, Receipt, Search, X } from "lucide-react";
-import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Flag,
+  Plus,
+  Receipt,
+  Search,
+  X,
+} from "lucide-react";
+import { motion } from "motion/react";
+import { useReimbursedAmountMap } from "@/hooks/useTransactions";
+import {
+  PAGE_SIZE,
+  useInfiniteTransactions,
+  usePagedTransactions,
+  useTransactionSearch,
+  type ActivityFilters,
+} from "@/hooks/usePagedTransactions";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories, useCategoryMap } from "@/hooks/useCategories";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { convert } from "@/lib/fx";
 import { dayLabel } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import {
+  listContainerVariants,
+  listItemVariants,
+  useReducedMotion,
+} from "@/lib/motion";
 import { ACCOUNT_TYPE_COLORS } from "@/lib/account-colors";
-import { Button, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  SkeletonRow,
+  Spinner,
+} from "@/components/ui";
 import { TransactionRow } from "@/components/TransactionRow";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
 import { EditTransactionSheet } from "@/components/EditTransactionSheet";
@@ -173,11 +204,96 @@ function OptionChip({
   );
 }
 
+/** Desktop page navigator. Windowed numbers around the current page. */
+function Pager({
+  page,
+  pageCount,
+  onPage,
+}: {
+  page: number;
+  pageCount: number;
+  onPage: (p: number) => void;
+}) {
+  if (pageCount <= 1) return null;
+  // Show a small window of page numbers around the current page.
+  const window = 2;
+  const start = Math.max(0, Math.min(page - window, pageCount - (window * 2 + 1)));
+  const end = Math.min(pageCount, start + window * 2 + 1);
+  const nums = [];
+  for (let i = start; i < end; i++) nums.push(i);
+
+  const navBtn =
+    "flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+
+  return (
+    <nav
+      className="mt-6 flex items-center justify-center gap-1.5"
+      aria-label="Pagination"
+    >
+      <button
+        onClick={() => onPage(page - 1)}
+        disabled={page === 0}
+        aria-label="Previous page"
+        className={cn(navBtn, "border-ink-700 text-ink-300 hover:border-ink-600 hover:text-ink-100")}
+      >
+        <ChevronLeft className="size-4" />
+      </button>
+      {start > 0 && <span className="px-1 text-sm text-ink-600">…</span>}
+      {nums.map((n) => (
+        <button
+          key={n}
+          onClick={() => onPage(n)}
+          aria-current={n === page ? "page" : undefined}
+          className={cn(
+            navBtn,
+            n === page
+              ? "border-teal-500 bg-teal-500/10 text-teal-300"
+              : "border-ink-700 text-ink-300 hover:border-ink-600 hover:text-ink-100",
+          )}
+        >
+          {n + 1}
+        </button>
+      ))}
+      {end < pageCount && <span className="px-1 text-sm text-ink-600">…</span>}
+      <button
+        onClick={() => onPage(page + 1)}
+        disabled={page >= pageCount - 1}
+        aria-label="Next page"
+        className={cn(navBtn, "border-ink-700 text-ink-300 hover:border-ink-600 hover:text-ink-100")}
+      >
+        <ChevronRight className="size-4" />
+      </button>
+    </nav>
+  );
+}
+
+/** A loading placeholder: a couple of day-group cards full of skeleton rows. */
+function ListSkeleton() {
+  return (
+    <div className="space-y-5">
+      {[0, 1].map((g) => (
+        <section key={g}>
+          <div className="mb-1 h-3 w-24 px-1">
+            <div className="skeleton h-3 w-24 rounded" />
+          </div>
+          <Card className="divide-y divide-ink-800/70 py-0">
+            {[0, 1, 2].map((r) => (
+              <SkeletonRow key={r} />
+            ))}
+          </Card>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 // ─── main component ────────────────────────────────────────────────────────────
 
 export function Transactions() {
   // URL param must be read before the useState that references it
   const [searchParams] = useSearchParams();
+  const reduce = useReducedMotion();
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
@@ -185,6 +301,7 @@ export function Transactions() {
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [page, setPage] = useState(0);
 
   // Reveal the floating search button once the top search bar has scrolled away.
   useEffect(() => {
@@ -211,13 +328,63 @@ export function Transactions() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
 
-  const { data, isLoading } = useTransactions();
   const { data: accounts = [] } = useAccounts();
   const categories = useCategoryMap();
   const { data: allCategories = [] } = useCategories();
   const reimbursedMap = useReimbursedAmountMap();
   const baseCurrency = useBaseCurrency();
   const rates = useRateMap();
+
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const bounds = getDateBounds(dateMode, customFrom, customTo);
+
+  // All filters are DB-expressible → pushed server-side so each page is already
+  // narrowed. Arrays are sorted for stable query-key hashing.
+  const filters = useMemo<ActivityFilters>(
+    () => ({
+      types: typeFilters.size ? [...typeFilters].sort() : undefined,
+      accountIds: accountFilters.size ? [...accountFilters].sort() : undefined,
+      categoryIds: categoryFilters.size ? [...categoryFilters].sort() : undefined,
+      from: bounds?.from,
+      to: bounds?.to,
+      flaggedOnly: flaggedOnly || undefined,
+      reimbursableOnly: reimbOnly || undefined,
+      search: debouncedSearch.trim() || undefined,
+    }),
+    [
+      typeFilters,
+      accountFilters,
+      categoryFilters,
+      bounds?.from,
+      bounds?.to,
+      flaggedOnly,
+      reimbOnly,
+      debouncedSearch,
+    ],
+  );
+
+  // Reset to the first page whenever the filter set changes (desktop pager).
+  const filtersKey = JSON.stringify(filters);
+  useEffect(() => {
+    setPage(0);
+  }, [filtersKey]);
+
+  // Hybrid loading: infinite scroll on mobile, page-indexed on desktop. Only the
+  // active hook fetches — the other is disabled.
+  const infinite = useInfiniteTransactions(filters, !isDesktop);
+  const paged = usePagedTransactions(filters, page, PAGE_SIZE, isDesktop);
+
+  const rows: Transaction[] = isDesktop
+    ? paged.data?.rows ?? []
+    : infinite.data?.pages.flatMap((p) => p.rows) ?? [];
+  const count = isDesktop
+    ? paged.data?.count ?? 0
+    : infinite.data?.pages[0]?.count ?? 0;
+  const isLoading = isDesktop ? paged.isLoading : infinite.isLoading;
+  const pageCount = Math.ceil(count / PAGE_SIZE);
+
+  // Broad overlay search (up to 50 across all pages) — only runs while open.
+  const searchQuery = useTransactionSearch(searchOpen ? debouncedSearch : "", filters);
 
   const accountMap = useMemo(
     () => new Map(accounts.map((a) => [a.id, a.name])),
@@ -226,13 +393,13 @@ export function Transactions() {
 
   const reimbursedInTxCurrency = useMemo(() => {
     const out = new Map<string, number>();
-    for (const tx of data ?? []) {
+    for (const tx of rows) {
       const base = reimbursedMap.get(tx.id);
       if (!base) continue;
       out.set(tx.id, convert(base, baseCurrency, tx.currency, rates) ?? base);
     }
     return out;
-  }, [data, reimbursedMap, baseCurrency, rates]);
+  }, [rows, reimbursedMap, baseCurrency, rates]);
 
   // Scope category options to the active type selection
   const visibleCategories = useMemo(() => {
@@ -275,55 +442,7 @@ export function Transactions() {
     });
   }
 
-  // ── filtered list ─────────────────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    let txns = data ?? [];
-    if (reimbOnly) txns = txns.filter((t) => t.is_reimbursable);
-    if (flaggedOnly) txns = txns.filter((t) => t.flagged);
-    if (typeFilters.size > 0)
-      txns = txns.filter((t) => typeFilters.has(t.type));
-    if (accountFilters.size > 0)
-      txns = txns.filter(
-        (t) =>
-          accountFilters.has(t.account_id) ||
-          (t.destination_account_id != null &&
-            accountFilters.has(t.destination_account_id)),
-      );
-    if (categoryFilters.size > 0)
-      txns = txns.filter(
-        (t) => t.category_id != null && categoryFilters.has(t.category_id),
-      );
-    const bounds = getDateBounds(dateMode, customFrom, customTo);
-    if (bounds)
-      txns = txns.filter((t) => t.date >= bounds.from && t.date <= bounds.to);
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      txns = txns.filter(
-        (t) =>
-          t.merchant?.toLowerCase().includes(q) ||
-          t.notes?.toLowerCase().includes(q) ||
-          (t.category_id &&
-            categories.get(t.category_id)?.name.toLowerCase().includes(q)),
-      );
-    }
-    return txns;
-  }, [
-    data,
-    reimbOnly,
-    flaggedOnly,
-    typeFilters,
-    accountFilters,
-    categoryFilters,
-    dateMode,
-    customFrom,
-    customTo,
-    search,
-    categories,
-  ]);
-
-  const groups = groupByDay(filtered);
-  const total = (data ?? []).length;
-  const hasData = total > 0;
+  const groups = groupByDay(rows);
 
   // Dot colour for the account FilterChip when exactly one account is selected
   const singleAccountDot =
@@ -344,6 +463,33 @@ export function Transactions() {
     accountFilters.size > 0 ||
     categoryFilters.size > 0 ||
     isDateActive;
+
+  // "Has data" = either rows match now, or filters are active (so the user has
+  // transactions but the current filter excludes them). Used to gate the filter
+  // UI and the "nothing here yet" empty state without fetching all rows.
+  const hasData = count > 0 || hasFilters;
+
+  // ── infinite-scroll sentinel (mobile only) ─────────────────────────────────────
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (isDesktop) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0]?.isIntersecting &&
+          infinite.hasNextPage &&
+          !infinite.isFetchingNextPage
+        ) {
+          infinite.fetchNextPage();
+        }
+      },
+      { rootMargin: "400px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [isDesktop, infinite.hasNextPage, infinite.isFetchingNextPage, infinite.fetchNextPage]);
 
   function clearAll() {
     setSearch("");
@@ -547,20 +693,18 @@ export function Transactions() {
           )}
 
           {/* Result count — visible when any filter is active */}
-          {hasFilters && (
+          {hasFilters && !isLoading && (
             <p className="text-right text-xs text-ink-600">
-              {filtered.length === total
-                ? `${filtered.length} transactions`
-                : `${filtered.length} of ${total} transactions`}
+              {rows.length >= count
+                ? `${count} transactions`
+                : `${rows.length} of ${count} transactions`}
             </p>
           )}
         </div>
       )}
 
       {isLoading ? (
-        <Card className="flex justify-center py-8">
-          <Spinner />
-        </Card>
+        <ListSkeleton />
       ) : !hasData ? (
         <EmptyState
           icon={<Receipt className="size-6" />}
@@ -584,39 +728,68 @@ export function Transactions() {
           )}
         </div>
       ) : (
-        <div className="space-y-5">
-          {groups.map(([day, txns]) => (
-            <section key={day}>
-              <h2 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
-                {dayLabel(day)}
-              </h2>
-              <Card className="divide-y divide-ink-800/70 py-0">
-                {txns.map((tx) => {
-                  const cat = tx.category_id
-                    ? categories.get(tx.category_id)
-                    : undefined;
-                  return (
-                    <TransactionRow
-                      key={tx.id}
-                      tx={tx}
-                      categoryName={cat?.name}
-                      categoryIcon={cat?.icon}
-                      categoryColor={cat?.color}
-                      accountName={accountMap.get(tx.account_id)}
-                      toAccountName={
-                        tx.destination_account_id
-                          ? accountMap.get(tx.destination_account_id)
-                          : undefined
-                      }
-                      reimbursedAmount={reimbursedInTxCurrency.get(tx.id)}
-                      onClick={() => setEditing(tx)}
-                    />
-                  );
-                })}
-              </Card>
-            </section>
-          ))}
-        </div>
+        <>
+          <motion.div
+            className="space-y-5"
+            variants={reduce ? undefined : listContainerVariants}
+            initial={reduce ? undefined : "hidden"}
+            animate={reduce ? undefined : "show"}
+          >
+            {groups.map(([day, txns]) => (
+              <motion.section
+                key={day}
+                variants={reduce ? undefined : listItemVariants}
+              >
+                <h2 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                  {dayLabel(day)}
+                </h2>
+                <Card className="divide-y divide-ink-800/70 py-0">
+                  {txns.map((tx) => {
+                    const cat = tx.category_id
+                      ? categories.get(tx.category_id)
+                      : undefined;
+                    return (
+                      <TransactionRow
+                        key={tx.id}
+                        tx={tx}
+                        categoryName={cat?.name}
+                        categoryIcon={cat?.icon}
+                        categoryColor={cat?.color}
+                        accountName={accountMap.get(tx.account_id)}
+                        toAccountName={
+                          tx.destination_account_id
+                            ? accountMap.get(tx.destination_account_id)
+                            : undefined
+                        }
+                        reimbursedAmount={reimbursedInTxCurrency.get(tx.id)}
+                        onClick={() => setEditing(tx)}
+                      />
+                    );
+                  })}
+                </Card>
+              </motion.section>
+            ))}
+          </motion.div>
+
+          {/* Desktop: numbered pager. Mobile: auto-loading sentinel. */}
+          {isDesktop ? (
+            <Pager page={page} pageCount={pageCount} onPage={setPage} />
+          ) : (
+            <div ref={sentinelRef} className="pt-2">
+              {infinite.isFetchingNextPage && (
+                <Card className="divide-y divide-ink-800/70 py-0">
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </Card>
+              )}
+              {!infinite.hasNextPage && count > PAGE_SIZE && (
+                <p className="py-4 text-center text-xs text-ink-600">
+                  You’re all caught up
+                </p>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {hasData && (
@@ -679,7 +852,8 @@ export function Transactions() {
         <SearchOverlay
           search={search}
           onSearch={setSearch}
-          results={filtered}
+          results={searchQuery.data ?? []}
+          loading={searchQuery.isFetching}
           categories={categories}
           accountMap={accountMap}
           reimbursedInTxCurrency={reimbursedInTxCurrency}
@@ -718,6 +892,7 @@ function SearchOverlay({
   search,
   onSearch,
   results,
+  loading,
   categories,
   accountMap,
   reimbursedInTxCurrency,
@@ -727,6 +902,7 @@ function SearchOverlay({
   search: string;
   onSearch: (q: string) => void;
   results: Transaction[];
+  loading: boolean;
   categories: Map<string, Category>;
   accountMap: Map<string, string>;
   reimbursedInTxCurrency: Map<string, number>;
@@ -758,6 +934,7 @@ function SearchOverlay({
             aria-label="Search transactions"
             className="w-full bg-transparent text-sm text-ink-50 placeholder:text-ink-600 focus:outline-none"
           />
+          {loading && <Spinner className="size-4" />}
           {search && (
             <button
               type="button"
@@ -783,7 +960,9 @@ function SearchOverlay({
           {results.length === 0 ? (
             <p className="px-2 py-10 text-center text-sm text-ink-500">
               {search.trim()
-                ? `No matches for “${search}”.`
+                ? loading
+                  ? "Searching…"
+                  : `No matches for “${search}”.`
                 : "Type to search your transactions."}
             </p>
           ) : (
@@ -810,9 +989,9 @@ function SearchOverlay({
                   />
                 );
               })}
-              {results.length > 50 && (
+              {results.length >= 50 && (
                 <p className="py-3 text-center text-xs text-ink-500">
-                  +{results.length - 50} more — refine your search
+                  Showing the first 50 — refine your search
                 </p>
               )}
             </div>

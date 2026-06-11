@@ -7,7 +7,7 @@ import { accountBalancesByCurrency, isMultiCurrency } from "@/lib/balances";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ACCOUNT_TYPE_COLORS, ACCOUNT_TYPE_LABELS } from "@/lib/account-colors";
-import { Button, Card, EmptyState, PageHeader, Sheet, Spinner } from "@/components/ui";
+import { Button, Card, EmptyState, PageHeader, Sheet, Skeleton } from "@/components/ui";
 import type { Account, AccountType } from "@/lib/types";
 
 const inputCls =
@@ -33,9 +33,18 @@ export function Accounts() {
       />
 
       {isLoading ? (
-        <Card className="flex justify-center py-8">
-          <Spinner />
-        </Card>
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <Card key={i} className="flex items-center gap-3">
+              <Skeleton className="size-9 shrink-0 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3.5 w-32" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              <Skeleton className="h-4 w-20" />
+            </Card>
+          ))}
+        </div>
       ) : accounts.length === 0 ? (
         <EmptyState
           icon={<Wallet className="size-6" />}
