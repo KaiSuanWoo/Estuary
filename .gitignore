@@ -6,6 +6,8 @@ dist-ssr
 *.local
 .env
 .env.local
+# Personal data seeds (real transactions / account numbers) stay local-only.
+supabase/seeds/
 .DS_Store
 .vscode/*
 !.vscode/extensions.json

@@ -68,11 +68,12 @@ revoke execute on function public.handle_new_user() from public, anon, authentic
 revoke execute on function public.is_admin() from public, anon;
 grant execute on function public.is_admin() to authenticated;
 
--- Backfill existing users as approved; make the owner an admin.
+-- Backfill any existing users as approved.
 insert into public.profiles (id, email, status)
 select id, email, 'approved' from auth.users
 on conflict (id) do nothing;
 
-update public.profiles
-set is_admin = true, status = 'approved', approved_at = now()
-where email = 'you@example.com';
+-- Promote your first admin manually after signing in once (kept out of version
+-- control so no personal email lives in the repo):
+--   update public.profiles set is_admin = true, status = 'approved'
+--   where email = 'you@example.com';

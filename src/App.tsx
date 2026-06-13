@@ -11,6 +11,7 @@ import { SetPassword } from "@/routes/SetPassword";
 // Route-level code splitting: each screen is its own chunk so the initial load
 // (login) doesn't pull in recharts, the import parser, etc. Named exports are
 // wrapped to the default-export shape that React.lazy expects.
+const Landing = lazy(() => import("@/routes/Landing").then((m) => ({ default: m.Landing })));
 const Login = lazy(() => import("@/routes/Login").then((m) => ({ default: m.Login })));
 const AuthCallback = lazy(() => import("@/routes/AuthCallback").then((m) => ({ default: m.AuthCallback })));
 const Onboarding = lazy(() => import("@/routes/Onboarding").then((m) => ({ default: m.Onboarding })));
@@ -36,6 +37,7 @@ export function App() {
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Suspense fallback={<FullScreenSpinner />}>
         <Routes>
+          <Route path="/welcome" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route element={<RequireAuth />}>
@@ -69,7 +71,9 @@ function RequireAuth() {
   const { session, loading, isRecovery } = useAuth();
 
   if (loading) return <FullScreenSpinner />;
-  if (!session) return <Navigate to="/login" replace />;
+  // Logged-out visitors land on the public marketing/install page; the Landing
+  // CTA takes them to /login when they're ready to sign in.
+  if (!session) return <Navigate to="/welcome" replace />;
   // A recovery (password-reset) session must set a new password before anything
   // else — short-circuit the approval/setup gates.
   if (isRecovery) return <SetPassword />;
