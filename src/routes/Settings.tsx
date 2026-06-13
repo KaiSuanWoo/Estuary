@@ -74,7 +74,7 @@ export function Settings() {
                 </span>
                 <div>
                   <p className="font-medium text-ink-100">Import transactions</p>
-                  <p className="text-xs text-ink-500">CommBank · CIMB · Wise</p>
+                  <p className="text-xs text-ink-500">CommBank · CIMB · Wise · Nationwide</p>
                 </div>
               </div>
               <ChevronRight className="size-5 text-ink-500" />

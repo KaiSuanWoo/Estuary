@@ -381,20 +381,118 @@ function parseWiseCSV(text: string): ImportRow[] {
   return rows;
 }
 
+// ─── Nationwide (FlexDirect) CSV ──────────────────────────────────────────────
+
+const MONTH_ABBR: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+/** Nationwide dates look like "13 May 2026" → "2026-05-13". */
+function parseNationwideDate(raw: string): string | null {
+  const m = raw.trim().match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})$/);
+  if (!m) return null;
+  const [, d, monName, yr] = m;
+  const mo = MONTH_ABBR[monName.slice(0, 3).toLowerCase()];
+  if (!mo) return null;
+  return `${yr}-${String(mo).padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+
+/** "£1,790.24" → 1790.24 ; "" → 0 (Nationwide amounts are always positive). */
+function parseGbpAmount(raw: string): number {
+  const n = parseFloat((raw || "").replace(/[^0-9.]/g, ""));
+  return isFinite(n) ? n : 0;
+}
+
+/**
+ * Tidy a Nationwide description by dropping the trailing country code and store
+ * number that Visa rows carry.
+ *   "SAINSBURYS.CO.UK 0800 328 1700 GB"  → "SAINSBURYS.CO.UK 0800 328 1700"
+ *   "AMAZON* NH92K0K54 LONDON GB 7853"   → "AMAZON* NH92K0K54 LONDON"
+ */
+function cleanNationwideDescription(raw: string): string {
+  return raw
+    .replace(/\s+(GB|US|IE|EU|FR|DE|NL|ES)\s+\d{3,5}\s*$/i, "")
+    .replace(/\s+(GB|US|IE|EU|FR|DE|NL|ES)\s*$/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/**
+ * Parse a Nationwide FlexDirect statement CSV.
+ *
+ * The export opens with a few "Account Name:" / balance metadata rows and a
+ * blank line, then the real header:
+ *   "Date","Transaction type","Description","Paid out","Paid in","Balance"
+ *
+ * `Paid out` → expense, `Paid in` → income (always GBP). "Transfer to/from"
+ * rows are treated as own-account transfers (excluded from cashflow).
+ */
+function parseNationwideCSV(text: string): ImportRow[] {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const headerIdx = lines.findIndex((l) =>
+    /^"?Date"?\s*,\s*"?Transaction type"?/i.test(l),
+  );
+  if (headerIdx < 0) return [];
+
+  const rows: ImportRow[] = [];
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line || !line.trim()) continue;
+    const parts = splitCsvLine(line);
+    if (parts.length < 5) continue;
+
+    const [rawDate = "", txTypeRaw = "", description = "", paidOut = "", paidIn = ""] =
+      parts;
+    const isoDate = parseNationwideDate(rawDate);
+    if (!isoDate) continue;
+
+    const txType = txTypeRaw.trim();
+    const out = parseGbpAmount(paidOut);
+    const inn = parseGbpAmount(paidIn);
+    const isOut = out > 0;
+    const amount = isOut ? out : inn;
+    if (!(amount > 0)) continue;
+
+    let merchant = cleanNationwideDescription(description);
+    // Cashback/interest rows just read "Credit <date>" — use the type instead.
+    if (!merchant || /^credit\b/i.test(merchant)) merchant = txType;
+
+    const isXfer = /^transfer\b/i.test(txType) || looksLikeTransfer(merchant);
+    const type: ImportRow["type"] = isXfer
+      ? isOut ? "transfer" : "adjustment"
+      : isOut ? "expense" : "income";
+
+    rows.push({
+      type,
+      date: isoDate,
+      amount,
+      currency: "GBP",
+      account_id: "",
+      merchant: merchant || null,
+      notes: merchant !== txType ? txType || null : null,
+      external_id: `${isoDate}|${(isOut ? paidOut : paidIn).trim()}|${description.trim()}`,
+    });
+  }
+  return rows;
+}
+
 // ─── format detection ─────────────────────────────────────────────────────────
 
-type ImportFormat = "commbank" | "cimb" | "wise";
+type ImportFormat = "commbank" | "cimb" | "wise" | "nationwide";
 
 const FORMAT_LABELS: Record<ImportFormat, string> = {
-  commbank: "CommBank",
-  cimb:     "CIMB Clicks",
-  wise:     "Wise",
+  commbank:   "CommBank",
+  cimb:       "CIMB Clicks",
+  wise:       "Wise",
+  nationwide: "Nationwide",
 };
 
 const SOURCE_LABELS: Record<string, string> = {
-  commbank_csv: "CommBank",
-  cimb_csv:     "CIMB Clicks",
-  wise_csv:     "Wise",
+  commbank_csv:   "CommBank",
+  cimb_csv:       "CIMB Clicks",
+  wise_csv:       "Wise",
+  nationwide_csv: "Nationwide",
 };
 
 function detectAndParse(text: string): { rows: ImportRow[]; format: ImportFormat } {
@@ -406,6 +504,14 @@ function detectAndParse(text: string): { rows: ImportRow[]; format: ImportFormat
   // CIMB: "Date,Transaction Details,..."
   if (/^"?Date"?,\s*"?Transaction Details/i.test(firstLine)) {
     return { rows: parseCIMBCSV(text), format: "cimb" };
+  }
+  // Nationwide: "Account Name:" metadata header, then a
+  // "Date","Transaction type","Description","Paid out","Paid in" table.
+  if (
+    /^"?Account Name/i.test(firstLine) ||
+    /"Transaction type"\s*,\s*"Description"\s*,\s*"Paid out"/i.test(text)
+  ) {
+    return { rows: parseNationwideCSV(text), format: "nationwide" };
   }
   return { rows: parseCommBankCSV(text), format: "commbank" };
 }
@@ -532,7 +638,10 @@ export function Import() {
       return row;
     });
     const source =
-      format === "cimb" ? "cimb_csv" : format === "wise" ? "wise_csv" : "commbank_csv";
+      format === "cimb" ? "cimb_csv"
+      : format === "wise" ? "wise_csv"
+      : format === "nationwide" ? "nationwide_csv"
+      : "commbank_csv";
     await bulk.mutateAsync({ fileName, source, rows: withAccount });
   }
 
@@ -596,7 +705,7 @@ export function Import() {
             <FileUp className="size-8 text-ink-500" />
             <div className="text-center">
               <p className="text-sm font-medium text-ink-300">
-                Drop CommBank, CIMB, or Wise CSV here
+                Drop CommBank, CIMB, Wise, or Nationwide CSV here
               </p>
               <p className="mt-0.5 text-xs text-ink-600">
                 format is detected automatically · or tap to browse
