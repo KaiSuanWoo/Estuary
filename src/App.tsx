@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { useAuth } from "@/lib/auth";
 import { useSettings } from "@/hooks/useSettings";
 import { useProfile } from "@/hooks/useProfile";
+import { isStandalone } from "@/lib/pwa";
 import { Spinner } from "@/components/ui";
 import { AppShell } from "@/components/AppShell";
 import { PendingApproval } from "@/routes/PendingApproval";
@@ -71,9 +72,10 @@ function RequireAuth() {
   const { session, loading, isRecovery } = useAuth();
 
   if (loading) return <FullScreenSpinner />;
-  // Logged-out visitors land on the public marketing/install page; the Landing
-  // CTA takes them to /login when they're ready to sign in.
-  if (!session) return <Navigate to="/welcome" replace />;
+  // Logged-out: the installed app goes straight to sign-in (the marketing
+  // landing is for browser visitors only); browser visitors get the landing.
+  if (!session)
+    return <Navigate to={isStandalone() ? "/login" : "/welcome"} replace />;
   // A recovery (password-reset) session must set a new password before anything
   // else — short-circuit the approval/setup gates.
   if (isRecovery) return <SetPassword />;

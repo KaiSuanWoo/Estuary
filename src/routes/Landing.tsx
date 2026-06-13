@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import {
   ArrowRight,
   Check,
@@ -15,6 +15,7 @@ import { motion } from "motion/react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { useReducedMotion } from "@/lib/motion";
+import { isStandalone } from "@/lib/pwa";
 import { Button } from "@/components/ui";
 import { Logo } from "@/components/Logo";
 
@@ -36,15 +37,6 @@ function detectPlatform(): Platform {
   if (iOS) return "ios";
   if (/android/i.test(ua)) return "android";
   return "desktop";
-}
-
-function isStandalone(): boolean {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    // iOS Safari
-    (navigator as unknown as { standalone?: boolean }).standalone === true
-  );
 }
 
 export function Landing() {
@@ -86,6 +78,9 @@ export function Landing() {
           animate: { opacity: 1, y: 0 },
           transition: { duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] as const },
         };
+
+  // The installed app should never show the marketing landing — straight to app.
+  if (isStandalone()) return <Navigate to="/login" replace />;
 
   return (
     <div className="min-h-full">
