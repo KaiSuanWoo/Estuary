@@ -19,15 +19,16 @@ There is **no test runner configured**. `npm run lint` is purely a TypeScript ty
 
 ## Current state (important)
 
-The app is wired end-to-end and builds clean, but **there is no live Supabase backend yet** — the original project was deleted, so data calls fail at runtime until a new project is created and the migration is applied. The plan is to keep building UI-first and migrate later.
+The app is wired end-to-end, builds clean, and runs against a **live Supabase backend** (project ref in `.env.local`) holding real data. Security/perf advisors are clean (the only remaining lints are benign "unused index" INFOs on freshly-created FK indexes). See `README.md` for the deploy + closed-beta runbook.
 
-- **Schema lives in `supabase/migrations/0001_initial_schema.sql`** — this is the source of truth (10 tables, RLS policies, indexes), recovered from the original project. To bring up a backend: create a Supabase project, run that SQL (CLI `supabase db push` or the SQL editor), then update `.env.local` with the new URL/anon key.
+- **Schema lives in `supabase/migrations/`** — the source of truth (10 tables, RLS, indexes). `0005` adds the `settings.onboarding_completed` gate; `0006` is a performance pass (wraps `auth.uid()` as `(select auth.uid())` in every RLS policy + adds covering FK indexes). To bring up a fresh backend: create a project, `supabase db push`, then update `.env.local`.
+- **First-run onboarding** (`src/routes/Onboarding.tsx`) is gated by `settings.onboarding_completed`; the `RequireSetup` gate in `App.tsx` bounces new users to `/onboarding`. Routes are code-split via `React.lazy`.
 - **`src/lib/database.types.ts` is hand-written to match that migration.** After a real project exists, regenerate it instead of editing by hand: `supabase gen types typescript --project-id <ref> --schema public > src/lib/database.types.ts` (or the Supabase MCP `generate_typescript_types` tool). `src/lib/types.ts` re-exports friendly row aliases (`Account`, `Transaction`, …) — import domain types from there.
 - **PWA icons** (`public/icon.svg`, `icon-192.png`, `icon-512.png`) are generated; the PNGs come from `/tmp/genicons.mjs`-style raster generation (no SVG rasterizer is installed locally — only `sips`, which can't read SVG).
 
 ### App structure
 - **Entry**: `src/main.tsx` → `QueryClientProvider` → `AuthProvider` → `App`. `src/App.tsx` holds the `BrowserRouter`, a `RequireAuth` gate, and the route table.
-- **Auth**: magic-link (`signInWithOtp`) via `src/lib/auth.tsx` (`useAuth()`); the callback route is `/auth/callback` (kept under `/auth` so the SW nav-fallback ignores it).
+- **Auth**: email+password and Google OAuth via `src/lib/auth.tsx` (`useAuth()`); the callback route is `/auth/callback` (kept under `/auth` so the SW nav-fallback ignores it). Access is admin-approval-gated: a `profiles` row (`status`, `is_admin`) is auto-created per user; `App.tsx` chains `RequireAuth → RequireApproval → RequireSetup`, and admins approve from `/admin`. RLS uses a `public.is_admin()` SECURITY DEFINER helper.
 - **Data layer**: feature hooks in `src/hooks/` (`useAccounts`, `useTransactions`, `useCategories`, `useSettings`) wrap Supabase calls in TanStack Query. Query keys are centralised in `src/lib/query.ts` (`qk`). Inserts stamp `user_id` from the session; RLS enforces ownership.
 - **Money**: amounts are stored positive; `type` carries the sign. Format via `src/lib/format.ts` (`formatMoney`, `formatSignedMoney`, `signOf`). Balances are derived client-side in `src/lib/balances.ts` (opening balance ± transactions, per currency — no server-side rollup). Use `.tnum` on any money display.
 - **UI**: shared primitives in `src/components/ui.tsx` (`Card`, `Button`, `PageHeader`, `EmptyState`, `Spinner`); mobile frame + bottom tab bar in `src/components/AppShell.tsx`; screens in `src/routes/` (`Dashboard`, `Transactions`, `Accounts`, `Settings`). Add/entry forms are bottom-sheet components.

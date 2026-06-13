@@ -1,26 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, Download, LogOut, RefreshCw, Tag } from "lucide-react";
+import { ChevronRight, Download, LogOut, RefreshCw, ShieldCheck, Tag } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useProfile } from "@/hooks/useProfile";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useFxRates, useLiveRates, useUpsertFxRate } from "@/hooks/useFxRates";
 import { buildRateMap, convert } from "@/lib/fx";
 import { cn } from "@/lib/cn";
+import { CURRENCIES, PAY_CYCLES } from "@/lib/constants";
 import { Button, Card, PageHeader, Spinner } from "@/components/ui";
-
-const CURRENCIES = [
-  "AUD", "MYR", "USD", "EUR", "GBP",
-  "SGD", "JPY", "CNY", "HKD", "THB",
-  "NZD", "CAD",
-];
-const PAY_CYCLES = ["weekly", "fortnightly", "monthly"];
 
 const controlCls =
   "h-11 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-ink-50 focus:border-teal-500 focus:outline-none";
 
 export function Settings() {
   const { user, signOut } = useAuth();
+  const { data: profile } = useProfile();
   const { data: settings, isLoading } = useSettings();
   const update = useUpdateSettings();
 
@@ -99,6 +95,23 @@ export function Settings() {
               <ChevronRight className="size-5 text-ink-500" />
             </Card>
           </Link>
+
+          {profile?.is_admin && (
+            <Link to="/admin">
+              <Card className="flex items-center justify-between transition-colors hover:bg-ink-900">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-9 items-center justify-center rounded-lg bg-teal-500/12 text-teal-300">
+                    <ShieldCheck className="size-4" />
+                  </span>
+                  <div>
+                    <p className="font-medium text-ink-100">Approvals</p>
+                    <p className="text-xs text-ink-500">Review beta sign-ups</p>
+                  </div>
+                </div>
+                <ChevronRight className="size-5 text-ink-500" />
+              </Card>
+            </Link>
+          )}
 
           <ExchangeRates baseCurrency={settings.base_currency} />
 

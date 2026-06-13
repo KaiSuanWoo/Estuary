@@ -20,8 +20,8 @@ import {
   useArchiveCategory,
   useReorderCategories,
   useSeedCategories,
-  type SeedCategory,
 } from "@/hooks/useCategories";
+import { SEED_CATEGORIES } from "@/lib/constants";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
@@ -109,38 +109,6 @@ function IconPicker({
     </div>
   );
 }
-
-// ─── Default category seed (AU/MY dual-currency lifestyle) ────────────────────
-const SEED_CATEGORIES: SeedCategory[] = [
-  // ── Expenses ─────────────────────────────────────────────────────────────
-  { name: "Groceries",           kind: "expense", color: "#4F8A6D" },
-  { name: "Dining & Takeaway",   kind: "expense", color: "#E0A458" },
-  { name: "Transport",           kind: "expense", color: "#3F72AF" }, // Grab, bus, Uber, petrol
-  { name: "Rent & Housing",      kind: "expense", color: "#8AA6C4" },
-  { name: "Utilities & Bills",   kind: "expense", color: "#7FD1B9" },
-  { name: "Internet & Phone",    kind: "expense", color: "#7FD1B9" },
-  { name: "Health & Medical",    kind: "expense", color: "#C46D6D" },
-  { name: "Insurance",           kind: "expense", color: "#8AA6C4" },
-  { name: "Shopping",            kind: "expense", color: "#E0A458" },
-  { name: "Subscriptions",       kind: "expense", color: "#8AA6C4" },
-  { name: "Entertainment",       kind: "expense", color: "#3F72AF" },
-  // Travel — split into three since you travel frequently
-  { name: "Flights",             kind: "expense", color: "#3F72AF" },
-  { name: "Accommodation",       kind: "expense", color: "#8AA6C4" },
-  { name: "Travel Expenses",     kind: "expense", color: "#E0A458" }, // food, activities, forex while away
-  // Family
-  { name: "Family Support",      kind: "expense", color: "#4F8A6D" }, // gifts / non-reimbursed
-  { name: "On Behalf of Family", kind: "expense", color: "#C46D6D" }, // paid for family, will be reimbursed — use the Reimbursable toggle
-  // Other
-  { name: "Personal Care",       kind: "expense", color: "#4F8A6D" },
-  { name: "Fees & Charges",      kind: "expense", color: "#C46D6D" }, // bank fees, Wise FX fees
-  // ── Income ───────────────────────────────────────────────────────────────
-  { name: "Salary",              kind: "income",  color: "#7FD1B9" },
-  { name: "Freelance",           kind: "income",  color: "#7FD1B9" },
-  { name: "Family Transfer",     kind: "income",  color: "#4F8A6D" }, // monthly MYR from family
-  { name: "Interest",            kind: "income",  color: "#4F8A6D" },
-  { name: "Reimbursements",      kind: "income",  color: "#8AA6C4" }, // paid back by family / others
-];
 
 export function Categories() {
   const [adding, setAdding] = useState(false);

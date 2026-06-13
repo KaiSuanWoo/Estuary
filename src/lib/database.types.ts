@@ -33,6 +33,7 @@ export type RuleMatchOperator =
   | "regex"
   | "amountRange";
 export type FxRateSource = "api" | "manual";
+export type ProfileStatus = "pending" | "approved" | "rejected";
 
 export interface Database {
   public: {
@@ -44,6 +45,7 @@ export interface Database {
           fx_api_enabled: boolean;
           pay_cycle: string;
           first_pay_date: string | null;
+          onboarding_completed: boolean;
           updated_at: string;
         };
         Insert: {
@@ -52,6 +54,7 @@ export interface Database {
           fx_api_enabled?: boolean;
           pay_cycle?: string;
           first_pay_date?: string | null;
+          onboarding_completed?: boolean;
           updated_at?: string;
         };
         Update: {
@@ -60,7 +63,38 @@ export interface Database {
           fx_api_enabled?: boolean;
           pay_cycle?: string;
           first_pay_date?: string | null;
+          onboarding_completed?: boolean;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      profiles: {
+        Row: {
+          id: string;
+          email: string | null;
+          status: ProfileStatus;
+          is_admin: boolean;
+          created_at: string;
+          approved_at: string | null;
+          approved_by: string | null;
+        };
+        Insert: {
+          id: string;
+          email?: string | null;
+          status?: ProfileStatus;
+          is_admin?: boolean;
+          created_at?: string;
+          approved_at?: string | null;
+          approved_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          email?: string | null;
+          status?: ProfileStatus;
+          is_admin?: boolean;
+          created_at?: string;
+          approved_at?: string | null;
+          approved_by?: string | null;
         };
         Relationships: [];
       };

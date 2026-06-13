@@ -15,6 +15,8 @@ export const queryClient = new QueryClient({
 /** Centralised query keys so invalidation stays consistent. */
 export const qk = {
   session: ["session"] as const,
+  profile: ["profile"] as const,
+  profilesAll: ["profiles"] as const,
   settings: ["settings"] as const,
   accounts: ["accounts"] as const,
   categories: ["categories"] as const,

@@ -28,6 +28,9 @@ export type ImportBatch = Tables["import_batches"]["Row"];
 export type Settings = Tables["settings"]["Row"];
 export type SettingsUpdate = Tables["settings"]["Update"];
 
+export type Profile = Tables["profiles"]["Row"];
+export type ProfileUpdate = Tables["profiles"]["Update"];
+
 export type {
   AccountType,
   SavingsType,

@@ -1,0 +1,4 @@
+# Netlify SPA fallback — serve index.html for any client-side route (including
+# /auth/callback) so deep links and hard refreshes don't 404. Vercel users get
+# the same via vercel.json; this file is harmless there.
+/*    /index.html   200
