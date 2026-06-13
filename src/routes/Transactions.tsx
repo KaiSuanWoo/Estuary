@@ -29,6 +29,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { convert } from "@/lib/fx";
 import { dayLabel } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { appScrollEl } from "@/lib/scroll";
 import {
   listContainerVariants,
   listItemVariants,
@@ -305,10 +306,12 @@ export function Transactions() {
 
   // Reveal the floating search button once the top search bar has scrolled away.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 500);
+    const el = appScrollEl();
+    if (!el) return;
+    const onScroll = () => setScrolled(el.scrollTop > 500);
     onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
   }, []);
 
   // Multi-select filters — empty Set means "all" (no restriction)
@@ -485,7 +488,7 @@ export function Transactions() {
           infinite.fetchNextPage();
         }
       },
-      { rootMargin: "400px" },
+      { root: appScrollEl(), rootMargin: "400px" },
     );
     obs.observe(el);
     return () => obs.disconnect();
@@ -799,10 +802,10 @@ export function Transactions() {
           aria-label="Search transactions"
           tabIndex={scrolled ? 0 : -1}
           className={cn(
-            "fixed bottom-40 left-5 z-30 flex size-11 items-center justify-center rounded-full",
+            "fixed bottom-56 left-5 z-30 flex size-11 items-center justify-center rounded-full",
             "border border-ink-700 bg-ink-900/90 text-ink-200 shadow-lg shadow-ink-950/40 backdrop-blur",
             "transition-all hover:bg-ink-800 hover:text-ink-50",
-            "lg:bottom-24 lg:left-auto lg:right-8",
+            "lg:bottom-40 lg:left-auto lg:right-8",
             scrolled
               ? "opacity-100"
               : "pointer-events-none translate-y-1 opacity-0",
@@ -837,8 +840,8 @@ export function Transactions() {
           aria-pressed={flaggedOnly}
           aria-label="Show flagged only"
           className={cn(
-            "fixed bottom-56 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-ink-950/40 backdrop-blur transition-colors",
-            "lg:bottom-40 lg:left-auto lg:right-8",
+            "fixed bottom-40 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-ink-950/40 backdrop-blur transition-colors",
+            "lg:bottom-24 lg:left-auto lg:right-8",
             flaggedOnly
               ? "border border-amber-500/60 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
               : "border border-ink-700 bg-ink-900/90 text-ink-200 hover:bg-ink-800 hover:text-ink-50",

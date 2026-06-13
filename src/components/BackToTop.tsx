@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronUp } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { appScrollEl } from "@/lib/scroll";
 
 /**
  * Floating "scroll to top" button. Fades/slides in from the top once the page
@@ -11,16 +12,18 @@ export function BackToTop() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setShow(window.scrollY > 1200);
+    const el = appScrollEl();
+    if (!el) return;
+    const onScroll = () => setShow(el.scrollTop > 1200);
     onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
   }, []);
 
   return (
     <button
       type="button"
-      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      onClick={() => appScrollEl()?.scrollTo({ top: 0, behavior: "smooth" })}
       aria-label="Back to top"
       tabIndex={show ? 0 : -1}
       style={{ top: "calc(env(safe-area-inset-top) + 0.9rem)" }}
