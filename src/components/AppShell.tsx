@@ -1,6 +1,7 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { LayoutDashboard, ListPlus, Settings, Wallet } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion, useAnimationControls } from "motion/react";
 import { cn } from "@/lib/cn";
 import { springSnappy, useReducedMotion } from "@/lib/motion";
 import { Logo } from "@/components/Logo";
@@ -33,6 +34,32 @@ const NAV: NavItem[] = [
 export function AppShell() {
   const reduce = useReducedMotion();
   const pillTransition = reduce ? { duration: 0 } : springSnappy;
+  const { pathname } = useLocation();
+
+  // Pulse the whole dock each time the active tab changes.
+  const dockPulse = useAnimationControls();
+  useEffect(() => {
+    if (reduce) return;
+    dockPulse.start({
+      scale: [1, 1.06, 1],
+      transition: { duration: 0.34, ease: "easeOut" },
+    });
+  }, [pathname, reduce, dockPulse]);
+
+  // Shrink the dock while scrolling down; restore near the top or on scroll up.
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y < 60) setCompact(false);
+      else if (y > last + 6) setCompact(true);
+      else if (y < last - 6) setCompact(false);
+      last = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
     <div className="min-h-full">
@@ -100,55 +127,48 @@ export function AppShell() {
         style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.6rem)" }}
         aria-label="Primary"
       >
-        <div
-          className="flex items-center gap-1 rounded-[26px] border border-ink-800/60 bg-ink-950/70 p-1.5 backdrop-blur-xl"
-          style={{ boxShadow: "var(--shadow-float)" }}
+        {/* Outer layer shrinks on scroll; inner layer pulses on tab change.
+            Anchored bottom-centre so it stays put in the same spot. */}
+        <motion.div
+          animate={{ scale: compact ? 0.85 : 1 }}
+          transition={pillTransition}
+          style={{ transformOrigin: "bottom center" }}
         >
-          {NAV.filter((n) => n.primary).map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end} aria-label={label}>
-              {({ isActive }) => (
-                <motion.span
-                  whileTap={reduce ? undefined : { scale: 0.88 }}
-                  transition={pillTransition}
-                  className="relative flex h-12 items-center rounded-[20px] px-4"
-                >
-                  {isActive && (
-                    <motion.span
-                      layoutId="navPillMobile"
-                      transition={pillTransition}
-                      className="absolute inset-0 -z-10 rounded-[20px] bg-teal-500/15 ring-1 ring-inset ring-teal-400/25"
-                    />
-                  )}
-                  <Icon
-                    className={cn(
-                      "size-[22px] shrink-0 transition-colors",
-                      isActive ? "text-teal-300" : "text-ink-400",
-                    )}
-                    strokeWidth={isActive ? 2.4 : 2}
-                  />
-                  <AnimatePresence initial={false}>
+          <motion.div
+            animate={dockPulse}
+            className="flex items-center gap-1 rounded-[26px] border border-ink-800/60 bg-ink-950/70 p-1.5 backdrop-blur-xl"
+            style={{ boxShadow: "var(--shadow-float)" }}
+          >
+            {NAV.filter((n) => n.primary).map(({ to, label, icon: Icon, end }) => (
+              <NavLink key={to} to={to} end={end} aria-label={label} className="block">
+                {({ isActive }) => (
+                  <motion.span
+                    whileTap={reduce ? undefined : { scale: 0.88 }}
+                    transition={pillTransition}
+                    // Equal-width cells keep the dock the exact same size on
+                    // every tab, so its position never shifts.
+                    className="relative flex size-12 items-center justify-center rounded-[20px]"
+                  >
                     {isActive && (
                       <motion.span
-                        key="label"
-                        initial={reduce ? { opacity: 0 } : { width: 0, opacity: 0 }}
-                        animate={
-                          reduce
-                            ? { opacity: 1 }
-                            : { width: "auto", opacity: 1 }
-                        }
-                        exit={reduce ? { opacity: 0 } : { width: 0, opacity: 0 }}
+                        layoutId="navPillMobile"
                         transition={pillTransition}
-                        className="overflow-hidden whitespace-nowrap text-sm font-semibold text-teal-200"
-                      >
-                        <span className="pl-2">{label}</span>
-                      </motion.span>
+                        className="absolute inset-0 -z-10 rounded-[20px] bg-teal-500/15 ring-1 ring-inset ring-teal-400/25"
+                      />
                     )}
-                  </AnimatePresence>
-                </motion.span>
-              )}
-            </NavLink>
-          ))}
-        </div>
+                    <Icon
+                      className={cn(
+                        "size-[22px] shrink-0 transition-colors",
+                        isActive ? "text-teal-300" : "text-ink-400",
+                      )}
+                      strokeWidth={isActive ? 2.4 : 2}
+                    />
+                  </motion.span>
+                )}
+              </NavLink>
+            ))}
+          </motion.div>
+        </motion.div>
       </nav>
     </div>
   );
