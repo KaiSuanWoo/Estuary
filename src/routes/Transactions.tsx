@@ -29,7 +29,6 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { convert } from "@/lib/fx";
 import { dayLabel } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { appScrollEl } from "@/lib/scroll";
 import {
   listContainerVariants,
   listItemVariants,
@@ -306,12 +305,10 @@ export function Transactions() {
 
   // Reveal the floating search button once the top search bar has scrolled away.
   useEffect(() => {
-    const el = appScrollEl();
-    if (!el) return;
-    const onScroll = () => setScrolled(el.scrollTop > 500);
+    const onScroll = () => setScrolled(window.scrollY > 500);
     onScroll();
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   // Multi-select filters — empty Set means "all" (no restriction)
@@ -488,7 +485,7 @@ export function Transactions() {
           infinite.fetchNextPage();
         }
       },
-      { root: appScrollEl(), rootMargin: "400px" },
+      { rootMargin: "400px" },
     );
     obs.observe(el);
     return () => obs.disconnect();

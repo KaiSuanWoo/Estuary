@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 import { LayoutDashboard, ListPlus, Settings, Wallet } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/cn";
@@ -35,17 +34,8 @@ export function AppShell() {
   const reduce = useReducedMotion();
   const pillTransition = reduce ? { duration: 0 } : springSnappy;
 
-  // The content area scrolls internally (not the document) so the mobile
-  // browser's bottom toolbar never collapses/expands and the floating dock
-  // stays put. Reset the scroll to the top on every route change.
-  const scrollRef = useRef<HTMLElement>(null);
-  const { pathname } = useLocation();
-  useEffect(() => {
-    scrollRef.current?.scrollTo(0, 0);
-  }, [pathname]);
-
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="min-h-full">
       {/* ---------------------------------------------------------------- */}
       {/* Desktop: sticky glass top bar                                     */}
       {/* ---------------------------------------------------------------- */}
@@ -96,14 +86,8 @@ export function AppShell() {
       {/* ---------------------------------------------------------------- */}
       {/* Content                                                          */}
       {/* ---------------------------------------------------------------- */}
-      <main
-        id="app-scroll"
-        ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-      >
-        <div className="mx-auto w-full max-w-md px-4 pb-32 pt-6 lg:max-w-6xl lg:px-10 lg:pb-12 lg:pt-8">
-          <Outlet />
-        </div>
+      <main className="mx-auto w-full max-w-md px-4 pb-32 pt-6 lg:max-w-6xl lg:px-10 lg:pb-12 lg:pt-8">
+        <Outlet />
       </main>
 
       <BackToTop />

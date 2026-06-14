@@ -517,6 +517,8 @@ function CashflowBars({ data, base }: { data: MonthlyPoint[]; base: string }) {
         <Tooltip
           cursor={{ fill: "rgba(255,255,255,0.03)" }}
           contentStyle={TOOLTIP_STYLE}
+          itemStyle={{ color: "#eef4fa" }}
+          labelStyle={{ color: "#eef4fa" }}
           formatter={(value) => formatMoney(Number(value), base)}
         />
         <Bar dataKey="income" name="Income" fill="#7fd1b9" radius={[4, 4, 0, 0]} />
@@ -558,6 +560,8 @@ function CategoryDonut({
             </Pie>
             <Tooltip
               contentStyle={TOOLTIP_STYLE}
+              itemStyle={{ color: "#eef4fa" }}
+              labelStyle={{ color: "#eef4fa" }}
               formatter={(value) => formatMoney(Number(value), base)}
             />
           </PieChart>

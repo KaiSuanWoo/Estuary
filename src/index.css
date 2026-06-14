@@ -73,6 +73,14 @@
       radial-gradient(1200px 600px at 80% -10%, rgba(127, 209, 185, 0.1), transparent 60%),
       radial-gradient(900px 500px at -10% 10%, rgba(63, 114, 175, 0.14), transparent 55%);
   }
+  /* Native date inputs get an intrinsic min-width on iOS that makes them wider
+     than sibling fields — normalise so they size like every other input. */
+  input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+  }
+
   /* tabular numerals for money */
   .tnum {
     font-variant-numeric: tabular-nums;
