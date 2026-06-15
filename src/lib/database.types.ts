@@ -257,6 +257,42 @@ export interface Database {
         };
         Relationships: [];
       };
+      budgets: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          amount: number;
+          tag_id: string | null;
+          start_date: string | null;
+          end_date: string | null;
+          color: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          amount: number;
+          tag_id?: string | null;
+          start_date?: string | null;
+          end_date?: string | null;
+          color?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          amount?: number;
+          tag_id?: string | null;
+          start_date?: string | null;
+          end_date?: string | null;
+          color?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       import_batches: {
         Row: {
           id: string;

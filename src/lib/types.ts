@@ -15,6 +15,11 @@ export type Counterparty = Tables["counterparties"]["Row"];
 export type CounterpartyInsert = Tables["counterparties"]["Insert"];
 
 export type Tag = Tables["tags"]["Row"];
+export type TagInsert = Tables["tags"]["Insert"];
+
+export type Budget = Tables["budgets"]["Row"];
+export type BudgetInsert = Tables["budgets"]["Insert"];
+export type BudgetUpdate = Tables["budgets"]["Update"];
 
 export type Transaction = Tables["transactions"]["Row"];
 export type TransactionInsert = Tables["transactions"]["Insert"];

@@ -24,6 +24,9 @@ export const qk = {
   liveRates: (base: string) => ["live_rates", base] as const,
   counterparties: ["counterparties"] as const,
   tags: ["tags"] as const,
+  budgets: ["budgets"] as const,
+  transactionTags: ["transaction_tags"] as const,
+  txnTags: (txnId: string) => ["transaction_tags", txnId] as const,
   transactions: (filters?: Record<string, unknown>) =>
     filters ? (["transactions", filters] as const) : (["transactions"] as const),
   // Activity-list variants. All start with "transactions" so the existing

@@ -1,12 +1,14 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, Check, Flag, SlidersHorizontal, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatMoney } from "@/lib/format";
 import { reimbursementLinks } from "@/lib/reimbursements";
 import { Button, Sheet } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
+import { TagPicker } from "@/components/TagPicker";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
+import { useTransactionTags, useSetTransactionTags } from "@/hooks/useTags";
 import {
   useUpdateTransaction,
   useDeleteTransaction,
@@ -42,6 +44,8 @@ export function EditTransactionSheet({
   const { data: categories = [] } = useCategories();
   const update = useUpdateTransaction();
   const del = useDeleteTransaction();
+  const setTxnTags = useSetTransactionTags();
+  const { data: existingTags } = useTransactionTags(tx.id);
 
   const [type, setType] = useState<SheetType>(tx.type);
   const [amount, setAmount] = useState(String(tx.amount));
@@ -57,6 +61,14 @@ export function EditTransactionSheet({
   const [date, setDate] = useState(tx.date);
   const [merchant, setMerchant] = useState(tx.merchant ?? "");
   const [notes, setNotes] = useState(tx.notes ?? "");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagsLoaded, setTagsLoaded] = useState(false);
+  useEffect(() => {
+    if (existingTags && !tagsLoaded) {
+      setTags(existingTags);
+      setTagsLoaded(true);
+    }
+  }, [existingTags, tagsLoaded]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [flagged, setFlagged] = useState(tx.flagged);
   const [isReimbursable, setIsReimbursable] = useState(tx.is_reimbursable);
@@ -231,6 +243,7 @@ export function EditTransactionSheet({
         },
       });
     }
+    await setTxnTags.mutateAsync({ transactionId: tx.id, tagIds: tags });
     onClose();
   }
 
@@ -443,6 +456,10 @@ export function EditTransactionSheet({
               placeholder="Optional"
               className={inputCls}
             />
+          </Field>
+
+          <Field label="Tags">
+            <TagPicker value={tags} onChange={setTags} />
           </Field>
 
           {/* ── Split / reimbursable (expenses only) ── */}

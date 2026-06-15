@@ -4,9 +4,11 @@ import { cn } from "@/lib/cn";
 import { todayISO } from "@/lib/format";
 import { Button, Sheet } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
+import { TagPicker } from "@/components/TagPicker";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
 import { useCreateTransaction } from "@/hooks/useTransactions";
+import { useSetTransactionTags } from "@/hooks/useTags";
 import type { TransactionType } from "@/lib/types";
 
 const inputCls =
@@ -28,6 +30,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
   const create = useCreateTransaction();
+  const setTxnTags = useSetTransactionTags();
 
   const [type, setType] = useState<SheetType>("expense");
   const [amount, setAmount] = useState("");
@@ -41,6 +44,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
   const [date, setDate] = useState(todayISO());
   const [merchant, setMerchant] = useState("");
   const [notes, setNotes] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [isReimbursable, setIsReimbursable] = useState(false);
 
   const isTransfer = type === "transfer";
@@ -104,11 +108,12 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     if (!from) return;
 
+    let created;
     if (isTransfer && to) {
       const amt = Number(amount);
       // Received defaults to the sent amount (1:1) when not specified.
       const recv = Number(destAmount) > 0 ? Number(destAmount) : amt;
-      await create.mutateAsync({
+      created = await create.mutateAsync({
         type: "transfer",
         amount: amt,
         currency: fromCurrency,
@@ -120,7 +125,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
         notes: notes.trim() || null,
       });
     } else {
-      await create.mutateAsync({
+      created = await create.mutateAsync({
         type,
         amount: Number(amount),
         currency: entryCurrency,
@@ -133,6 +138,9 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
         reimbursement_status:
           type === "expense" && isReimbursable ? "pending" : "none",
       });
+    }
+    if (created && tags.length) {
+      await setTxnTags.mutateAsync({ transactionId: created.id, tagIds: tags });
     }
     onClose();
   }
@@ -350,6 +358,10 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                     placeholder="Optional"
                     className={inputCls}
                   />
+                </Field>
+
+                <Field label="Tags">
+                  <TagPicker value={tags} onChange={setTags} />
                 </Field>
 
                 {/* Reimbursable toggle — only for expenses */}
