@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   FileUp,
+  Flag,
   Info,
   RotateCcw,
   Trash2,
@@ -22,6 +23,7 @@ import {
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
 import { useCategorizationRules } from "@/hooks/useCategorizationRules";
+import { useTransactions } from "@/hooks/useTransactions";
 import { categorize } from "@/lib/categorize";
 import {
   useBulkImport,
@@ -525,6 +527,7 @@ export function Import() {
   const bulk = useBulkImport();
   const deleteBatch = useDeleteBatch();
   const { data: batches = [] } = useImportBatches();
+  const { data: allTxns = [] } = useTransactions();
 
   const categoryKind = useMemo(
     () => new Map(categories.map((c) => [c.id, c.kind])),
@@ -597,6 +600,33 @@ export function Import() {
 
   // Auto-categorisation: the effect an enabled rule would apply to a row, or null.
   // Account-field rules need the chosen account, so this depends on `acct`.
+  // Transfer-ins already recorded into the chosen account — used to auto-flag
+  // likely duplicates (e.g. a Wise→CommBank top-up the bank CSV also lists as a
+  // "CREDIT TO ACCOUNT" credit, which would double-count the balance).
+  const transferIns = useMemo(
+    () =>
+      allTxns
+        .filter((t) => t.type === "transfer" && t.destination_account_id === accountId)
+        .map((t) => ({ amt: Number(t.destination_amount ?? t.amount), date: t.date })),
+    [allTxns, accountId],
+  );
+
+  function isLikelyTransferDup(r: ImportRow): boolean {
+    if (r.type !== "income" && r.type !== "adjustment") return false;
+    const rd = Date.parse(r.date);
+    return transferIns.some(
+      (ti) =>
+        Math.abs(ti.amt - r.amount) < 0.01 &&
+        Math.abs(Date.parse(ti.date) - rd) <= 3 * 86_400_000,
+    );
+  }
+
+  const flaggedCount = useMemo(
+    () => (accountId ? rows.filter(isLikelyTransferDup).length : 0),
+    // isLikelyTransferDup is derived from transferIns
+    [rows, transferIns, accountId],
+  );
+
   function ruleEffectFor(
     r: ImportRow,
   ): { category_id: string; reimbursable: boolean } | null {
@@ -635,6 +665,7 @@ export function Import() {
         row.category_id = eff.category_id;
         if (eff.reimbursable) row.is_reimbursable = true;
       }
+      if (isLikelyTransferDup(r)) row.flagged = true;
       return row;
     });
     const source =
@@ -943,6 +974,17 @@ export function Import() {
                 <Wand2 className="size-4 shrink-0 text-teal-400/80" />
                 <span className="text-sm font-medium text-ink-300">
                   {categorizedCount} auto-categorised by rules
+                </span>
+              </div>
+            )}
+
+            {/* Duplicate-transfer warning */}
+            {flaggedCount > 0 && (
+              <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+                <Flag className="size-4 shrink-0 text-amber-400" />
+                <span className="text-sm font-medium text-amber-200">
+                  {flaggedCount} flagged as a possible duplicate transfer — review
+                  in Activity (flag filter) after importing.
                 </span>
               </div>
             )}

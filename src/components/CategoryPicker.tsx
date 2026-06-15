@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CategoryIcon } from "@/components/CategoryIcon";
@@ -120,7 +121,7 @@ export function CategoryPicker({
         <ChevronDown className="size-4 shrink-0 text-ink-500" />
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -195,7 +196,8 @@ export function CategoryPicker({
               )}
             </ul>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

@@ -22,6 +22,8 @@ export interface ImportRow {
   /** Set by auto-categorisation rules at import time. */
   category_id?: string | null;
   is_reimbursable?: boolean;
+  /** Auto-flagged at import for review (e.g. a likely duplicate transfer). */
+  flagged?: boolean;
 }
 
 export interface ImportResult {
@@ -77,6 +79,7 @@ export function useBulkImport() {
           : "none") as ReimbursementStatus,
         import_batch_id: batch.id,
         external_id: r.external_id ?? null,
+        flagged: r.flagged ?? false,
       }));
 
       const { error: txErr } = await supabase
