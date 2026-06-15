@@ -47,7 +47,11 @@ export function AppShell() {
   }, [pathname, reduce, dockPulse]);
 
   return (
-    <div className="min-h-full">
+    // Full-height flex column so the content area always fills the screen. On a
+    // short page (e.g. few accounts) this keeps the document bottom at the
+    // viewport bottom, so the fixed dock can't drift up — iOS otherwise anchors
+    // a fixed-bottom element to the (short) content on non-scrollable pages.
+    <div className="flex min-h-[100dvh] flex-col">
       {/* ---------------------------------------------------------------- */}
       {/* Desktop: sticky glass top bar                                     */}
       {/* ---------------------------------------------------------------- */}
@@ -98,7 +102,7 @@ export function AppShell() {
       {/* ---------------------------------------------------------------- */}
       {/* Content                                                          */}
       {/* ---------------------------------------------------------------- */}
-      <main className="mx-auto w-full max-w-md px-4 pb-32 pt-6 lg:max-w-6xl lg:px-10 lg:pb-12 lg:pt-8">
+      <main className="mx-auto w-full max-w-md flex-1 px-4 pb-32 pt-6 lg:max-w-6xl lg:px-10 lg:pb-12 lg:pt-8">
         <Outlet />
       </main>
 
