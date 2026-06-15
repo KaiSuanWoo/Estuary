@@ -57,6 +57,10 @@ export function Accounts() {
             const col = ACCOUNT_TYPE_COLORS[a.type];
             const balances = accountBalancesByCurrency(a, txns);
             const multi = a.is_multi_currency || isMultiCurrency(balances);
+            const isCredit = a.type === "credit";
+            const owed = isCredit ? -(balances[a.currency] ?? 0) : 0;
+            const available =
+              isCredit && a.credit_limit != null ? a.credit_limit - owed : null;
             // Primary currency first, then the rest alphabetically.
             const currencies = [
               a.currency,
@@ -76,7 +80,11 @@ export function Accounts() {
                   <p className="text-sm text-ink-500">
                     <span className={col.text}>{ACCOUNT_TYPE_LABELS[a.type]}</span>
                     {" · "}
-                    {multi ? "Multi-currency" : a.currency}
+                    {available != null
+                      ? `${formatMoney(available, a.currency)} available`
+                      : multi
+                        ? "Multi-currency"
+                        : a.currency}
                   </p>
                 </Link>
 
@@ -89,7 +97,11 @@ export function Accounts() {
                       key={c}
                       className={cn(
                         "tnum font-semibold transition-colors group-hover:text-teal-300",
-                        i === 0 ? "text-lg text-ink-50" : "text-xs text-ink-400",
+                        i === 0
+                          ? isCredit
+                            ? "text-lg text-rose-300"
+                            : "text-lg text-ink-50"
+                          : "text-xs text-ink-400",
                       )}
                     >
                       {formatMoney(balances[c] ?? 0, c)}
@@ -133,7 +145,7 @@ function TypePicker({
   return (
     <div>
       <span className="mb-1 block text-xs font-medium text-ink-400">Type</span>
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
         {ACCOUNT_TYPES.map((t) => {
           const col = ACCOUNT_TYPE_COLORS[t];
           const active = value === t;
@@ -149,7 +161,11 @@ function TypePicker({
                   : "border-ink-700 text-ink-400 hover:border-ink-600",
               )}
             >
-              {t === "investmentCash" ? "Invest" : ACCOUNT_TYPE_LABELS[t]}
+              {t === "investmentCash"
+                ? "Invest"
+                : t === "credit"
+                  ? "Credit"
+                  : ACCOUNT_TYPE_LABELS[t]}
             </button>
           );
         })}
@@ -213,6 +229,9 @@ function EditAccountSheet({
   const [currency, setCurrency] = useState(account.currency);
   const [opening, setOpening] = useState(String(account.opening_balance));
   const [isMulti, setIsMulti] = useState(account.is_multi_currency);
+  const [creditLimit, setCreditLimit] = useState(
+    account.credit_limit != null ? String(account.credit_limit) : "",
+  );
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   const smInput =
@@ -227,7 +246,8 @@ function EditAccountSheet({
         type,
         currency: currency.trim().toUpperCase() || account.currency,
         opening_balance: Number(opening) || 0,
-        is_multi_currency: isMulti,
+        is_multi_currency: type === "credit" ? false : isMulti,
+        credit_limit: type === "credit" ? Number(creditLimit) || null : null,
       },
     });
     onClose();
@@ -267,11 +287,33 @@ function EditAccountSheet({
 
           <TypePicker value={type} onChange={setType} />
 
-          <MultiCurrencyToggle value={isMulti} onChange={setIsMulti} />
+          {type === "credit" ? (
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-ink-400">
+                Credit limit (optional)
+              </span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                value={creditLimit}
+                onChange={(e) => setCreditLimit(e.target.value)}
+                placeholder="e.g. 5000"
+                className={cn(smInput, "tnum")}
+              />
+            </label>
+          ) : (
+            <MultiCurrencyToggle value={isMulti} onChange={setIsMulti} />
+          )}
 
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-ink-400">
-              Opening balance{isMulti && ` (${currency.toUpperCase()})`}
+              {type === "credit"
+                ? "Current balance (negative = owing)"
+                : isMulti
+                  ? `Opening balance (${currency.toUpperCase()})`
+                  : "Opening balance"}
             </span>
             <input
               type="number"
@@ -337,6 +379,7 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
   const [currency, setCurrency] = useState("AUD");
   const [opening, setOpening] = useState("");
   const [isMulti, setIsMulti] = useState(false);
+  const [creditLimit, setCreditLimit] = useState("");
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -345,7 +388,8 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
       type,
       currency: currency.trim().toUpperCase(),
       opening_balance: Number(opening) || 0,
-      is_multi_currency: isMulti,
+      is_multi_currency: type === "credit" ? false : isMulti,
+      credit_limit: type === "credit" ? Number(creditLimit) || null : null,
     });
     onClose();
   }
@@ -380,11 +424,33 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
 
           <TypePicker value={type} onChange={setType} />
 
-          <MultiCurrencyToggle value={isMulti} onChange={setIsMulti} />
+          {type === "credit" ? (
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-ink-400">
+                Credit limit (optional)
+              </span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                value={creditLimit}
+                onChange={(e) => setCreditLimit(e.target.value)}
+                placeholder="e.g. 5000"
+                className={cn(inputCls, "tnum")}
+              />
+            </label>
+          ) : (
+            <MultiCurrencyToggle value={isMulti} onChange={setIsMulti} />
+          )}
 
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-ink-400">
-              Opening balance{isMulti && ` (${currency.toUpperCase()})`}
+              {type === "credit"
+                ? "Current balance (negative = owing)"
+                : isMulti
+                  ? `Opening balance (${currency.toUpperCase()})`
+                  : "Opening balance"}
             </span>
             <input
               type="number"

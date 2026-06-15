@@ -217,7 +217,7 @@ export function Onboarding() {
                     <span className="mb-1 block text-xs font-medium text-ink-400">
                       Type
                     </span>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       {ACCOUNT_TYPES.map((t) => (
                         <button
                           key={t.value}

@@ -18,7 +18,7 @@ export type Json =
   | Json[];
 
 // --- domain string unions (mirror the CHECK constraints) -------------------
-export type AccountType = "checking" | "savings" | "cash" | "investmentCash";
+export type AccountType = "checking" | "savings" | "cash" | "investmentCash" | "credit";
 export type SavingsType = "fixed" | "disposable" | "investment" | "custom";
 export type CategoryKind = "expense" | "income";
 export type CounterpartyType = "person" | "family" | "merchant";
@@ -110,6 +110,7 @@ export interface Database {
           institution: string | null;
           opening_balance: number;
           target_amount: number | null;
+          credit_limit: number | null;
           color: string | null;
           icon: string | null;
           display_order: number;
@@ -129,6 +130,7 @@ export interface Database {
           institution?: string | null;
           opening_balance?: number;
           target_amount?: number | null;
+          credit_limit?: number | null;
           color?: string | null;
           icon?: string | null;
           display_order?: number;
@@ -148,6 +150,7 @@ export interface Database {
           institution?: string | null;
           opening_balance?: number;
           target_amount?: number | null;
+          credit_limit?: number | null;
           color?: string | null;
           icon?: string | null;
           display_order?: number;

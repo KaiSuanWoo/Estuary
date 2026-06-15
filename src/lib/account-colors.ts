@@ -6,6 +6,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   savings:        "Savings",
   cash:           "Cash",
   investmentCash: "Investment",
+  credit:         "Credit card",
 };
 
 /**
@@ -28,4 +29,5 @@ export const ACCOUNT_TYPE_COLORS: Record<AccountType, AccountTypeColor> = {
   savings:        { dot: "bg-emerald-400", text: "text-emerald-400", bg: "bg-emerald-500/15", border: "border-emerald-500/30" },
   cash:           { dot: "bg-amber-400",   text: "text-amber-400",   bg: "bg-amber-500/15",   border: "border-amber-500/30" },
   investmentCash: { dot: "bg-violet-400",  text: "text-violet-400",  bg: "bg-violet-500/15",  border: "border-violet-500/30" },
+  credit:         { dot: "bg-rose-400",    text: "text-rose-400",    bg: "bg-rose-500/15",    border: "border-rose-500/30" },
 };

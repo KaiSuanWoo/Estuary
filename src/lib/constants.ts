@@ -35,6 +35,7 @@ export const ACCOUNT_TYPES = [
   { value: "savings", label: "Savings" },
   { value: "cash", label: "Cash" },
   { value: "investmentCash", label: "Investment" },
+  { value: "credit", label: "Credit card" },
 ] as const;
 
 /**
