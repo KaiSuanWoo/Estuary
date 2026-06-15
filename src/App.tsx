@@ -22,6 +22,7 @@ const Transactions = lazy(() => import("@/routes/Transactions").then((m) => ({ d
 const Accounts = lazy(() => import("@/routes/Accounts").then((m) => ({ default: m.Accounts })));
 const Categories = lazy(() => import("@/routes/Categories").then((m) => ({ default: m.Categories })));
 const Settings = lazy(() => import("@/routes/Settings").then((m) => ({ default: m.Settings })));
+const Budgets = lazy(() => import("@/routes/Budgets").then((m) => ({ default: m.Budgets })));
 const Import = lazy(() => import("@/routes/Import").then((m) => ({ default: m.Import })));
 const Rules = lazy(() => import("@/routes/Rules").then((m) => ({ default: m.Rules })));
 
@@ -52,6 +53,7 @@ export function App() {
                   <Route path="transactions" element={<Transactions />} />
                   <Route path="accounts" element={<Accounts />} />
                   <Route path="categories" element={<Categories />} />
+                  <Route path="budgets" element={<Budgets />} />
                   <Route path="rules" element={<Rules />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="import" element={<Import />} />
