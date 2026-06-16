@@ -22,6 +22,12 @@ export interface ActivityFilters {
   types?: TransactionType[];
   accountIds?: string[];
   categoryIds?: string[];
+  /**
+   * Restrict to a specific set of transaction ids. Tags live in a join table,
+   * so the Activity page resolves the selected tags to matching ids client-side
+   * and passes them here. An empty array means "no matches" (returns nothing).
+   */
+  transactionIds?: string[];
   /** Inclusive ISO date bounds (yyyy-MM-dd). */
   from?: string;
   to?: string;
@@ -47,6 +53,14 @@ function buildQuery(filters: ActivityFilters) {
 
   if (filters.types?.length) q = q.in("type", filters.types);
   if (filters.categoryIds?.length) q = q.in("category_id", filters.categoryIds);
+  // Tag filter: resolved to ids upstream. Empty array → match nothing.
+  if (filters.transactionIds)
+    q = q.in(
+      "id",
+      filters.transactionIds.length
+        ? filters.transactionIds
+        : ["00000000-0000-0000-0000-000000000000"],
+    );
   if (filters.from) q = q.gte("date", filters.from);
   if (filters.to) q = q.lte("date", filters.to);
   if (filters.flaggedOnly) q = q.eq("flagged", true);

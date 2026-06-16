@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { subMonths } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus, TrendingUp, Wallet } from "lucide-react";
+import { differenceInCalendarDays, subMonths } from "date-fns";
+import { ChevronLeft, ChevronRight, PiggyBank, Plane, Plus, Target } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -15,12 +15,14 @@ import {
   YAxis,
 } from "recharts";
 import { useAccounts } from "@/hooks/useAccounts";
-import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
+import { useTransactions } from "@/hooks/useTransactions";
 import { convert } from "@/lib/fx";
-import { useCategories, useCategoryMap } from "@/hooks/useCategories";
+import { useCategories } from "@/hooks/useCategories";
+import { useBudgets } from "@/hooks/useBudgets";
+import { useTags, useAllTransactionTags } from "@/hooks/useTags";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
-import { accountBalancesByCurrency, balancesByCurrency, isMultiCurrency } from "@/lib/balances";
+import { balancesByCurrency } from "@/lib/balances";
 import { ACCOUNT_TYPE_COLORS } from "@/lib/account-colors";
 import { totalInBase } from "@/lib/fx";
 import {
@@ -36,10 +38,8 @@ import {
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Button, Card, EmptyState, Spinner } from "@/components/ui";
-import { TransactionRow } from "@/components/TransactionRow";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
-import { EditTransactionSheet } from "@/components/EditTransactionSheet";
-import type { Transaction } from "@/lib/types";
+import type { Budget, BudgetDomain, Category } from "@/lib/types";
 
 const TOOLTIP_STYLE = {
   background: "#111a24",
@@ -51,7 +51,6 @@ const TOOLTIP_STYLE = {
 
 export function Dashboard() {
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<Transaction | null>(null);
   // monthBack: 0 = current month, 1 = last month, etc.
   const [monthBack, setMonthBack] = useState(0);
   const [cashflowMode, setCashflowMode] = useState<CashflowMode>("net");
@@ -60,20 +59,17 @@ export function Dashboard() {
 
   const accountsQ = useAccounts();
   const allTxnsQ = useTransactions();
-  // refDate is set after monthBounds, so recentQ must be declared after it.
-  // We'll forward-declare here and update after refDate is known.
   const categoriesQ = useCategories();
-  const categoryMap = useCategoryMap();
   const baseCurrency = useBaseCurrency();
   const rates = useRateMap();
 
-  const reimbursedMap = useReimbursedAmountMap(); // values in base currency
+  // Budget + goal data (cross-account, so always over the full ledger).
+  const { data: budgets = [] } = useBudgets();
+  const { data: tags = [] } = useTags();
+  const { data: txTags = [] } = useAllTransactionTags();
+
   const accounts = accountsQ.data ?? [];
   const txns = allTxnsQ.data ?? [];
-  const accountMap = useMemo(
-    () => new Map(accounts.map((a) => [a.id, a.name])),
-    [accounts],
-  );
 
   // ── Account scope ──────────────────────────────────────────────────────────
   // When an account is selected, every stat/chart/list below reflects only it.
@@ -88,20 +84,6 @@ export function Dashboard() {
     [txns, accountFilter],
   );
 
-  // Convert base-currency reimbursed totals back to each expense's own currency
-  const reimbursedInTxCurrency = useMemo(() => {
-    const out = new Map<string, number>();
-    for (const tx of txns) {
-      const baseAmt = reimbursedMap.get(tx.id);
-      if (!baseAmt) continue;
-      out.set(
-        tx.id,
-        convert(baseAmt, baseCurrency, tx.currency, rates) ?? baseAmt,
-      );
-    }
-    return out;
-  }, [txns, reimbursedMap, baseCurrency, rates]);
-
   // Balances use the FULL txns (so transfers into a scoped account still credit
   // it) but only over the scoped account(s).
   const byCurrency = balancesByCurrency(scopedAccounts, txns);
@@ -112,13 +94,6 @@ export function Dashboard() {
     [monthBack],
   );
   const { from, to } = monthBounds(refDate);
-  // Scope "recent activity" to the selected month (6 most recent in that month)
-  const recentQ = useTransactions({
-    from,
-    to,
-    limit: 6,
-    accountId: accountFilter || undefined,
-  });
   const month = cashflowForRange(scopedTxns, baseCurrency, rates, from, to, cashflowMode);
   const trend = monthlyCashflow(scopedTxns, baseCurrency, rates, 6, undefined, cashflowMode);
   const categorySlices = spendingByCategory(
@@ -130,6 +105,72 @@ export function Dashboard() {
     to,
     cashflowMode,
   );
+
+  // ── Budget (counts down) — net spend per budgeted category this month ──────
+  const budgetSpend = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of spendingByCategory(
+      txns,
+      categoriesQ.data ?? [],
+      baseCurrency,
+      rates,
+      from,
+      to,
+      "net",
+    )) {
+      m.set(s.id, s.value);
+    }
+    return m;
+  }, [txns, categoriesQ.data, baseCurrency, rates, from, to]);
+
+  const budgetSummary = useMemo(() => {
+    const cats = (categoriesQ.data ?? []).filter(
+      (c) => c.kind === "expense" && (c.monthly_budget ?? 0) > 0,
+    );
+    const domainOf = (c: Category): BudgetDomain =>
+      (c.budget_domain as BudgetDomain) ?? "variable";
+    const spendCats = cats.filter((c) => domainOf(c) !== "savings");
+    const saveCats = cats.filter((c) => domainOf(c) === "savings");
+    const sum = (xs: Category[], f: (c: Category) => number) =>
+      xs.reduce((s, c) => s + f(c), 0);
+    return {
+      has: cats.length > 0,
+      budget: sum(spendCats, (c) => c.monthly_budget ?? 0),
+      spent: sum(spendCats, (c) => budgetSpend.get(c.id) ?? 0),
+      saveTarget: sum(saveCats, (c) => c.monthly_budget ?? 0),
+      saved: sum(saveCats, (c) => budgetSpend.get(c.id) ?? 0),
+    };
+  }, [categoriesQ.data, budgetSpend]);
+
+  // ── Goals (count up) — spend tagged to each goal, all-time within window ───
+  const tagName = useMemo(() => new Map(tags.map((t) => [t.id, t.name])), [tags]);
+  const tagTxns = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const tt of txTags) {
+      let s = m.get(tt.tag_id);
+      if (!s) {
+        s = new Set();
+        m.set(tt.tag_id, s);
+      }
+      s.add(tt.transaction_id);
+    }
+    return m;
+  }, [txTags]);
+  const txnById = useMemo(() => new Map(txns.map((t) => [t.id, t])), [txns]);
+  function goalSpent(b: Budget): number {
+    if (!b.tag_id) return 0;
+    const ids = tagTxns.get(b.tag_id);
+    if (!ids) return 0;
+    let total = 0;
+    for (const id of ids) {
+      const t = txnById.get(id);
+      if (!t || t.type !== "expense") continue;
+      if (b.start_date && t.date < b.start_date) continue;
+      if (b.end_date && t.date > b.end_date) continue;
+      total += convert(t.amount, t.currency, baseCurrency, rates) ?? t.amount;
+    }
+    return total;
+  }
 
   if (accountsQ.isLoading) {
     return (
@@ -279,130 +320,131 @@ export function Dashboard() {
         </Widget>
       </div>
 
-      {/* Lists */}
+      {/* Budget (counts down) & Goals (count up) */}
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Widget
-          title="Accounts"
+          title="Budget"
+          hint={monthBack === 0 ? "This month" : monthLabel(refDate)}
           action={
-            <Link to="/accounts" className="text-sm text-teal-400">
+            <Link to="/budgets" className="text-sm text-teal-400">
               Manage
             </Link>
           }
         >
-          {accounts.length === 0 ? (
+          {!budgetSummary.has ? (
             <EmptyState
-              icon={<Wallet className="size-6" />}
-              title="No accounts yet"
-              hint="Add one to start tracking balances."
+              icon={<Target className="size-6" />}
+              title="No budgets yet"
+              hint="Set monthly limits to track spending."
             />
           ) : (
-            <ul className="divide-y divide-ink-800/70">
-              {accounts.slice(0, 5).map((a) => {
-                const balances = accountBalancesByCurrency(a, txns);
-                const multi = a.is_multi_currency || isMultiCurrency(balances);
-                const currencies = [
-                  a.currency,
-                  ...Object.keys(balances)
-                    .filter((c) => c !== a.currency)
-                    .sort(),
-                ];
-                return (
-                  <li key={a.id}>
-                    <Link
-                      to={`/transactions?account=${a.id}`}
-                      className="group flex items-center justify-between gap-3 py-2.5 transition-colors hover:text-teal-300"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-ink-100 group-hover:text-teal-300 transition-colors">
-                          {a.name}
-                        </p>
-                        <p className="truncate text-xs text-ink-500">
-                          {a.type === "investmentCash"
-                            ? "Investment"
-                            : a.type.charAt(0).toUpperCase() + a.type.slice(1)}{" "}
-                          · {multi ? "Multi-currency" : a.currency}
-                        </p>
-                      </div>
-                      <span className="flex shrink-0 flex-col items-end gap-0.5">
-                        {currencies.map((c, i) => (
-                          <span
-                            key={c}
+            <div className="space-y-4">
+              {budgetSummary.budget > 0 &&
+                (() => {
+                  const { budget, spent } = budgetSummary;
+                  const left = budget - spent;
+                  const ratio = budget > 0 ? spent / budget : 0;
+                  return (
+                    <div>
+                      <div className="flex items-end justify-between gap-3">
+                        <div>
+                          <p className="text-xs text-ink-500">Left to spend</p>
+                          <p
                             className={cn(
-                              "tnum font-semibold group-hover:text-teal-300 transition-colors",
-                              i === 0
-                                ? "text-sm text-ink-50"
-                                : "text-xs text-ink-400",
+                              "tnum mt-0.5 text-2xl font-semibold tracking-tight",
+                              left < 0 ? "text-rose-400" : "text-ink-50",
                             )}
                           >
-                            {formatMoney(balances[c] ?? 0, c)}
-                            {multi && <span className="ml-1 text-ink-600">{c}</span>}
-                          </span>
-                        ))}
+                            {formatMoney(left, baseCurrency)}
+                          </p>
+                        </div>
+                        <p className="tnum text-right text-xs text-ink-500">
+                          {formatMoney(spent, baseCurrency)} of{" "}
+                          {formatMoney(budget, baseCurrency)}
+                        </p>
+                      </div>
+                      <MiniBar ratio={ratio} />
+                    </div>
+                  );
+                })()}
+              {budgetSummary.saveTarget > 0 &&
+                (() => {
+                  const { saveTarget, saved } = budgetSummary;
+                  const ratio = saveTarget > 0 ? saved / saveTarget : 0;
+                  return (
+                    <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-ink-400">
+                          <PiggyBank className="size-3.5" /> Saved this month
+                        </span>
+                        <span className="tnum text-xs text-emerald-400">
+                          {formatMoney(saved, baseCurrency)} /{" "}
+                          {formatMoney(saveTarget, baseCurrency)}
+                        </span>
+                      </div>
+                      <MiniBar ratio={ratio} savings />
+                    </div>
+                  );
+                })()}
+            </div>
+          )}
+        </Widget>
+
+        <Widget
+          title="Goals"
+          hint="Saved toward targets"
+          action={
+            <Link to="/budgets" className="text-sm text-teal-400">
+              Manage
+            </Link>
+          }
+        >
+          {budgets.length === 0 ? (
+            <EmptyState
+              icon={<Plane className="size-6" />}
+              title="No goals yet"
+              hint="Create a goal like a vacation to track progress."
+            />
+          ) : (
+            <ul className="space-y-3">
+              {budgets.slice(0, 4).map((b) => {
+                const sp = goalSpent(b);
+                const ratio = b.amount > 0 ? sp / b.amount : 0;
+                const daysLeft = b.end_date
+                  ? differenceInCalendarDays(new Date(b.end_date), new Date())
+                  : null;
+                return (
+                  <li key={b.id}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-ink-100">
+                          {b.name}
+                        </p>
+                        <p className="text-xs text-ink-500">
+                          {b.tag_id ? `#${tagName.get(b.tag_id) ?? "tag"}` : "no tag"}
+                          {daysLeft != null &&
+                            (daysLeft >= 0 ? ` · ${daysLeft}d left` : " · ended")}
+                        </p>
+                      </div>
+                      <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
+                        {formatMoney(sp, baseCurrency)}
+                        <span className="text-ink-600">
+                          {" "}
+                          / {formatMoney(b.amount, baseCurrency)}
+                        </span>
                       </span>
-                    </Link>
+                    </div>
+                    <MiniBar ratio={ratio} savings />
                   </li>
                 );
               })}
             </ul>
           )}
         </Widget>
-
-        <Widget
-          title={monthBack === 0 ? "Recent activity" : `Activity — ${monthLabel(refDate)}`}
-          action={
-            <Link to="/transactions" className="text-sm text-teal-400">
-              See all
-            </Link>
-          }
-        >
-          {recentQ.isLoading ? (
-            <div className="flex justify-center py-8">
-              <Spinner />
-            </div>
-          ) : (recentQ.data ?? []).length === 0 ? (
-            <EmptyState
-              icon={<TrendingUp className="size-6" />}
-              title={monthBack === 0 ? "No transactions yet" : "No activity"}
-              hint={
-                monthBack === 0
-                  ? "Hit + to record your first transaction."
-                  : `Nothing recorded in ${monthLabel(refDate)}.`
-              }
-            />
-          ) : (
-            <div className="divide-y divide-ink-800/70">
-              {recentQ.data!.map((tx) => {
-                const cat = tx.category_id
-                  ? categoryMap.get(tx.category_id)
-                  : undefined;
-                return (
-                  <TransactionRow
-                    key={tx.id}
-                    tx={tx}
-                    categoryName={cat?.name}
-                    categoryIcon={cat?.icon}
-                    categoryColor={cat?.color}
-                    accountName={accountMap.get(tx.account_id)}
-                    toAccountName={
-                      tx.destination_account_id
-                        ? accountMap.get(tx.destination_account_id)
-                        : undefined
-                    }
-                    reimbursedAmount={reimbursedInTxCurrency.get(tx.id)}
-                    onClick={() => setEditing(tx)}
-                  />
-                );
-              })}
-            </div>
-          )}
-        </Widget>
       </div>
 
       <FloatingAdd onClick={() => setAdding(true)} />
       {adding && <AddTransactionSheet onClose={() => setAdding(false)} />}
-      {editing && (
-        <EditTransactionSheet tx={editing} onClose={() => setEditing(null)} />
-      )}
     </div>
   );
 }
@@ -496,6 +538,26 @@ function Widget({
       </div>
       <div className="flex-1">{children}</div>
     </Card>
+  );
+}
+
+/** Slim progress bar for the Budget/Goals widgets. */
+function MiniBar({ ratio, savings = false }: { ratio: number; savings?: boolean }) {
+  const pct = Math.min(100, Math.max(0, ratio * 100));
+  const color = savings
+    ? "bg-emerald-500"
+    : ratio > 1
+      ? "bg-rose-500"
+      : ratio > 0.85
+        ? "bg-amber-500"
+        : "bg-teal-500";
+  return (
+    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800">
+      <div
+        className={cn("h-full rounded-full transition-all", color)}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
   );
 }
 

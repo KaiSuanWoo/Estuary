@@ -20,13 +20,32 @@ import { cn } from "@/lib/cn";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { TagPicker } from "@/components/TagPicker";
 import { Button, Card, EmptyState, Sheet, Spinner } from "@/components/ui";
-import type { Budget, Category } from "@/lib/types";
+import type { Budget, BudgetDomain, Category } from "@/lib/types";
 
 const inputCls =
   "h-9 w-28 rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
 
-/** Bar colour by how much of the budget is used. */
-function toneFor(ratio: number): { bar: string; text: string } {
+/** The three budget domains, in display order. */
+const DOMAINS: { value: BudgetDomain; label: string; hint: string }[] = [
+  { value: "fixed", label: "Fixed costs", hint: "Predictable monthly bills" },
+  { value: "variable", label: "Variable spend", hint: "Day-to-day, discretionary" },
+  { value: "savings", label: "Savings", hint: "Money you set aside" },
+];
+
+/** Categories with no domain set are treated as variable spend. */
+function domainOf(c: Category): BudgetDomain {
+  return (c.budget_domain as BudgetDomain) ?? "variable";
+}
+
+/**
+ * Bar/text colour by progress. Expense domains count *down* (over budget = bad,
+ * shown red). Savings counts *up* (reaching target = good, never red).
+ */
+function toneFor(ratio: number, savings = false): { bar: string; text: string } {
+  if (savings)
+    return ratio >= 1
+      ? { bar: "bg-emerald-500", text: "text-emerald-400" }
+      : { bar: "bg-teal-500", text: "text-teal-300" };
   if (ratio > 1) return { bar: "bg-rose-500", text: "text-rose-400" };
   if (ratio > 0.85) return { bar: "bg-amber-500", text: "text-amber-400" };
   return { bar: "bg-teal-500", text: "text-teal-300" };
@@ -93,20 +112,43 @@ export function Budgets() {
   const budgeted = expenseCats.filter((c) => (c.monthly_budget ?? 0) > 0);
   const unbudgeted = expenseCats.filter((c) => !((c.monthly_budget ?? 0) > 0));
 
-  const totalBudget = budgeted.reduce((s, c) => s + (c.monthly_budget ?? 0), 0);
-  const totalSpent = budgeted.reduce((s, c) => s + (spent.get(c.id) ?? 0), 0);
+  // Group the budgeted categories by domain (null domain → variable).
+  const byDomain = useMemo(() => {
+    const m: Record<BudgetDomain, Category[]> = {
+      fixed: [],
+      variable: [],
+      savings: [],
+    };
+    for (const c of budgeted) m[domainOf(c)].push(c);
+    return m;
+  }, [budgeted]);
+
+  // The "this month" summary covers spending domains only (savings counts up,
+  // so folding it into a spent/budget total would be misleading).
+  const expenseBudgeted = [...byDomain.fixed, ...byDomain.variable];
+  const totalBudget = expenseBudgeted.reduce((s, c) => s + (c.monthly_budget ?? 0), 0);
+  const totalSpent = expenseBudgeted.reduce((s, c) => s + (spent.get(c.id) ?? 0), 0);
   const overallRatio = totalBudget > 0 ? totalSpent / totalBudget : 0;
 
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [draftDomain, setDraftDomain] = useState<BudgetDomain>("variable");
 
   function startEdit(c: Category) {
     setEditing(c.id);
     setDraft(c.monthly_budget != null ? String(c.monthly_budget) : "");
+    setDraftDomain(domainOf(c));
   }
   function save(id: string) {
     const v = parseFloat(draft);
-    update.mutate({ id, patch: { monthly_budget: isFinite(v) && v > 0 ? v : null } });
+    const amount = isFinite(v) && v > 0 ? v : null;
+    update.mutate({
+      id,
+      patch: {
+        monthly_budget: amount,
+        budget_domain: amount ? draftDomain : null,
+      },
+    });
     setEditing(null);
   }
 
@@ -206,8 +248,8 @@ export function Budgets() {
             )}
           </section>
 
-          {/* Overall summary */}
-          {budgeted.length > 0 && (
+          {/* Overall summary — spending domains (fixed + variable) */}
+          {expenseBudgeted.length > 0 && (
             <Card>
               <div className="flex items-end justify-between">
                 <div>
@@ -234,34 +276,46 @@ export function Budgets() {
             </Card>
           )}
 
-          {/* Budgeted categories */}
-          <section>
-            <SectionLabel>Budgeted{budgeted.length > 0 && ` · ${budgeted.length}`}</SectionLabel>
-            {budgeted.length === 0 ? (
-              <EmptyState
-                icon={<Target className="size-6" />}
-                title="No budgets yet"
-                hint="Set a monthly limit on a category below to start tracking."
-              />
-            ) : (
-              <ul className="space-y-2">
-                {budgeted.map((c) => (
-                  <BudgetRow
-                    key={c.id}
-                    c={c}
-                    spent={spent.get(c.id) ?? 0}
-                    base={base}
-                    editing={editing === c.id}
-                    draft={draft}
-                    onDraft={setDraft}
-                    onStart={() => startEdit(c)}
-                    onSave={() => save(c.id)}
-                    onCancel={() => setEditing(null)}
-                  />
-                ))}
-              </ul>
-            )}
-          </section>
+          {/* Budgeted categories, grouped by domain */}
+          {budgeted.length === 0 ? (
+            <EmptyState
+              icon={<Target className="size-6" />}
+              title="No budgets yet"
+              hint="Set a monthly limit on a category below to start tracking."
+            />
+          ) : (
+            DOMAINS.map(({ value, label, hint }) => {
+              const cats = byDomain[value];
+              if (cats.length === 0) return null;
+              return (
+                <section key={value}>
+                  <div className="mb-2">
+                    <SectionLabel>{label}</SectionLabel>
+                    <p className="-mt-1 text-xs text-ink-600">{hint}</p>
+                  </div>
+                  <ul className="space-y-2">
+                    {cats.map((c) => (
+                      <BudgetRow
+                        key={c.id}
+                        c={c}
+                        spent={spent.get(c.id) ?? 0}
+                        base={base}
+                        savings={value === "savings"}
+                        editing={editing === c.id}
+                        draft={draft}
+                        domain={draftDomain}
+                        onDraft={setDraft}
+                        onDomain={setDraftDomain}
+                        onStart={() => startEdit(c)}
+                        onSave={() => save(c.id)}
+                        onCancel={() => setEditing(null)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              );
+            })
+          )}
 
           {/* Categories without a budget */}
           {unbudgeted.length > 0 && (
@@ -274,9 +328,12 @@ export function Budgets() {
                     c={c}
                     spent={spent.get(c.id) ?? 0}
                     base={base}
+                    savings={false}
                     editing={editing === c.id}
                     draft={draft}
+                    domain={draftDomain}
                     onDraft={setDraft}
+                    onDomain={setDraftDomain}
                     onStart={() => startEdit(c)}
                     onSave={() => save(c.id)}
                     onCancel={() => setEditing(null)}
@@ -306,12 +363,15 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Bar({ ratio }: { ratio: number }) {
+function Bar({ ratio, savings = false }: { ratio: number; savings?: boolean }) {
   const pct = Math.min(100, Math.max(0, ratio * 100));
   return (
     <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink-800">
       <div
-        className={cn("h-full rounded-full transition-all", toneFor(ratio).bar)}
+        className={cn(
+          "h-full rounded-full transition-all",
+          toneFor(ratio, savings).bar,
+        )}
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -322,9 +382,12 @@ function BudgetRow({
   c,
   spent,
   base,
+  savings,
   editing,
   draft,
+  domain,
   onDraft,
+  onDomain,
   onStart,
   onSave,
   onCancel,
@@ -332,15 +395,19 @@ function BudgetRow({
   c: Category;
   spent: number;
   base: string;
+  savings: boolean;
   editing: boolean;
   draft: string;
+  domain: BudgetDomain;
   onDraft: (v: string) => void;
+  onDomain: (d: BudgetDomain) => void;
   onStart: () => void;
   onSave: () => void;
   onCancel: () => void;
 }) {
   const budget = c.monthly_budget ?? 0;
   const ratio = budget > 0 ? spent / budget : 0;
+  const remaining = budget - spent;
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -406,7 +473,46 @@ function BudgetRow({
           )}
         </div>
 
-        {budget > 0 && !editing && <Bar ratio={ratio} />}
+        {/* Domain picker — only while editing a real amount */}
+        {editing && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {DOMAINS.map((d) => (
+              <button
+                key={d.value}
+                type="button"
+                onClick={() => onDomain(d.value)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                  domain === d.value
+                    ? "border-teal-500 bg-teal-500/15 text-teal-300"
+                    : "border-ink-700 text-ink-400 hover:border-ink-600",
+                )}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {budget > 0 && !editing && (
+          <>
+            <Bar ratio={ratio} savings={savings} />
+            <p
+              className={cn(
+                "tnum mt-1.5 text-right text-xs font-medium",
+                toneFor(ratio, savings).text,
+              )}
+            >
+              {savings
+                ? remaining > 0
+                  ? `${formatMoney(remaining, base)} to go`
+                  : "Target reached"
+                : remaining >= 0
+                  ? `${formatMoney(remaining, base)} left`
+                  : `${formatMoney(-remaining, base)} over`}
+            </p>
+          </>
+        )}
       </Card>
     </li>
   );

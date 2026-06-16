@@ -21,6 +21,7 @@ export type Json =
 export type AccountType = "checking" | "savings" | "cash" | "investmentCash" | "credit";
 export type SavingsType = "fixed" | "disposable" | "investment" | "custom";
 export type CategoryKind = "expense" | "income";
+export type BudgetDomain = "fixed" | "variable" | "savings";
 export type CounterpartyType = "person" | "family" | "merchant";
 export type TransactionType = "expense" | "income" | "transfer" | "adjustment";
 export type ReimbursementStatus = "none" | "pending" | "partial" | "settled";
@@ -171,6 +172,7 @@ export interface Database {
           icon: string | null;
           color: string | null;
           monthly_budget: number | null;
+          budget_domain: BudgetDomain | null;
           display_order: number;
           is_archived: boolean;
           created_at: string;
@@ -185,6 +187,7 @@ export interface Database {
           icon?: string | null;
           color?: string | null;
           monthly_budget?: number | null;
+          budget_domain?: BudgetDomain | null;
           display_order?: number;
           is_archived?: boolean;
           created_at?: string;
@@ -199,6 +202,7 @@ export interface Database {
           icon?: string | null;
           color?: string | null;
           monthly_budget?: number | null;
+          budget_domain?: BudgetDomain | null;
           display_order?: number;
           is_archived?: boolean;
           created_at?: string;

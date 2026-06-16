@@ -21,6 +21,7 @@ import {
   type ActivityFilters,
 } from "@/hooks/usePagedTransactions";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useTags, useAllTransactionTags } from "@/hooks/useTags";
 import { useCategories, useCategoryMap } from "@/hooks/useCategories";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
@@ -51,7 +52,7 @@ import type { Transaction, TransactionType, Category } from "@/lib/types";
 
 // ─── filter types & constants ─────────────────────────────────────────────────
 
-type ActivePanel = "type" | "account" | "date" | "category" | null;
+type ActivePanel = "type" | "account" | "date" | "category" | "tag" | null;
 type DateMode = "all" | "this_month" | "last_month" | "last_3m" | "custom";
 
 const TYPE_OPTIONS: { value: TransactionType; label: string }[] = [
@@ -118,6 +119,15 @@ function categoryLabel(
   if (filters.size === 1)
     return catMap.get([...filters][0]!)?.name ?? "Category";
   return `${filters.size} categories`;
+}
+
+function tagLabel(
+  filters: Set<string>,
+  tagMap: Map<string, string>,
+): string {
+  if (filters.size === 0) return "Tag";
+  if (filters.size === 1) return `#${tagMap.get([...filters][0]!) ?? "tag"}`;
+  return `${filters.size} tags`;
 }
 
 function dateLabel(mode: DateMode, from: string, to: string): string {
@@ -318,6 +328,7 @@ export function Transactions() {
     return param ? new Set([param]) : new Set();
   });
   const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
+  const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
   // Quick toggle: only reimbursable expenses (money you've fronted).
   const [reimbOnly, setReimbOnly] = useState(false);
   // Quick toggle: only transactions flagged for review.
@@ -329,6 +340,8 @@ export function Transactions() {
   const [customTo, setCustomTo] = useState("");
 
   const { data: accounts = [] } = useAccounts();
+  const { data: tags = [] } = useTags();
+  const { data: txTags = [] } = useAllTransactionTags();
   const categories = useCategoryMap();
   const { data: allCategories = [] } = useCategories();
   const reimbursedMap = useReimbursedAmountMap();
@@ -338,6 +351,22 @@ export function Transactions() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const bounds = getDateBounds(dateMode, customFrom, customTo);
 
+  const tagMap = useMemo(
+    () => new Map(tags.map((t) => [t.id, t.name])),
+    [tags],
+  );
+
+  // Tags live in a join table, so resolve the selected tags to the union of
+  // transaction ids that carry any of them. `undefined` = no tag filter.
+  const taggedIds = useMemo<string[] | undefined>(() => {
+    if (tagFilters.size === 0) return undefined;
+    const ids = new Set<string>();
+    for (const tt of txTags) {
+      if (tagFilters.has(tt.tag_id)) ids.add(tt.transaction_id);
+    }
+    return [...ids].sort();
+  }, [tagFilters, txTags]);
+
   // All filters are DB-expressible → pushed server-side so each page is already
   // narrowed. Arrays are sorted for stable query-key hashing.
   const filters = useMemo<ActivityFilters>(
@@ -345,6 +374,7 @@ export function Transactions() {
       types: typeFilters.size ? [...typeFilters].sort() : undefined,
       accountIds: accountFilters.size ? [...accountFilters].sort() : undefined,
       categoryIds: categoryFilters.size ? [...categoryFilters].sort() : undefined,
+      transactionIds: taggedIds,
       from: bounds?.from,
       to: bounds?.to,
       flaggedOnly: flaggedOnly || undefined,
@@ -355,6 +385,7 @@ export function Transactions() {
       typeFilters,
       accountFilters,
       categoryFilters,
+      taggedIds,
       bounds?.from,
       bounds?.to,
       flaggedOnly,
@@ -442,6 +473,14 @@ export function Transactions() {
     });
   }
 
+  function toggleTag(id: string) {
+    setTagFilters((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
   const groups = groupByDay(rows);
 
   // Dot colour for the account FilterChip when exactly one account is selected
@@ -462,6 +501,7 @@ export function Transactions() {
     typeFilters.size > 0 ||
     accountFilters.size > 0 ||
     categoryFilters.size > 0 ||
+    tagFilters.size > 0 ||
     isDateActive;
 
   // "Has data" = either rows match now, or filters are active (so the user has
@@ -498,6 +538,7 @@ export function Transactions() {
     setTypeFilters(new Set());
     setAccountFilters(new Set());
     setCategoryFilters(new Set());
+    setTagFilters(new Set());
     setDateMode("all");
     setCustomFrom("");
     setCustomTo("");
@@ -574,6 +615,14 @@ export function Transactions() {
                   active={categoryFilters.size > 0}
                   open={activePanel === "category"}
                   onClick={() => togglePanel("category")}
+                />
+              )}
+              {tags.length > 0 && (
+                <FilterChip
+                  label={tagLabel(tagFilters, tagMap)}
+                  active={tagFilters.size > 0}
+                  open={activePanel === "tag"}
+                  onClick={() => togglePanel("tag")}
                 />
               )}
             </div>
@@ -686,6 +735,26 @@ export function Transactions() {
                     label={c.name}
                     selected={categoryFilters.has(c.id)}
                     onClick={() => toggleCategory(c.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activePanel === "tag" && tags.length > 0 && (
+            <div className="rounded-xl border border-ink-700/60 bg-ink-900/90 p-3">
+              <div className="flex flex-wrap gap-2">
+                <OptionChip
+                  label="All tags"
+                  selected={tagFilters.size === 0}
+                  onClick={() => setTagFilters(new Set())}
+                />
+                {tags.map((t) => (
+                  <OptionChip
+                    key={t.id}
+                    label={`#${t.name}`}
+                    selected={tagFilters.has(t.id)}
+                    onClick={() => toggleTag(t.id)}
                   />
                 ))}
               </div>

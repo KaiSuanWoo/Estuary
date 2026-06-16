@@ -40,6 +40,7 @@ export type {
   AccountType,
   SavingsType,
   CategoryKind,
+  BudgetDomain,
   CounterpartyType,
   TransactionType,
   ReimbursementStatus,
