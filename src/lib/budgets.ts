@@ -60,10 +60,13 @@ export function periodLabel(b: Budget, now = new Date()): string {
 }
 
 /**
- * Sum of expense transactions in a budget's assigned categories within its
- * window, rolled into the base currency. This is the single source of truth for
- * "spent" on both the Budgets page and the dashboard widgets. `direction` only
- * affects display (down vs up), never this computation.
+ * Net spend in a budget's assigned categories within its window, in the base
+ * currency. The single source of truth for "spent" on both the Budgets page and
+ * the dashboard. `direction` only affects display (down vs up), never this.
+ *
+ * Net = expenses − reimbursed portion − refunds (income in the same categories),
+ * floored at 0. `reimbursed` is the base-currency reimbursed-per-transaction map
+ * from `useReimbursedAmountMap`.
  */
 export function spendForBudget(
   b: Budget,
@@ -71,19 +74,24 @@ export function spendForBudget(
   txns: Transaction[],
   base: string,
   rates: RateMap,
+  reimbursed: Map<string, number>,
   now = new Date(),
 ): number {
   if (categoryIds.size === 0) return 0;
   const w = budgetWindow(b, now);
   let total = 0;
   for (const t of txns) {
-    if (t.type !== "expense") continue;
     if (!t.category_id || !categoryIds.has(t.category_id)) continue;
     if (w.from && t.date < w.from) continue;
     if (w.to && t.date > w.to) continue;
-    total += convert(t.amount, t.currency, base, rates) ?? t.amount;
+    if (t.type === "expense") {
+      const gross = convert(t.amount, t.currency, base, rates) ?? t.amount;
+      total += gross - (reimbursed.get(t.id) ?? 0); // reimbursed is base-currency
+    } else if (t.type === "income") {
+      total -= convert(t.amount, t.currency, base, rates) ?? t.amount; // refund
+    }
   }
-  return total;
+  return Math.max(0, total);
 }
 
 /** Build budget_id → Set<category_id> from the flat link rows. */

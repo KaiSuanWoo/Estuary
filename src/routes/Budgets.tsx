@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { differenceInCalendarDays } from "date-fns";
 import { ChevronLeft, Plus, Target, Trash2 } from "lucide-react";
 import { useCategories } from "@/hooks/useCategories";
-import { useTransactions } from "@/hooks/useTransactions";
+import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import {
@@ -51,6 +51,7 @@ export function Budgets() {
   const { data: txns = [] } = useTransactions();
   const { data: budgets = [] } = useBudgets();
   const { data: links = [] } = useBudgetLinks();
+  const reimbursed = useReimbursedAmountMap();
   const base = useBaseCurrency();
   const rates = useRateMap();
 
@@ -67,7 +68,7 @@ export function Budgets() {
 
   function rowFor(b: Budget) {
     const catIds = linksByBudget.get(b.id) ?? new Set<string>();
-    const spent = spendForBudget(b, catIds, txns, base, rates);
+    const spent = spendForBudget(b, catIds, txns, base, rates, reimbursed);
     const names = [...catIds]
       .map((id) => catById.get(id)?.name)
       .filter(Boolean) as string[];
@@ -270,6 +271,7 @@ function BudgetSheet({
   const [end, setEnd] = useState(existing?.end_date ?? "");
   const [picked, setPicked] = useState<Set<string>>(new Set(assigned));
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   const saving = direction === "saving";
   const expenseCats = categories.filter((c) => c.kind === "expense");
@@ -296,12 +298,21 @@ function BudgetSheet({
       end_date: period === "custom" ? end || null : null,
     };
     if (!payload.name || !(payload.amount > 0)) return;
-    const id = isNew
-      ? (await create.mutateAsync(payload)).id
-      : (await update.mutateAsync({ id: existing!.id, patch: payload }),
-        existing!.id);
-    await setCats.mutateAsync({ budgetId: id, categoryIds: [...picked] });
-    onClose();
+    if (period === "custom" && start && end && end < start) {
+      setDateError("End date must be on or after the start date.");
+      return;
+    }
+    setDateError(null);
+    try {
+      const id = isNew
+        ? (await create.mutateAsync(payload)).id
+        : (await update.mutateAsync({ id: existing!.id, patch: payload }),
+          existing!.id);
+      await setCats.mutateAsync({ budgetId: id, categoryIds: [...picked] });
+      onClose();
+    } catch {
+      // surfaced via the mutation isError flags below
+    }
   }
 
   async function onDelete() {
@@ -384,29 +395,42 @@ function BudgetSheet({
         </div>
 
         {period === "custom" && (
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
-                Start
-              </span>
-              <input
-                type="date"
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-                className={field}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
-                End
-              </span>
-              <input
-                type="date"
-                value={end}
-                onChange={(e) => setEnd(e.target.value)}
-                className={field}
-              />
-            </label>
+          <div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-ink-400">
+                  Start
+                </span>
+                <input
+                  type="date"
+                  value={start}
+                  max={end || undefined}
+                  onChange={(e) => {
+                    setStart(e.target.value);
+                    setDateError(null);
+                  }}
+                  className={field}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-ink-400">
+                  End
+                </span>
+                <input
+                  type="date"
+                  value={end}
+                  min={start || undefined}
+                  onChange={(e) => {
+                    setEnd(e.target.value);
+                    setDateError(null);
+                  }}
+                  className={field}
+                />
+              </label>
+            </div>
+            <p className="mt-1 text-xs text-ink-600">
+              Leave a date empty for an open-ended range.
+            </p>
           </div>
         )}
 
@@ -463,6 +487,11 @@ function BudgetSheet({
             </div>
           )}
         </div>
+
+        {dateError && <p className="text-xs text-red-400">{dateError}</p>}
+        {(create.isError || update.isError || setCats.isError) && (
+          <p className="text-xs text-red-400">Couldn't save — please try again.</p>
+        )}
 
         <Button
           type="submit"

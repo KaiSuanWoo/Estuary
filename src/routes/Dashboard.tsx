@@ -15,7 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { useAccounts } from "@/hooks/useAccounts";
-import { useTransactions } from "@/hooks/useTransactions";
+import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useCategories } from "@/hooks/useCategories";
 import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
 import { spendForBudget, groupLinks, periodLabel } from "@/lib/budgets";
@@ -65,6 +65,7 @@ export function Dashboard() {
   // Budget + goal data (cross-account, so always over the full ledger).
   const { data: budgets = [] } = useBudgets();
   const { data: budgetLinks = [] } = useBudgetLinks();
+  const reimbursedMap = useReimbursedAmountMap();
 
   const accounts = accountsQ.data ?? [];
   const txns = allTxnsQ.data ?? [];
@@ -108,7 +109,14 @@ export function Dashboard() {
   const { expenseRows, savingRows } = useMemo(() => {
     const links = groupLinks(budgetLinks);
     const spentOf = (b: Budget) =>
-      spendForBudget(b, links.get(b.id) ?? new Set<string>(), txns, baseCurrency, rates);
+      spendForBudget(
+        b,
+        links.get(b.id) ?? new Set<string>(),
+        txns,
+        baseCurrency,
+        rates,
+        reimbursedMap,
+      );
     return {
       expenseRows: budgets
         .filter((b) => b.direction !== "saving")
@@ -117,7 +125,7 @@ export function Dashboard() {
         .filter((b) => b.direction === "saving")
         .map((b) => ({ b, spent: spentOf(b) })),
     };
-  }, [budgets, budgetLinks, txns, baseCurrency, rates]);
+  }, [budgets, budgetLinks, txns, baseCurrency, rates, reimbursedMap]);
 
   if (accountsQ.isLoading) {
     return (
@@ -312,6 +320,16 @@ export function Dashboard() {
                   </li>
                 );
               })}
+              {expenseRows.length > 4 && (
+                <li>
+                  <Link
+                    to="/budgets"
+                    className="block pt-1 text-xs text-ink-500 hover:text-teal-300"
+                  >
+                    +{expenseRows.length - 4} more
+                  </Link>
+                </li>
+              )}
             </ul>
           )}
         </Widget>
@@ -356,6 +374,16 @@ export function Dashboard() {
                   </li>
                 );
               })}
+              {savingRows.length > 4 && (
+                <li>
+                  <Link
+                    to="/budgets"
+                    className="block pt-1 text-xs text-ink-500 hover:text-teal-300"
+                  >
+                    +{savingRows.length - 4} more
+                  </Link>
+                </li>
+              )}
             </ul>
           )}
         </Widget>
