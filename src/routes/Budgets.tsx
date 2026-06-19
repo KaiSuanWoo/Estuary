@@ -14,19 +14,30 @@ import {
   useBudgetLinks,
   useSetBudgetCategories,
 } from "@/hooks/useBudgets";
-import { monthBounds, monthLabel } from "@/lib/analytics";
-import { spendForBudget, groupLinks } from "@/lib/budgets";
+import { spendForBudget, groupLinks, periodLabel } from "@/lib/budgets";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Button, Card, EmptyState, Sheet, Spinner } from "@/components/ui";
-import type { Budget, BudgetKind, Category } from "@/lib/types";
+import type {
+  Budget,
+  BudgetDirection,
+  BudgetPeriod,
+  Category,
+} from "@/lib/types";
+
+const PERIODS: { value: BudgetPeriod; label: string }[] = [
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "yearly", label: "Yearly" },
+  { value: "custom", label: "Custom" },
+];
 
 /**
- * Bar/text colour by progress. A limit counts *down* (over budget = bad, red);
- * a goal counts *up* (reaching the target = good, never red).
+ * Bar/text colour by progress. An expense budget counts *down* (over = bad, red);
+ * a saving budget counts *up* (reaching the target = good, never red).
  */
-function toneFor(ratio: number, goal: boolean): { bar: string; text: string } {
-  if (goal)
+function toneFor(ratio: number, saving: boolean): { bar: string; text: string } {
+  if (saving)
     return ratio >= 1
       ? { bar: "bg-emerald-500", text: "text-emerald-400" }
       : { bar: "bg-teal-500", text: "text-teal-300" };
@@ -45,19 +56,18 @@ export function Budgets() {
 
   const [sheet, setSheet] = useState<Budget | "new" | null>(null);
 
-  const month = monthBounds();
   const linksByBudget = useMemo(() => groupLinks(links), [links]);
   const catById = useMemo(
     () => new Map(categories.map((c) => [c.id, c])),
     [categories],
   );
 
-  const limits = budgets.filter((b) => b.kind !== "goal");
-  const goals = budgets.filter((b) => b.kind === "goal");
+  const spending = budgets.filter((b) => b.direction !== "saving");
+  const savings = budgets.filter((b) => b.direction === "saving");
 
   function rowFor(b: Budget) {
     const catIds = linksByBudget.get(b.id) ?? new Set<string>();
-    const spent = spendForBudget(b, catIds, txns, base, rates, month);
+    const spent = spendForBudget(b, catIds, txns, base, rates);
     const names = [...catIds]
       .map((id) => catById.get(id)?.name)
       .filter(Boolean) as string[];
@@ -72,7 +82,7 @@ export function Budgets() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <header className="mb-5 flex items-center gap-2">
+      <header className="mb-4 flex items-center gap-2">
         <Link
           to="/settings"
           className="flex size-8 items-center justify-center rounded-lg text-ink-400 hover:text-ink-200"
@@ -80,21 +90,23 @@ export function Budgets() {
         >
           <ChevronLeft className="size-5" />
         </Link>
-        <div className="flex-1">
+        <div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
             Budgets
           </h1>
           <p className="text-sm text-ink-400">
-            Group categories into budgets · {monthLabel()}
+            Group categories into budgets you track
           </p>
         </div>
-        <button
-          onClick={() => setSheet("new")}
-          className="inline-flex items-center gap-1 rounded-xl border border-ink-700 px-3 py-1.5 text-xs font-medium text-ink-200 transition-colors hover:border-ink-600"
-        >
-          <Plus className="size-3.5" /> New
-        </button>
       </header>
+
+      {/* Prominent add button */}
+      <button
+        onClick={() => setSheet("new")}
+        className="mb-5 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-ink-700 py-3 text-sm font-medium text-ink-300 transition-colors hover:border-teal-500/60 hover:text-teal-300"
+      >
+        <Plus className="size-4" /> New budget
+      </button>
 
       {isLoading ? (
         <Card className="flex justify-center py-8">
@@ -108,16 +120,16 @@ export function Budgets() {
         />
       ) : (
         <div className="space-y-5">
-          {limits.length > 0 && (
+          {spending.length > 0 && (
             <section>
-              <SectionLabel>Monthly limits</SectionLabel>
-              <ul className="space-y-2">{limits.map(rowFor)}</ul>
+              <SectionLabel>Spending</SectionLabel>
+              <ul className="space-y-2">{spending.map(rowFor)}</ul>
             </section>
           )}
-          {goals.length > 0 && (
+          {savings.length > 0 && (
             <section>
-              <SectionLabel>Goals</SectionLabel>
-              <ul className="space-y-2">{goals.map(rowFor)}</ul>
+              <SectionLabel>Savings</SectionLabel>
+              <ul className="space-y-2">{savings.map(rowFor)}</ul>
             </section>
           )}
         </div>
@@ -147,12 +159,15 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Bar({ ratio, goal }: { ratio: number; goal: boolean }) {
+function Bar({ ratio, saving }: { ratio: number; saving: boolean }) {
   const pct = Math.min(100, Math.max(0, ratio * 100));
   return (
     <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink-800">
       <div
-        className={cn("h-full rounded-full transition-all", toneFor(ratio, goal).bar)}
+        className={cn(
+          "h-full rounded-full transition-all",
+          toneFor(ratio, saving).bar,
+        )}
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -170,15 +185,15 @@ function BudgetRow({
   catNames: string[];
   base: string;
 }) {
-  const goal = b.kind === "goal";
+  const saving = b.direction === "saving";
   const ratio = b.amount > 0 ? spent / b.amount : 0;
   const remaining = b.amount - spent;
   const daysLeft =
-    goal && b.end_date
+    b.period === "custom" && b.end_date
       ? differenceInCalendarDays(new Date(b.end_date), new Date())
       : null;
 
-  const sub =
+  const cats =
     catNames.length === 0
       ? "No categories yet"
       : catNames.length <= 2
@@ -191,7 +206,7 @@ function BudgetRow({
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-ink-100">{b.name}</p>
           <p className="truncate text-xs text-ink-500">
-            {sub}
+            <span className="text-ink-400">{periodLabel(b)}</span> · {cats}
             {daysLeft != null &&
               (daysLeft >= 0 ? ` · ${daysLeft}d left` : " · ended")}
           </p>
@@ -199,21 +214,21 @@ function BudgetRow({
         <span
           className={cn(
             "tnum shrink-0 text-sm font-medium",
-            toneFor(ratio, goal).text,
+            toneFor(ratio, saving).text,
           )}
         >
           {formatMoney(spent, base)}
           <span className="text-ink-600"> / {formatMoney(b.amount, base)}</span>
         </span>
       </div>
-      <Bar ratio={ratio} goal={goal} />
+      <Bar ratio={ratio} saving={saving} />
       <p
         className={cn(
           "tnum mt-1.5 text-right text-xs font-medium",
-          toneFor(ratio, goal).text,
+          toneFor(ratio, saving).text,
         )}
       >
-        {goal
+        {saving
           ? remaining > 0
             ? `${formatMoney(remaining, base)} to go`
             : "Target reached"
@@ -247,12 +262,16 @@ function BudgetSheet({
 
   const [name, setName] = useState(existing?.name ?? "");
   const [amount, setAmount] = useState(existing ? String(existing.amount) : "");
-  const [kind, setKind] = useState<BudgetKind>(existing?.kind ?? "limit");
+  const [direction, setDirection] = useState<BudgetDirection>(
+    existing?.direction ?? "expense",
+  );
+  const [period, setPeriod] = useState<BudgetPeriod>(existing?.period ?? "monthly");
   const [start, setStart] = useState(existing?.start_date ?? "");
   const [end, setEnd] = useState(existing?.end_date ?? "");
   const [picked, setPicked] = useState<Set<string>>(new Set(assigned));
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const saving = direction === "saving";
   const expenseCats = categories.filter((c) => c.kind === "expense");
   const pending = create.isPending || update.isPending || setCats.isPending;
   const field =
@@ -271,14 +290,16 @@ function BudgetSheet({
     const payload = {
       name: name.trim(),
       amount: Number(amount) || 0,
-      kind,
-      start_date: kind === "goal" ? start || null : null,
-      end_date: kind === "goal" ? end || null : null,
+      direction,
+      period,
+      start_date: period === "custom" ? start || null : null,
+      end_date: period === "custom" ? end || null : null,
     };
     if (!payload.name || !(payload.amount > 0)) return;
     const id = isNew
       ? (await create.mutateAsync(payload)).id
-      : (await update.mutateAsync({ id: existing!.id, patch: payload }), existing!.id);
+      : (await update.mutateAsync({ id: existing!.id, patch: payload }),
+        existing!.id);
     await setCats.mutateAsync({ budgetId: id, categoryIds: [...picked] });
     onClose();
   }
@@ -303,23 +324,23 @@ function BudgetSheet({
           />
         </label>
 
-        {/* Kind: monthly limit (down) vs goal (up) */}
+        {/* Direction: expense (down) vs saving (up) */}
         <div>
           <span className="mb-1 block text-xs font-medium text-ink-400">Type</span>
           <div className="grid grid-cols-2 gap-2">
             {(
               [
-                { value: "limit", label: "Monthly limit", hint: "Counts down" },
-                { value: "goal", label: "Goal", hint: "Counts up" },
-              ] as { value: BudgetKind; label: string; hint: string }[]
-            ).map((k) => (
+                { value: "expense", label: "Expense", hint: "Counts down" },
+                { value: "saving", label: "Saving", hint: "Counts up" },
+              ] as { value: BudgetDirection; label: string; hint: string }[]
+            ).map((d) => (
               <button
-                key={k.value}
+                key={d.value}
                 type="button"
-                onClick={() => setKind(k.value)}
+                onClick={() => setDirection(d.value)}
                 className={cn(
                   "rounded-xl border px-3 py-2 text-left transition-colors",
-                  kind === k.value
+                  direction === d.value
                     ? "border-teal-500 bg-teal-500/10"
                     : "border-ink-700 hover:border-ink-600",
                 )}
@@ -327,20 +348,71 @@ function BudgetSheet({
                 <span
                   className={cn(
                     "block text-sm font-medium",
-                    kind === k.value ? "text-teal-300" : "text-ink-200",
+                    direction === d.value ? "text-teal-300" : "text-ink-200",
                   )}
                 >
-                  {k.label}
+                  {d.label}
                 </span>
-                <span className="block text-xs text-ink-500">{k.hint}</span>
+                <span className="block text-xs text-ink-500">{d.hint}</span>
               </button>
             ))}
           </div>
         </div>
 
+        {/* Time frame */}
+        <div>
+          <span className="mb-1 block text-xs font-medium text-ink-400">
+            Time frame
+          </span>
+          <div className="grid grid-cols-4 gap-1.5">
+            {PERIODS.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => setPeriod(p.value)}
+                className={cn(
+                  "h-9 rounded-xl border text-xs font-medium transition-colors",
+                  period === p.value
+                    ? "border-teal-500 bg-teal-500/10 text-teal-300"
+                    : "border-ink-700 text-ink-400 hover:border-ink-600",
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {period === "custom" && (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-ink-400">
+                Start
+              </span>
+              <input
+                type="date"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                className={field}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-ink-400">
+                End
+              </span>
+              <input
+                type="date"
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+                className={field}
+              />
+            </label>
+          </div>
+        )}
+
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-ink-400">
-            {kind === "goal" ? "Target amount" : "Monthly amount"}
+            {saving ? "Target amount" : "Budget amount"}
           </span>
           <input
             type="number"
@@ -354,33 +426,6 @@ function BudgetSheet({
             className={cn(field, "tnum")}
           />
         </label>
-
-        {kind === "goal" && (
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
-                Start (optional)
-              </span>
-              <input
-                type="date"
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-                className={field}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
-                End (optional)
-              </span>
-              <input
-                type="date"
-                value={end}
-                onChange={(e) => setEnd(e.target.value)}
-                className={field}
-              />
-            </label>
-          </div>
-        )}
 
         {/* Category assignment */}
         <div>

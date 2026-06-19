@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { differenceInCalendarDays, subMonths } from "date-fns";
+import { subMonths } from "date-fns";
 import { ChevronLeft, ChevronRight, Plane, Plus, Target } from "lucide-react";
 import {
   Bar,
@@ -18,7 +18,7 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useCategories } from "@/hooks/useCategories";
 import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
-import { spendForBudget, groupLinks } from "@/lib/budgets";
+import { spendForBudget, groupLinks, periodLabel } from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import { balancesByCurrency } from "@/lib/balances";
@@ -104,28 +104,20 @@ export function Dashboard() {
     cashflowMode,
   );
 
-  // ── Budgets — limits count down (monthly), goals count up (over a range) ───
-  const { hasLimits, limitAmount, limitSpent, goalRows } = useMemo(() => {
+  // ── Budgets — each uses its own period window; expense counts down, saving up ─
+  const { expenseRows, savingRows } = useMemo(() => {
     const links = groupLinks(budgetLinks);
-    const window = { from, to };
     const spentOf = (b: Budget) =>
-      spendForBudget(
-        b,
-        links.get(b.id) ?? new Set<string>(),
-        txns,
-        baseCurrency,
-        rates,
-        window,
-      );
-    const limitBudgets = budgets.filter((b) => b.kind !== "goal");
-    const goalBudgets = budgets.filter((b) => b.kind === "goal");
+      spendForBudget(b, links.get(b.id) ?? new Set<string>(), txns, baseCurrency, rates);
     return {
-      hasLimits: limitBudgets.length > 0,
-      limitAmount: limitBudgets.reduce((s, b) => s + b.amount, 0),
-      limitSpent: limitBudgets.reduce((s, b) => s + spentOf(b), 0),
-      goalRows: goalBudgets.map((b) => ({ b, spent: spentOf(b) })),
+      expenseRows: budgets
+        .filter((b) => b.direction !== "saving")
+        .map((b) => ({ b, spent: spentOf(b) })),
+      savingRows: budgets
+        .filter((b) => b.direction === "saving")
+        .map((b) => ({ b, spent: spentOf(b) })),
     };
-  }, [budgets, budgetLinks, txns, baseCurrency, rates, from, to]);
+  }, [budgets, budgetLinks, txns, baseCurrency, rates]);
 
   if (accountsQ.isLoading) {
     return (
@@ -275,75 +267,28 @@ export function Dashboard() {
         </Widget>
       </div>
 
-      {/* Budget (limits count down) & Goals (count up) */}
+      {/* Budgets — expense (counts down) & savings (count up) */}
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Widget
           title="Budget"
-          hint={monthBack === 0 ? "This month" : monthLabel(refDate)}
+          hint="Spending budgets"
           action={
             <Link to="/budgets" className="text-sm text-teal-400">
               Manage
             </Link>
           }
         >
-          {!hasLimits ? (
+          {expenseRows.length === 0 ? (
             <EmptyState
               icon={<Target className="size-6" />}
               title="No budgets yet"
-              hint="Create a monthly budget to track spending."
-            />
-          ) : (
-            (() => {
-              const left = limitAmount - limitSpent;
-              const ratio = limitAmount > 0 ? limitSpent / limitAmount : 0;
-              return (
-                <div>
-                  <div className="flex items-end justify-between gap-3">
-                    <div>
-                      <p className="text-xs text-ink-500">Left to spend</p>
-                      <p
-                        className={cn(
-                          "tnum mt-0.5 text-2xl font-semibold tracking-tight",
-                          left < 0 ? "text-rose-400" : "text-ink-50",
-                        )}
-                      >
-                        {formatMoney(left, baseCurrency)}
-                      </p>
-                    </div>
-                    <p className="tnum text-right text-xs text-ink-500">
-                      {formatMoney(limitSpent, baseCurrency)} of{" "}
-                      {formatMoney(limitAmount, baseCurrency)}
-                    </p>
-                  </div>
-                  <MiniBar ratio={ratio} />
-                </div>
-              );
-            })()
-          )}
-        </Widget>
-
-        <Widget
-          title="Goals"
-          hint="Progress toward targets"
-          action={
-            <Link to="/budgets" className="text-sm text-teal-400">
-              Manage
-            </Link>
-          }
-        >
-          {goalRows.length === 0 ? (
-            <EmptyState
-              icon={<Plane className="size-6" />}
-              title="No goals yet"
-              hint="Create a goal like a trip to track progress."
+              hint="Create a budget to track spending."
             />
           ) : (
             <ul className="space-y-3">
-              {goalRows.slice(0, 4).map(({ b, spent }) => {
+              {expenseRows.slice(0, 4).map(({ b, spent }) => {
+                const left = b.amount - spent;
                 const ratio = b.amount > 0 ? spent / b.amount : 0;
-                const daysLeft = b.end_date
-                  ? differenceInCalendarDays(new Date(b.end_date), new Date())
-                  : null;
                 return (
                   <li key={b.id}>
                     <div className="flex items-center justify-between gap-3">
@@ -351,11 +296,53 @@ export function Dashboard() {
                         <p className="truncate text-sm font-medium text-ink-100">
                           {b.name}
                         </p>
-                        {daysLeft != null && (
-                          <p className="text-xs text-ink-500">
-                            {daysLeft >= 0 ? `${daysLeft}d left` : "ended"}
-                          </p>
+                        <p className="text-xs text-ink-500">{periodLabel(b)}</p>
+                      </div>
+                      <span
+                        className={cn(
+                          "tnum shrink-0 text-sm font-medium",
+                          left < 0 ? "text-rose-400" : "text-ink-200",
                         )}
+                      >
+                        {formatMoney(Math.abs(left), baseCurrency)}{" "}
+                        {left < 0 ? "over" : "left"}
+                      </span>
+                    </div>
+                    <MiniBar ratio={ratio} />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Widget>
+
+        <Widget
+          title="Savings"
+          hint="Progress toward targets"
+          action={
+            <Link to="/budgets" className="text-sm text-teal-400">
+              Manage
+            </Link>
+          }
+        >
+          {savingRows.length === 0 ? (
+            <EmptyState
+              icon={<Plane className="size-6" />}
+              title="No savings yet"
+              hint="Create a saving goal to track progress."
+            />
+          ) : (
+            <ul className="space-y-3">
+              {savingRows.slice(0, 4).map(({ b, spent }) => {
+                const ratio = b.amount > 0 ? spent / b.amount : 0;
+                return (
+                  <li key={b.id}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-ink-100">
+                          {b.name}
+                        </p>
+                        <p className="text-xs text-ink-500">{periodLabel(b)}</p>
                       </div>
                       <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
                         {formatMoney(spent, baseCurrency)}
