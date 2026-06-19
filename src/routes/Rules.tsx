@@ -354,6 +354,13 @@ function RuleSheet({
                 className={inputCls}
               />
             )}
+            {field === "amount" && operator === "amountRange" && (
+              <span className="mt-1 block text-xs text-ink-600">
+                Formats: <span className="text-ink-400">10-50</span> (between),{" "}
+                <span className="text-ink-400">50-</span> (≥ 50),{" "}
+                <span className="text-ink-400">-50</span> (≤ 50)
+              </span>
+            )}
           </label>
 
           {/* Category */}
