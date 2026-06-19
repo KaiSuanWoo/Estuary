@@ -650,7 +650,21 @@ export function EditTransactionSheet({
             </p>
           )}
 
-          <Button type="submit" size="sm" className="w-full" disabled={!canSubmit}>
+          {type === "income" && allocatedTotal > Number(amount) + 0.005 && (
+            <p className="text-xs text-amber-400">
+              Reimbursement allocations exceed this income's amount.
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            size="sm"
+            className="w-full"
+            disabled={
+              !canSubmit ||
+              (type === "income" && allocatedTotal > Number(amount) + 0.005)
+            }
+          >
             {update.isPending ? "Saving…" : "Save changes"}
           </Button>
         </form>
