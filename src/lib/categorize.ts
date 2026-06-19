@@ -56,12 +56,22 @@ export function ruleMatches(rule: CategorizationRule, tx: CategorizableTxn): boo
   if (!value) return false;
 
   if (rule.match_operator === "amountRange") {
-    // "min-max", "min-" (≥ min) or "-max" (≤ max)
-    const dash = value.indexOf("-", value.startsWith("-") ? 1 : 0);
-    const loStr = dash === -1 ? value : value.slice(0, dash);
-    const hiStr = dash === -1 ? "" : value.slice(dash + 1);
-    const min = loStr.trim() === "" ? -Infinity : Number(loStr);
-    const max = hiStr.trim() === "" ? Infinity : Number(hiStr);
+    // "min-max", "min-" (≥ min), "-max" (≤ max), or a bare "n" (≥ n).
+    // Amounts are always positive, so a leading "-" is the max-only form.
+    let min = -Infinity;
+    let max = Infinity;
+    if (value.startsWith("-")) {
+      max = Number(value.slice(1)); // "-max" → ≤ max
+    } else {
+      const dash = value.indexOf("-");
+      if (dash === -1) {
+        min = Number(value); // bare "n" → ≥ n
+      } else {
+        min = Number(value.slice(0, dash));
+        const hi = value.slice(dash + 1).trim();
+        max = hi === "" ? Infinity : Number(hi);
+      }
+    }
     if (Number.isNaN(min) || Number.isNaN(max)) return false;
     return tx.amount >= min && tx.amount <= max;
   }

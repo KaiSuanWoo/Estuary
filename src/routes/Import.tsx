@@ -535,6 +535,7 @@ export function Import() {
   );
 
   const [rows, setRows] = useState<ImportRow[]>([]);
+  const [emptyParse, setEmptyParse] = useState(false);
   const [fileName, setFileName] = useState("");
   const [format, setFormat] = useState<ImportFormat>("commbank");
   const [accountId, setAccountId] = useState("");
@@ -550,6 +551,7 @@ export function Import() {
         e.target?.result as string,
       );
       setRows(parsed);
+      setEmptyParse(parsed.length === 0);
       setFileName(file.name);
       setFormat(fmt);
       setConfirming(false);
@@ -677,10 +679,11 @@ export function Import() {
   }
 
   async function undoImport() {
-    if (!bulk.data) return;
+    if (!bulk.data?.batchId) return;
     await deleteBatch.mutateAsync(bulk.data.batchId);
     bulk.reset();
     setRows([]);
+    setEmptyParse(false);
   }
 
   const isDone = bulk.isSuccess;
@@ -749,6 +752,18 @@ export function Import() {
               onChange={onFileChange}
               className="hidden"
             />
+          </div>
+        )}
+
+        {/* Loaded a file but parsed nothing usable */}
+        {emptyParse && !isDone && (
+          <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+            <AlertCircle className="size-4 shrink-0 text-amber-400" />
+            <span className="text-sm text-amber-200">
+              Couldn't read any transactions from{" "}
+              <span className="font-medium">{fileName}</span>. Make sure it's an
+              unmodified CommBank, CIMB, Wise, or Nationwide CSV export.
+            </span>
           </div>
         )}
 
@@ -1024,10 +1039,19 @@ export function Import() {
             <CheckCircle2 className="size-10 text-teal-400" />
             <div className="text-center">
               <p className="font-semibold text-ink-100">
-                {bulk.data?.count} transactions imported
+                {bulk.data?.count === 0
+                  ? "Nothing new to import"
+                  : `${bulk.data?.count} transactions imported`}
               </p>
               <p className="mt-1 text-sm text-ink-500">
-                Grouped as one batch — assign categories in Activity.
+                {bulk.data && bulk.data.skipped > 0 ? (
+                  <>
+                    {bulk.data.skipped} already-imported{" "}
+                    {bulk.data.skipped === 1 ? "row was" : "rows were"} skipped.
+                  </>
+                ) : (
+                  "Grouped as one batch — assign categories in Activity."
+                )}
               </p>
             </div>
 
@@ -1035,22 +1059,24 @@ export function Import() {
               <Link to="/transactions">
                 <Button size="sm">View in Activity</Button>
               </Link>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={undoImport}
-                disabled={deleteBatch.isPending}
-              >
-                {deleteBatch.isPending ? (
-                  <>
-                    <Spinner className="size-4" /> Undoing…
-                  </>
-                ) : (
-                  <>
-                    <RotateCcw className="size-4" /> Undo import
-                  </>
-                )}
-              </Button>
+              {bulk.data?.batchId && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={undoImport}
+                  disabled={deleteBatch.isPending}
+                >
+                  {deleteBatch.isPending ? (
+                    <>
+                      <Spinner className="size-4" /> Undoing…
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="size-4" /> Undo import
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
 
             {deleteBatch.isError && (
