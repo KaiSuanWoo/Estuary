@@ -70,3 +70,49 @@ export function useArchiveAccount() {
   const update = useUpdateAccount();
   return (id: string) => update.mutate({ id, patch: { is_archived: true } });
 }
+
+/**
+ * Persist a new account order. Takes the account ids in their desired order and
+ * writes each one's `display_order` to its index. The first account (index 0)
+ * is the user's default — it's what the new-transaction form preselects.
+ *
+ * Optimistically reorders the cache so the list doesn't flash on drop.
+ */
+export function useReorderAccounts() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (orderedIds: string[]) => {
+      await Promise.all(
+        orderedIds.map((id, i) =>
+          supabase
+            .from("accounts")
+            .update({ display_order: i })
+            .eq("id", id)
+            .then(({ error }) => {
+              if (error) throw error;
+            }),
+        ),
+      );
+    },
+    onMutate: async (orderedIds: string[]) => {
+      await client.cancelQueries({ queryKey: qk.accounts });
+      const prev = client.getQueryData<Account[]>(qk.accounts);
+      if (prev) {
+        const byId = new Map(prev.map((a) => [a.id, a]));
+        const next = orderedIds
+          .map((id, i) => {
+            const a = byId.get(id);
+            return a ? { ...a, display_order: i } : null;
+          })
+          .filter((a): a is Account => a !== null);
+        client.setQueryData(qk.accounts, next);
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) client.setQueryData(qk.accounts, ctx.prev);
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: qk.accounts }),
+  });
+}

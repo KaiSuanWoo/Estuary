@@ -1,7 +1,14 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { MoreHorizontal, Plus, Wallet } from "lucide-react";
-import { useAccounts, useCreateAccount, useUpdateAccount, useArchiveAccount } from "@/hooks/useAccounts";
+import { GripVertical, MoreHorizontal, Plus, Wallet } from "lucide-react";
+import { Reorder, useDragControls } from "motion/react";
+import {
+  useAccounts,
+  useCreateAccount,
+  useUpdateAccount,
+  useArchiveAccount,
+  useReorderAccounts,
+} from "@/hooks/useAccounts";
 import { useTransactions } from "@/hooks/useTransactions";
 import { accountBalancesByCurrency, isMultiCurrency } from "@/lib/balances";
 import { formatMoney } from "@/lib/format";
@@ -9,6 +16,7 @@ import { cn } from "@/lib/cn";
 import { ACCOUNT_TYPE_COLORS, ACCOUNT_TYPE_LABELS } from "@/lib/account-colors";
 import { Button, Card, EmptyState, PageHeader, Sheet, Skeleton } from "@/components/ui";
 import type { Account, AccountType } from "@/lib/types";
+import type { Transaction } from "@/lib/types";
 
 const inputCls =
   "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
@@ -52,77 +60,15 @@ export function Accounts() {
           hint="Add a bank account, cash, or savings to start tracking balances."
         />
       ) : (
-        <div className="space-y-3">
-          {accounts.map((a) => {
-            const col = ACCOUNT_TYPE_COLORS[a.type];
-            const balances = accountBalancesByCurrency(a, txns);
-            const multi = a.is_multi_currency || isMultiCurrency(balances);
-            const isCredit = a.type === "credit";
-            const owed = isCredit ? -(balances[a.currency] ?? 0) : 0;
-            const available =
-              isCredit && a.credit_limit != null ? a.credit_limit - owed : null;
-            // Primary currency first, then the rest alphabetically.
-            const currencies = [
-              a.currency,
-              ...Object.keys(balances)
-                .filter((c) => c !== a.currency)
-                .sort(),
-            ];
-            return (
-              <Card key={a.id} className="flex items-center gap-3">
-                {/* Account-type colour dot */}
-                <span className={cn("size-2.5 shrink-0 rounded-full", col.dot)} />
-
-                <Link to={`/transactions?account=${a.id}`} className="group min-w-0 flex-1">
-                  <p className="font-medium text-ink-100 transition-colors group-hover:text-teal-300">
-                    {a.name}
-                  </p>
-                  <p className="text-sm text-ink-500">
-                    <span className={col.text}>{ACCOUNT_TYPE_LABELS[a.type]}</span>
-                    {" · "}
-                    {available != null
-                      ? `${formatMoney(available, a.currency)} available`
-                      : multi
-                        ? "Multi-currency"
-                        : a.currency}
-                  </p>
-                </Link>
-
-                <Link
-                  to={`/transactions?account=${a.id}`}
-                  className="group flex flex-col items-end gap-0.5 transition-colors"
-                >
-                  {currencies.map((c, i) => (
-                    <span
-                      key={c}
-                      className={cn(
-                        "tnum font-semibold transition-colors group-hover:text-teal-300",
-                        i === 0
-                          ? isCredit
-                            ? "text-lg text-rose-300"
-                            : "text-lg text-ink-50"
-                          : "text-xs text-ink-400",
-                      )}
-                    >
-                      {formatMoney(balances[c] ?? 0, c)}
-                      {multi && (
-                        <span className="ml-1 text-ink-600">{c}</span>
-                      )}
-                    </span>
-                  ))}
-                </Link>
-
-                <button
-                  onClick={() => setEditing(a)}
-                  aria-label={`Edit ${a.name}`}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
-                >
-                  <MoreHorizontal className="size-4" />
-                </button>
-              </Card>
-            );
-          })}
-        </div>
+        <>
+          {accounts.length > 1 && (
+            <p className="mb-3 text-xs text-ink-500">
+              Drag to reorder — the top account is your default for new
+              transactions.
+            </p>
+          )}
+          <AccountList accounts={accounts} txns={txns} onEdit={setEditing} />
+        </>
       )}
 
       {adding && <AddAccountSheet onClose={() => setAdding(false)} />}
@@ -130,6 +76,161 @@ export function Accounts() {
         <EditAccountSheet account={editing} onClose={() => setEditing(null)} />
       )}
     </div>
+  );
+}
+
+// ─── Reorderable account list ─────────────────────────────────────────────────
+
+function AccountList({
+  accounts,
+  txns,
+  onEdit,
+}: {
+  accounts: Account[];
+  txns: Transaction[];
+  onEdit: (a: Account) => void;
+}) {
+  const reorder = useReorderAccounts();
+  // Local order drives rendering during a drag; resynced when the query updates.
+  const [order, setOrder] = useState<Account[]>(accounts);
+  const orderRef = useRef(order);
+
+  useEffect(() => {
+    setOrder(accounts);
+  }, [accounts]);
+  useEffect(() => {
+    orderRef.current = order;
+  }, [order]);
+
+  // On drop, persist only if the order actually changed from the server's.
+  function commit() {
+    const ids = orderRef.current.map((a) => a.id);
+    const serverIds = accounts.map((a) => a.id);
+    if (ids.join() !== serverIds.join()) reorder.mutate(ids);
+  }
+
+  return (
+    <Reorder.Group
+      axis="y"
+      values={order}
+      onReorder={setOrder}
+      className="space-y-3"
+    >
+      {order.map((a, i) => (
+        <AccountRow
+          key={a.id}
+          account={a}
+          txns={txns}
+          isDefault={i === 0}
+          onEdit={onEdit}
+          onCommit={commit}
+        />
+      ))}
+    </Reorder.Group>
+  );
+}
+
+function AccountRow({
+  account: a,
+  txns,
+  isDefault,
+  onEdit,
+  onCommit,
+}: {
+  account: Account;
+  txns: Transaction[];
+  isDefault: boolean;
+  onEdit: (a: Account) => void;
+  onCommit: () => void;
+}) {
+  const controls = useDragControls();
+  const col = ACCOUNT_TYPE_COLORS[a.type];
+  const balances = accountBalancesByCurrency(a, txns);
+  const multi = a.is_multi_currency || isMultiCurrency(balances);
+  const isCredit = a.type === "credit";
+  const owed = isCredit ? -(balances[a.currency] ?? 0) : 0;
+  const available =
+    isCredit && a.credit_limit != null ? a.credit_limit - owed : null;
+  // Primary currency first, then the rest alphabetically.
+  const currencies = [
+    a.currency,
+    ...Object.keys(balances)
+      .filter((c) => c !== a.currency)
+      .sort(),
+  ];
+
+  return (
+    <Reorder.Item
+      value={a}
+      dragListener={false}
+      dragControls={controls}
+      onDragEnd={onCommit}
+    >
+      <Card className="flex items-center gap-2.5">
+        {/* Drag handle — press and drag to reorder */}
+        <button
+          type="button"
+          aria-label={`Reorder ${a.name}`}
+          onPointerDown={(e) => controls.start(e)}
+          className="-ml-1 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-ink-600 transition-colors hover:text-ink-300 active:cursor-grabbing"
+        >
+          <GripVertical className="size-4" />
+        </button>
+
+        {/* Account-type colour dot */}
+        <span className={cn("size-2.5 shrink-0 rounded-full", col.dot)} />
+
+        <Link to={`/transactions?account=${a.id}`} className="group min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 font-medium text-ink-100 transition-colors group-hover:text-teal-300">
+            <span className="truncate">{a.name}</span>
+            {isDefault && (
+              <span className="shrink-0 rounded-full bg-teal-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-teal-300">
+                Default
+              </span>
+            )}
+          </p>
+          <p className="text-sm text-ink-500">
+            <span className={col.text}>{ACCOUNT_TYPE_LABELS[a.type]}</span>
+            {" · "}
+            {available != null
+              ? `${formatMoney(available, a.currency)} available`
+              : multi
+                ? "Multi-currency"
+                : a.currency}
+          </p>
+        </Link>
+
+        <Link
+          to={`/transactions?account=${a.id}`}
+          className="group flex flex-col items-end gap-0.5 transition-colors"
+        >
+          {currencies.map((c, i) => (
+            <span
+              key={c}
+              className={cn(
+                "tnum font-semibold transition-colors group-hover:text-teal-300",
+                i === 0
+                  ? isCredit
+                    ? "text-lg text-rose-300"
+                    : "text-lg text-ink-50"
+                  : "text-xs text-ink-400",
+              )}
+            >
+              {formatMoney(balances[c] ?? 0, c)}
+              {multi && <span className="ml-1 text-ink-600">{c}</span>}
+            </span>
+          ))}
+        </Link>
+
+        <button
+          onClick={() => onEdit(a)}
+          aria-label={`Edit ${a.name}`}
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+        >
+          <MoreHorizontal className="size-4" />
+        </button>
+      </Card>
+    </Reorder.Item>
   );
 }
 
