@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { differenceInCalendarDays, subMonths } from "date-fns";
-import { ChevronLeft, ChevronRight, PiggyBank, Plane, Plus, Target } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plane, Plus, Target } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -16,10 +16,9 @@ import {
 } from "recharts";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions } from "@/hooks/useTransactions";
-import { convert } from "@/lib/fx";
 import { useCategories } from "@/hooks/useCategories";
-import { useBudgets } from "@/hooks/useBudgets";
-import { useTags, useAllTransactionTags } from "@/hooks/useTags";
+import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
+import { spendForBudget, groupLinks } from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import { balancesByCurrency } from "@/lib/balances";
@@ -39,7 +38,7 @@ import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Button, Card, EmptyState, Spinner } from "@/components/ui";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
-import type { Budget, BudgetDomain, Category } from "@/lib/types";
+import type { Budget } from "@/lib/types";
 
 const TOOLTIP_STYLE = {
   background: "#111a24",
@@ -65,8 +64,7 @@ export function Dashboard() {
 
   // Budget + goal data (cross-account, so always over the full ledger).
   const { data: budgets = [] } = useBudgets();
-  const { data: tags = [] } = useTags();
-  const { data: txTags = [] } = useAllTransactionTags();
+  const { data: budgetLinks = [] } = useBudgetLinks();
 
   const accounts = accountsQ.data ?? [];
   const txns = allTxnsQ.data ?? [];
@@ -106,71 +104,28 @@ export function Dashboard() {
     cashflowMode,
   );
 
-  // ── Budget (counts down) — net spend per budgeted category this month ──────
-  const budgetSpend = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of spendingByCategory(
-      txns,
-      categoriesQ.data ?? [],
-      baseCurrency,
-      rates,
-      from,
-      to,
-      "net",
-    )) {
-      m.set(s.id, s.value);
-    }
-    return m;
-  }, [txns, categoriesQ.data, baseCurrency, rates, from, to]);
-
-  const budgetSummary = useMemo(() => {
-    const cats = (categoriesQ.data ?? []).filter(
-      (c) => c.kind === "expense" && (c.monthly_budget ?? 0) > 0,
-    );
-    const domainOf = (c: Category): BudgetDomain =>
-      (c.budget_domain as BudgetDomain) ?? "variable";
-    const spendCats = cats.filter((c) => domainOf(c) !== "savings");
-    const saveCats = cats.filter((c) => domainOf(c) === "savings");
-    const sum = (xs: Category[], f: (c: Category) => number) =>
-      xs.reduce((s, c) => s + f(c), 0);
+  // ── Budgets — limits count down (monthly), goals count up (over a range) ───
+  const { hasLimits, limitAmount, limitSpent, goalRows } = useMemo(() => {
+    const links = groupLinks(budgetLinks);
+    const window = { from, to };
+    const spentOf = (b: Budget) =>
+      spendForBudget(
+        b,
+        links.get(b.id) ?? new Set<string>(),
+        txns,
+        baseCurrency,
+        rates,
+        window,
+      );
+    const limitBudgets = budgets.filter((b) => b.kind !== "goal");
+    const goalBudgets = budgets.filter((b) => b.kind === "goal");
     return {
-      has: cats.length > 0,
-      budget: sum(spendCats, (c) => c.monthly_budget ?? 0),
-      spent: sum(spendCats, (c) => budgetSpend.get(c.id) ?? 0),
-      saveTarget: sum(saveCats, (c) => c.monthly_budget ?? 0),
-      saved: sum(saveCats, (c) => budgetSpend.get(c.id) ?? 0),
+      hasLimits: limitBudgets.length > 0,
+      limitAmount: limitBudgets.reduce((s, b) => s + b.amount, 0),
+      limitSpent: limitBudgets.reduce((s, b) => s + spentOf(b), 0),
+      goalRows: goalBudgets.map((b) => ({ b, spent: spentOf(b) })),
     };
-  }, [categoriesQ.data, budgetSpend]);
-
-  // ── Goals (count up) — spend tagged to each goal, all-time within window ───
-  const tagName = useMemo(() => new Map(tags.map((t) => [t.id, t.name])), [tags]);
-  const tagTxns = useMemo(() => {
-    const m = new Map<string, Set<string>>();
-    for (const tt of txTags) {
-      let s = m.get(tt.tag_id);
-      if (!s) {
-        s = new Set();
-        m.set(tt.tag_id, s);
-      }
-      s.add(tt.transaction_id);
-    }
-    return m;
-  }, [txTags]);
-  const txnById = useMemo(() => new Map(txns.map((t) => [t.id, t])), [txns]);
-  function goalSpent(b: Budget): number {
-    if (!b.tag_id) return 0;
-    const ids = tagTxns.get(b.tag_id);
-    if (!ids) return 0;
-    let total = 0;
-    for (const id of ids) {
-      const t = txnById.get(id);
-      if (!t || t.type !== "expense") continue;
-      if (b.start_date && t.date < b.start_date) continue;
-      if (b.end_date && t.date > b.end_date) continue;
-      total += convert(t.amount, t.currency, baseCurrency, rates) ?? t.amount;
-    }
-    return total;
-  }
+  }, [budgets, budgetLinks, txns, baseCurrency, rates, from, to]);
 
   if (accountsQ.isLoading) {
     return (
@@ -320,7 +275,7 @@ export function Dashboard() {
         </Widget>
       </div>
 
-      {/* Budget (counts down) & Goals (count up) */}
+      {/* Budget (limits count down) & Goals (count up) */}
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Widget
           title="Budget"
@@ -331,85 +286,61 @@ export function Dashboard() {
             </Link>
           }
         >
-          {!budgetSummary.has ? (
+          {!hasLimits ? (
             <EmptyState
               icon={<Target className="size-6" />}
               title="No budgets yet"
-              hint="Set monthly limits to track spending."
+              hint="Create a monthly budget to track spending."
             />
           ) : (
-            <div className="space-y-4">
-              {budgetSummary.budget > 0 &&
-                (() => {
-                  const { budget, spent } = budgetSummary;
-                  const left = budget - spent;
-                  const ratio = budget > 0 ? spent / budget : 0;
-                  return (
+            (() => {
+              const left = limitAmount - limitSpent;
+              const ratio = limitAmount > 0 ? limitSpent / limitAmount : 0;
+              return (
+                <div>
+                  <div className="flex items-end justify-between gap-3">
                     <div>
-                      <div className="flex items-end justify-between gap-3">
-                        <div>
-                          <p className="text-xs text-ink-500">Left to spend</p>
-                          <p
-                            className={cn(
-                              "tnum mt-0.5 text-2xl font-semibold tracking-tight",
-                              left < 0 ? "text-rose-400" : "text-ink-50",
-                            )}
-                          >
-                            {formatMoney(left, baseCurrency)}
-                          </p>
-                        </div>
-                        <p className="tnum text-right text-xs text-ink-500">
-                          {formatMoney(spent, baseCurrency)} of{" "}
-                          {formatMoney(budget, baseCurrency)}
-                        </p>
-                      </div>
-                      <MiniBar ratio={ratio} />
+                      <p className="text-xs text-ink-500">Left to spend</p>
+                      <p
+                        className={cn(
+                          "tnum mt-0.5 text-2xl font-semibold tracking-tight",
+                          left < 0 ? "text-rose-400" : "text-ink-50",
+                        )}
+                      >
+                        {formatMoney(left, baseCurrency)}
+                      </p>
                     </div>
-                  );
-                })()}
-              {budgetSummary.saveTarget > 0 &&
-                (() => {
-                  const { saveTarget, saved } = budgetSummary;
-                  const ratio = saveTarget > 0 ? saved / saveTarget : 0;
-                  return (
-                    <div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="flex items-center gap-1.5 text-xs font-medium text-ink-400">
-                          <PiggyBank className="size-3.5" /> Saved this month
-                        </span>
-                        <span className="tnum text-xs text-emerald-400">
-                          {formatMoney(saved, baseCurrency)} /{" "}
-                          {formatMoney(saveTarget, baseCurrency)}
-                        </span>
-                      </div>
-                      <MiniBar ratio={ratio} savings />
-                    </div>
-                  );
-                })()}
-            </div>
+                    <p className="tnum text-right text-xs text-ink-500">
+                      {formatMoney(limitSpent, baseCurrency)} of{" "}
+                      {formatMoney(limitAmount, baseCurrency)}
+                    </p>
+                  </div>
+                  <MiniBar ratio={ratio} />
+                </div>
+              );
+            })()
           )}
         </Widget>
 
         <Widget
           title="Goals"
-          hint="Saved toward targets"
+          hint="Progress toward targets"
           action={
             <Link to="/budgets" className="text-sm text-teal-400">
               Manage
             </Link>
           }
         >
-          {budgets.length === 0 ? (
+          {goalRows.length === 0 ? (
             <EmptyState
               icon={<Plane className="size-6" />}
               title="No goals yet"
-              hint="Create a goal like a vacation to track progress."
+              hint="Create a goal like a trip to track progress."
             />
           ) : (
             <ul className="space-y-3">
-              {budgets.slice(0, 4).map((b) => {
-                const sp = goalSpent(b);
-                const ratio = b.amount > 0 ? sp / b.amount : 0;
+              {goalRows.slice(0, 4).map(({ b, spent }) => {
+                const ratio = b.amount > 0 ? spent / b.amount : 0;
                 const daysLeft = b.end_date
                   ? differenceInCalendarDays(new Date(b.end_date), new Date())
                   : null;
@@ -420,14 +351,14 @@ export function Dashboard() {
                         <p className="truncate text-sm font-medium text-ink-100">
                           {b.name}
                         </p>
-                        <p className="text-xs text-ink-500">
-                          {b.tag_id ? `#${tagName.get(b.tag_id) ?? "tag"}` : "no tag"}
-                          {daysLeft != null &&
-                            (daysLeft >= 0 ? ` · ${daysLeft}d left` : " · ended")}
-                        </p>
+                        {daysLeft != null && (
+                          <p className="text-xs text-ink-500">
+                            {daysLeft >= 0 ? `${daysLeft}d left` : "ended"}
+                          </p>
+                        )}
                       </div>
                       <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
-                        {formatMoney(sp, baseCurrency)}
+                        {formatMoney(spent, baseCurrency)}
                         <span className="text-ink-600">
                           {" "}
                           / {formatMoney(b.amount, baseCurrency)}

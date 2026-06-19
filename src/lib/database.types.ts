@@ -21,7 +21,7 @@ export type Json =
 export type AccountType = "checking" | "savings" | "cash" | "investmentCash" | "credit";
 export type SavingsType = "fixed" | "disposable" | "investment" | "custom";
 export type CategoryKind = "expense" | "income";
-export type BudgetDomain = "fixed" | "variable" | "savings";
+export type BudgetKind = "limit" | "goal";
 export type CounterpartyType = "person" | "family" | "merchant";
 export type TransactionType = "expense" | "income" | "transfer" | "adjustment";
 export type ReimbursementStatus = "none" | "pending" | "partial" | "settled";
@@ -171,8 +171,6 @@ export interface Database {
           parent_id: string | null;
           icon: string | null;
           color: string | null;
-          monthly_budget: number | null;
-          budget_domain: BudgetDomain | null;
           display_order: number;
           is_archived: boolean;
           created_at: string;
@@ -186,8 +184,6 @@ export interface Database {
           parent_id?: string | null;
           icon?: string | null;
           color?: string | null;
-          monthly_budget?: number | null;
-          budget_domain?: BudgetDomain | null;
           display_order?: number;
           is_archived?: boolean;
           created_at?: string;
@@ -201,8 +197,6 @@ export interface Database {
           parent_id?: string | null;
           icon?: string | null;
           color?: string | null;
-          monthly_budget?: number | null;
-          budget_domain?: BudgetDomain | null;
           display_order?: number;
           is_archived?: boolean;
           created_at?: string;
@@ -267,7 +261,7 @@ export interface Database {
           user_id: string;
           name: string;
           amount: number;
-          tag_id: string | null;
+          kind: BudgetKind;
           start_date: string | null;
           end_date: string | null;
           color: string | null;
@@ -278,7 +272,7 @@ export interface Database {
           user_id: string;
           name: string;
           amount: number;
-          tag_id?: string | null;
+          kind?: BudgetKind;
           start_date?: string | null;
           end_date?: string | null;
           color?: string | null;
@@ -289,10 +283,31 @@ export interface Database {
           user_id?: string;
           name?: string;
           amount?: number;
-          tag_id?: string | null;
+          kind?: BudgetKind;
           start_date?: string | null;
           end_date?: string | null;
           color?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      budget_category_links: {
+        Row: {
+          budget_id: string;
+          category_id: string;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          budget_id: string;
+          category_id: string;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          budget_id?: string;
+          category_id?: string;
+          user_id?: string;
           created_at?: string;
         };
         Relationships: [];

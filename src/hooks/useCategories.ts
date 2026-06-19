@@ -137,7 +137,6 @@ export function useSeedCategories() {
         kind: s.kind,
         color: s.color,
         display_order: i,
-        monthly_budget: null as number | null,
       }));
       const { error } = await supabase.from("categories").insert(inserts);
       if (error) throw error;

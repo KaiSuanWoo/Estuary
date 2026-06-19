@@ -61,6 +61,59 @@ export function useDeleteBudget() {
       const { error } = await supabase.from("budgets").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: qk.budgets }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: qk.budgets });
+      client.invalidateQueries({ queryKey: qk.budgetLinks });
+    },
+  });
+}
+
+/** All (budget_id, category_id) membership pairs for the user. */
+export function useBudgetLinks() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: qk.budgetLinks,
+    enabled: !!user,
+    queryFn: async (): Promise<{ budget_id: string; category_id: string }[]> => {
+      const { data, error } = await supabase
+        .from("budget_category_links")
+        .select("budget_id, category_id");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/** Replace a budget's assigned categories (delete all, insert the chosen ones). */
+export function useSetBudgetCategories() {
+  const client = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({
+      budgetId,
+      categoryIds,
+    }: {
+      budgetId: string;
+      categoryIds: string[];
+    }) => {
+      const { error: delErr } = await supabase
+        .from("budget_category_links")
+        .delete()
+        .eq("budget_id", budgetId);
+      if (delErr) throw delErr;
+      if (categoryIds.length > 0) {
+        const { error: insErr } = await supabase
+          .from("budget_category_links")
+          .insert(
+            categoryIds.map((category_id) => ({
+              budget_id: budgetId,
+              category_id,
+              user_id: user!.id,
+            })),
+          );
+        if (insErr) throw insErr;
+      }
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: qk.budgetLinks }),
   });
 }

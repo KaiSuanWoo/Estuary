@@ -303,9 +303,6 @@ function Group({
       <Card className="divide-y divide-ink-800/70 py-0">
         {items.map((c, i) => {
           const spent = spendMap.get(c.id) ?? 0;
-          const budget = c.monthly_budget;
-          const pct = budget != null && budget > 0 ? Math.min(spent / budget, 1) : null;
-          const over = budget != null && spent > budget;
           return (
             <div key={c.id} className="py-3">
               <div className="flex items-center gap-3">
@@ -335,23 +332,11 @@ function Group({
                   </div>
                 ) : (
                   <>
-                    {budget != null ? (
-                      <span
-                        className={cn(
-                          "tnum text-sm",
-                          over ? "text-red-400" : "text-ink-400",
-                        )}
-                      >
-                        {formatMoney(spent, baseCurrency)}{" "}
-                        <span className="text-ink-600">
-                          / {formatMoney(budget, baseCurrency)}
-                        </span>
-                      </span>
-                    ) : spent > 0 ? (
+                    {spent > 0 && (
                       <span className="tnum text-sm text-ink-400">
                         {formatMoney(spent, baseCurrency)}
                       </span>
-                    ) : null}
+                    )}
                     <button
                       onClick={() => onEdit(c)}
                       aria-label={`Edit ${c.name}`}
@@ -369,17 +354,6 @@ function Group({
                   </>
                 )}
               </div>
-              {!reordering && pct !== null && (
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      over ? "bg-red-500" : "bg-teal-500",
-                    )}
-                    style={{ width: `${pct * 100}%` }}
-                  />
-                </div>
-              )}
             </div>
           );
         })}
@@ -400,9 +374,6 @@ function EditCategorySheet({
   const [name, setName] = useState(category.name);
   const [color, setColor] = useState(category.color ?? SWATCHES[0]);
   const [icon, setIcon] = useState(category.icon ?? "");
-  const [budget, setBudget] = useState(
-    category.monthly_budget != null ? String(category.monthly_budget) : "",
-  );
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   async function onSubmit(e: FormEvent) {
@@ -413,7 +384,6 @@ function EditCategorySheet({
         name: name.trim(),
         color,
         icon: icon || null,
-        monthly_budget: budget ? Number(budget) : null,
       },
     });
     onClose();
@@ -442,23 +412,6 @@ function EditCategorySheet({
           <ColorPicker value={color} onChange={setColor} />
 
           <IconPicker value={icon} color={color} onChange={setIcon} />
-
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">
-              Monthly budget{" "}
-              <span className="text-ink-600">(optional)</span>
-            </span>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              placeholder="0.00"
-              className={cn(inputCls, "tnum")}
-            />
-          </label>
 
           {update.isError && (
             <p className="text-xs text-red-400">
@@ -510,7 +463,6 @@ function AddCategorySheet({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState(SWATCHES[0]);
   const [icon, setIcon] = useState("");
-  const [budget, setBudget] = useState("");
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -519,7 +471,6 @@ function AddCategorySheet({ onClose }: { onClose: () => void }) {
       kind,
       color,
       icon: icon || null,
-      monthly_budget: budget ? Number(budget) : null,
     });
     onClose();
   }
@@ -561,22 +512,6 @@ function AddCategorySheet({ onClose }: { onClose: () => void }) {
           <ColorPicker value={color} onChange={setColor} />
 
           <IconPicker value={icon} color={color} onChange={setIcon} />
-
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">
-              Monthly budget <span className="text-ink-600">(optional)</span>
-            </span>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              placeholder="0.00"
-              className={cn(inputCls, "tnum")}
-            />
-          </label>
 
           {create.isError && (
             <p className="text-xs text-red-400">
