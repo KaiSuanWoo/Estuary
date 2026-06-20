@@ -44,6 +44,8 @@ const PERIODS: { value: BudgetPeriod; label: string }[] = [
   { value: "custom", label: "Custom" },
 ];
 
+const SWATCHES = ["#7FD1B9", "#3F72AF", "#4F8A6D", "#8AA6C4", "#E0A458", "#C46D6D"];
+
 /**
  * Bar/text colour by progress. An expense budget counts *down* (over = bad, red);
  * a saving budget counts *up* (reaching the target = good, never red).
@@ -264,11 +266,17 @@ function BudgetRow({
   return (
     <Card className="p-3.5">
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-ink-100">{b.name}</p>
-          <p className="truncate text-xs text-ink-500">
-            <span className="text-ink-400">{periodLabel(b)}</span> · {cats}
-          </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className="size-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: b.color ?? "#4d6175" }}
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-ink-100">{b.name}</p>
+            <p className="truncate text-xs text-ink-500">
+              <span className="text-ink-400">{periodLabel(b)}</span> · {cats}
+            </p>
+          </div>
         </div>
         <span
           className={cn(
@@ -325,9 +333,17 @@ function GoalRow({
   return (
     <Card className="p-3.5">
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-ink-100">{b.name}</p>
-          <p className="truncate text-xs text-ink-500">{goalDateLabel(b, daysLeft)}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className="size-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: b.color ?? "#4d6175" }}
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-ink-100">{b.name}</p>
+            <p className="truncate text-xs text-ink-500">
+              {goalDateLabel(b, daysLeft)}
+            </p>
+          </div>
         </div>
         <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
           {formatMoney(funded, base)}
@@ -408,6 +424,7 @@ function BudgetSheet({
   const [start, setStart] = useState(existing?.start_date ?? "");
   const [end, setEnd] = useState(existing?.end_date ?? "");
   const [due, setDue] = useState(existing?.due_date ?? "");
+  const [color, setColor] = useState(existing?.color ?? SWATCHES[0]);
   const [pickedCats, setPickedCats] = useState<Set<string>>(new Set(assignedCats));
   const [pickedTxns, setPickedTxns] = useState<Set<string>>(new Set(assignedTxns));
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -467,6 +484,7 @@ function BudgetSheet({
       start_date: !isGoal && period === "custom" ? start || null : null,
       end_date: !isGoal && period === "custom" ? end || null : null,
       due_date: isGoal ? due || null : null,
+      color,
     } as const;
     try {
       const id = isNew
@@ -542,6 +560,28 @@ function BudgetSheet({
             className={field}
           />
         </label>
+
+        {/* Colour */}
+        <div>
+          <span className="mb-1 block text-xs font-medium text-ink-400">Colour</span>
+          <div className="flex gap-2">
+            {SWATCHES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                aria-label={`Colour ${c}`}
+                onClick={() => setColor(c)}
+                className={cn(
+                  "size-7 rounded-full transition-transform",
+                  color === c
+                    ? "ring-2 ring-ink-50 ring-offset-2 ring-offset-ink-900"
+                    : "hover:scale-110",
+                )}
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+        </div>
 
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-ink-400">

@@ -10,6 +10,11 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
 import { useTransactionTags, useSetTransactionTags } from "@/hooks/useTags";
 import {
+  useBudgets,
+  useBudgetTransactionLinks,
+  useSetTransactionGoals,
+} from "@/hooks/useBudgets";
+import {
   useUpdateTransaction,
   useDeleteTransaction,
   useReimbursableExpenses,
@@ -46,6 +51,10 @@ export function EditTransactionSheet({
   const del = useDeleteTransaction();
   const setTxnTags = useSetTransactionTags();
   const { data: existingTags } = useTransactionTags(tx.id);
+  const { data: budgets = [] } = useBudgets();
+  const goals = useMemo(() => budgets.filter((b) => b.type === "goal"), [budgets]);
+  const { data: allTxnLinks = [] } = useBudgetTransactionLinks();
+  const setTxnGoals = useSetTransactionGoals();
 
   const [type, setType] = useState<SheetType>(tx.type);
   const [amount, setAmount] = useState(String(tx.amount));
@@ -69,6 +78,18 @@ export function EditTransactionSheet({
       setTagsLoaded(true);
     }
   }, [existingTags, tagsLoaded]);
+  const [goalIds, setGoalIds] = useState<string[]>([]);
+  const [goalsLoaded, setGoalsLoaded] = useState(false);
+  useEffect(() => {
+    if (!goalsLoaded && allTxnLinks.length >= 0) {
+      setGoalIds(
+        allTxnLinks
+          .filter((l) => l.transaction_id === tx.id)
+          .map((l) => l.budget_id),
+      );
+      setGoalsLoaded(true);
+    }
+  }, [allTxnLinks, goalsLoaded, tx.id]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [flagged, setFlagged] = useState(tx.flagged);
   const [isReimbursable, setIsReimbursable] = useState(tx.is_reimbursable);
@@ -244,6 +265,9 @@ export function EditTransactionSheet({
       });
     }
     await setTxnTags.mutateAsync({ transactionId: tx.id, tagIds: tags });
+    if (goals.length > 0) {
+      await setTxnGoals.mutateAsync({ transactionId: tx.id, budgetIds: goalIds });
+    }
     onClose();
   }
 
@@ -461,6 +485,39 @@ export function EditTransactionSheet({
           <Field label="Tags">
             <TagPicker value={tags} onChange={setTags} />
           </Field>
+
+          {/* ── Assign to one-time goals ── */}
+          {goals.length > 0 && (
+            <Field label="Goals">
+              <div className="flex flex-wrap gap-1.5">
+                {goals.map((g) => {
+                  const on = goalIds.includes(g.id);
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() =>
+                        setGoalIds((prev) =>
+                          prev.includes(g.id)
+                            ? prev.filter((x) => x !== g.id)
+                            : [...prev, g.id],
+                        )
+                      }
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                        on
+                          ? "border-teal-500 bg-teal-500/15 text-teal-300"
+                          : "border-ink-700 text-ink-400 hover:border-ink-600",
+                      )}
+                    >
+                      {on && <Check className="size-3" strokeWidth={3} />}
+                      {g.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          )}
 
           {/* ── Split / reimbursable (expenses only) ── */}
           {type === "expense" && (

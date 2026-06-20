@@ -135,6 +135,44 @@ export function useSetBudgetTransactions() {
   });
 }
 
+/**
+ * Set which goals a single transaction belongs to (delete this transaction's
+ * links, insert the chosen budgets). Transaction-centric, so it never disturbs
+ * other transactions' assignments — the mirror of useSetBudgetTransactions.
+ */
+export function useSetTransactionGoals() {
+  const client = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({
+      transactionId,
+      budgetIds,
+    }: {
+      transactionId: string;
+      budgetIds: string[];
+    }) => {
+      const { error: delErr } = await supabase
+        .from("budget_transaction_links")
+        .delete()
+        .eq("transaction_id", transactionId);
+      if (delErr) throw delErr;
+      if (budgetIds.length > 0) {
+        const { error: insErr } = await supabase
+          .from("budget_transaction_links")
+          .insert(
+            budgetIds.map((budget_id) => ({
+              budget_id,
+              transaction_id: transactionId,
+              user_id: user!.id,
+            })),
+          );
+        if (insErr) throw insErr;
+      }
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: qk.budgetTxnLinks }),
+  });
+}
+
 /** Replace a budget's assigned categories (delete all, insert the chosen ones). */
 export function useSetBudgetCategories() {
   const client = useQueryClient();
