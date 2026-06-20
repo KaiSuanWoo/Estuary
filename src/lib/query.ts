@@ -26,6 +26,7 @@ export const qk = {
   tags: ["tags"] as const,
   budgets: ["budgets"] as const,
   budgetLinks: ["budget_category_links"] as const,
+  budgetTxnLinks: ["budget_transaction_links"] as const,
   transactionTags: ["transaction_tags"] as const,
   txnTags: (txnId: string) => ["transaction_tags", txnId] as const,
   transactions: (filters?: Record<string, unknown>) =>

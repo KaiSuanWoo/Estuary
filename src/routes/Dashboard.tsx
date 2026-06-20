@@ -17,8 +17,18 @@ import {
 import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useCategories } from "@/hooks/useCategories";
-import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
-import { spendForBudget, groupLinks, periodLabel } from "@/lib/budgets";
+import {
+  useBudgets,
+  useBudgetLinks,
+  useBudgetTransactionLinks,
+} from "@/hooks/useBudgets";
+import {
+  spendForBudget,
+  goalFunding,
+  groupLinks,
+  groupTxnLinks,
+  periodLabel,
+} from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import { balancesByCurrency } from "@/lib/balances";
@@ -65,6 +75,7 @@ export function Dashboard() {
   // Budget + goal data (cross-account, so always over the full ledger).
   const { data: budgets = [] } = useBudgets();
   const { data: budgetLinks = [] } = useBudgetLinks();
+  const { data: budgetTxnLinks = [] } = useBudgetTransactionLinks();
   const reimbursedMap = useReimbursedAmountMap();
 
   const accounts = accountsQ.data ?? [];
@@ -105,9 +116,11 @@ export function Dashboard() {
     cashflowMode,
   );
 
-  // ── Budgets — each uses its own period window; expense counts down, saving up ─
-  const { expenseRows, savingRows } = useMemo(() => {
+  // ── Budgets — recurring use a period window; goals are transaction-funded ────
+  const { expenseRows, savingRows, goalRows } = useMemo(() => {
     const links = groupLinks(budgetLinks);
+    const txnLinks = groupTxnLinks(budgetTxnLinks);
+    const recurring = budgets.filter((b) => b.type !== "goal");
     const spentOf = (b: Budget) =>
       spendForBudget(
         b,
@@ -118,14 +131,27 @@ export function Dashboard() {
         reimbursedMap,
       );
     return {
-      expenseRows: budgets
+      expenseRows: recurring
         .filter((b) => b.direction !== "saving")
         .map((b) => ({ b, spent: spentOf(b) })),
-      savingRows: budgets
+      savingRows: recurring
         .filter((b) => b.direction === "saving")
         .map((b) => ({ b, spent: spentOf(b) })),
+      goalRows: budgets
+        .filter((b) => b.type === "goal")
+        .map((b) => ({
+          b,
+          funding: goalFunding(
+            b,
+            txnLinks.get(b.id) ?? new Set<string>(),
+            txns,
+            baseCurrency,
+            rates,
+            reimbursedMap,
+          ),
+        })),
     };
-  }, [budgets, budgetLinks, txns, baseCurrency, rates, reimbursedMap]);
+  }, [budgets, budgetLinks, budgetTxnLinks, txns, baseCurrency, rates, reimbursedMap]);
 
   if (accountsQ.isLoading) {
     return (
@@ -335,7 +361,7 @@ export function Dashboard() {
         </Widget>
 
         <Widget
-          title="Savings"
+          title="Goals & savings"
           hint="Progress toward targets"
           action={
             <Link to="/budgets" className="text-sm text-teal-400">
@@ -343,44 +369,80 @@ export function Dashboard() {
             </Link>
           }
         >
-          {savingRows.length === 0 ? (
+          {goalRows.length === 0 && savingRows.length === 0 ? (
             <EmptyState
               icon={<Plane className="size-6" />}
-              title="No savings yet"
-              hint="Create a saving goal to track progress."
+              title="No goals yet"
+              hint="Create a one-time goal or a savings budget to track progress."
             />
           ) : (
             <ul className="space-y-3">
-              {savingRows.slice(0, 4).map(({ b, spent }) => {
-                const ratio = b.amount > 0 ? spent / b.amount : 0;
-                return (
-                  <li key={b.id}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-ink-100">
-                          {b.name}
-                        </p>
-                        <p className="text-xs text-ink-500">{periodLabel(b)}</p>
-                      </div>
-                      <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
-                        {formatMoney(spent, baseCurrency)}
-                        <span className="text-ink-600">
-                          {" "}
-                          / {formatMoney(b.amount, baseCurrency)}
-                        </span>
-                      </span>
+              {/* Goals first (transaction-funded, stacked bar) */}
+              {goalRows.slice(0, 4).map(({ b, funding }) => (
+                <li key={b.id}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-ink-100">
+                        {b.name}
+                      </p>
+                      <p className="text-xs text-ink-500">
+                        {funding.daysLeft == null
+                          ? "Goal"
+                          : funding.daysLeft < 0
+                            ? "Overdue"
+                            : `${funding.daysLeft}d left`}
+                      </p>
                     </div>
-                    <MiniBar ratio={ratio} savings />
-                  </li>
-                );
-              })}
-              {savingRows.length > 4 && (
+                    <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
+                      {formatMoney(funding.funded, baseCurrency)}
+                      <span className="text-ink-600">
+                        {" "}
+                        / {formatMoney(b.amount, baseCurrency)}
+                      </span>
+                    </span>
+                  </div>
+                  <MiniStackedBar
+                    spent={funding.spent}
+                    saved={funding.saved}
+                    target={b.amount}
+                  />
+                </li>
+              ))}
+
+              {/* Recurring savings fill any remaining slots */}
+              {savingRows
+                .slice(0, Math.max(0, 4 - goalRows.length))
+                .map(({ b, spent }) => {
+                  const ratio = b.amount > 0 ? spent / b.amount : 0;
+                  return (
+                    <li key={b.id}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-ink-100">
+                            {b.name}
+                          </p>
+                          <p className="text-xs text-ink-500">{periodLabel(b)}</p>
+                        </div>
+                        <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
+                          {formatMoney(spent, baseCurrency)}
+                          <span className="text-ink-600">
+                            {" "}
+                            / {formatMoney(b.amount, baseCurrency)}
+                          </span>
+                        </span>
+                      </div>
+                      <MiniBar ratio={ratio} savings />
+                    </li>
+                  );
+                })}
+
+              {goalRows.length + savingRows.length > 4 && (
                 <li>
                   <Link
                     to="/budgets"
                     className="block pt-1 text-xs text-ink-500 hover:text-teal-300"
                   >
-                    +{savingRows.length - 4} more
+                    +{goalRows.length + savingRows.length - 4} more
                   </Link>
                 </li>
               )}
@@ -503,6 +565,27 @@ function MiniBar({ ratio, savings = false }: { ratio: number; savings?: boolean 
         className={cn("h-full rounded-full transition-all", color)}
         style={{ width: `${pct}%` }}
       />
+    </div>
+  );
+}
+
+/** Two-segment slim bar for goals: spent then saved, toward the target. */
+function MiniStackedBar({
+  spent,
+  saved,
+  target,
+}: {
+  spent: number;
+  saved: number;
+  target: number;
+}) {
+  const t = target > 0 ? target : 1;
+  const spentPct = Math.min(100, (spent / t) * 100);
+  const savedPct = Math.min(100 - spentPct, (saved / t) * 100);
+  return (
+    <div className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-ink-800">
+      <div className="h-full bg-teal-600 transition-all" style={{ width: `${spentPct}%` }} />
+      <div className="h-full bg-emerald-400 transition-all" style={{ width: `${savedPct}%` }} />
     </div>
   );
 }

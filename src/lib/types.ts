@@ -22,6 +22,7 @@ export type BudgetInsert = Tables["budgets"]["Insert"];
 export type BudgetUpdate = Tables["budgets"]["Update"];
 
 export type BudgetCategoryLink = Tables["budget_category_links"]["Row"];
+export type BudgetTransactionLink = Tables["budget_transaction_links"]["Row"];
 
 export type Transaction = Tables["transactions"]["Row"];
 export type TransactionInsert = Tables["transactions"]["Insert"];
@@ -44,6 +45,7 @@ export type {
   CategoryKind,
   BudgetDirection,
   BudgetPeriod,
+  BudgetType,
   CounterpartyType,
   TransactionType,
   ReimbursementStatus,

@@ -64,6 +64,7 @@ export function useDeleteBudget() {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: qk.budgets });
       client.invalidateQueries({ queryKey: qk.budgetLinks });
+      client.invalidateQueries({ queryKey: qk.budgetTxnLinks });
     },
   });
 }
@@ -81,6 +82,56 @@ export function useBudgetLinks() {
       if (error) throw error;
       return data ?? [];
     },
+  });
+}
+
+/** All (budget_id, transaction_id) membership pairs for the user (goal budgets). */
+export function useBudgetTransactionLinks() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: qk.budgetTxnLinks,
+    enabled: !!user,
+    queryFn: async (): Promise<{ budget_id: string; transaction_id: string }[]> => {
+      const { data, error } = await supabase
+        .from("budget_transaction_links")
+        .select("budget_id, transaction_id");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/** Replace a goal's assigned transactions (delete all, insert the chosen ones). */
+export function useSetBudgetTransactions() {
+  const client = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({
+      budgetId,
+      transactionIds,
+    }: {
+      budgetId: string;
+      transactionIds: string[];
+    }) => {
+      const { error: delErr } = await supabase
+        .from("budget_transaction_links")
+        .delete()
+        .eq("budget_id", budgetId);
+      if (delErr) throw delErr;
+      if (transactionIds.length > 0) {
+        const { error: insErr } = await supabase
+          .from("budget_transaction_links")
+          .insert(
+            transactionIds.map((transaction_id) => ({
+              budget_id: budgetId,
+              transaction_id,
+              user_id: user!.id,
+            })),
+          );
+        if (insErr) throw insErr;
+      }
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: qk.budgetTxnLinks }),
   });
 }
 

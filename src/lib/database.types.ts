@@ -23,6 +23,7 @@ export type SavingsType = "fixed" | "disposable" | "investment" | "custom";
 export type CategoryKind = "expense" | "income";
 export type BudgetDirection = "expense" | "saving";
 export type BudgetPeriod = "weekly" | "monthly" | "yearly" | "custom";
+export type BudgetType = "recurring" | "goal";
 export type CounterpartyType = "person" | "family" | "merchant";
 export type TransactionType = "expense" | "income" | "transfer" | "adjustment";
 export type ReimbursementStatus = "none" | "pending" | "partial" | "settled";
@@ -262,10 +263,12 @@ export interface Database {
           user_id: string;
           name: string;
           amount: number;
+          type: BudgetType;
           direction: BudgetDirection;
           period: BudgetPeriod;
           start_date: string | null;
           end_date: string | null;
+          due_date: string | null;
           color: string | null;
           created_at: string;
         };
@@ -274,10 +277,12 @@ export interface Database {
           user_id: string;
           name: string;
           amount: number;
+          type?: BudgetType;
           direction?: BudgetDirection;
           period?: BudgetPeriod;
           start_date?: string | null;
           end_date?: string | null;
+          due_date?: string | null;
           color?: string | null;
           created_at?: string;
         };
@@ -286,11 +291,34 @@ export interface Database {
           user_id?: string;
           name?: string;
           amount?: number;
+          type?: BudgetType;
           direction?: BudgetDirection;
           period?: BudgetPeriod;
           start_date?: string | null;
           end_date?: string | null;
+          due_date?: string | null;
           color?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      budget_transaction_links: {
+        Row: {
+          budget_id: string;
+          transaction_id: string;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          budget_id: string;
+          transaction_id: string;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          budget_id?: string;
+          transaction_id?: string;
+          user_id?: string;
           created_at?: string;
         };
         Relationships: [];

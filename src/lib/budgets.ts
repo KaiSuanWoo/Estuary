@@ -1,4 +1,5 @@
 import {
+  differenceInCalendarDays,
   endOfMonth,
   endOfWeek,
   endOfYear,
@@ -108,4 +109,81 @@ export function groupLinks(
     s.add(l.category_id);
   }
   return m;
+}
+
+/** Build budget_id → Set<transaction_id> from the flat goal-link rows. */
+export function groupTxnLinks(
+  links: { budget_id: string; transaction_id: string }[],
+): Map<string, Set<string>> {
+  const m = new Map<string, Set<string>>();
+  for (const l of links) {
+    let s = m.get(l.budget_id);
+    if (!s) {
+      s = new Set();
+      m.set(l.budget_id, s);
+    }
+    s.add(l.transaction_id);
+  }
+  return m;
+}
+
+export interface GoalFunding {
+  /** Costs already paid (assigned expenses, net of reimbursement). */
+  spent: number;
+  /** Money set aside (assigned income/transfer/adjustment). */
+  saved: number;
+  /** spent + saved. */
+  funded: number;
+  /** max(0, target − funded). */
+  remaining: number;
+  /** funded / target (0 when target ≤ 0). */
+  ratio: number;
+  /** Days until the due date, or null when no due date. Negative = overdue. */
+  daysLeft: number | null;
+  /** Suggested amount to save per week to hit the target by the due date. */
+  perWeek: number | null;
+}
+
+/**
+ * Funding progress for a one-time goal budget. Assigned expenses count as
+ * "spent" (net of reimbursement); everything else assigned (money set aside)
+ * counts as "saved". Together they fund the target.
+ */
+export function goalFunding(
+  budget: Budget,
+  txnIds: Set<string>,
+  txns: Transaction[],
+  base: string,
+  rates: RateMap,
+  reimbursed: Map<string, number>,
+  now = new Date(),
+): GoalFunding {
+  let spent = 0;
+  let saved = 0;
+  if (txnIds.size > 0) {
+    for (const t of txns) {
+      if (!txnIds.has(t.id)) continue;
+      const amt = convert(t.amount, t.currency, base, rates) ?? t.amount;
+      if (t.type === "expense") {
+        spent += amt - (reimbursed.get(t.id) ?? 0);
+      } else {
+        saved += amt;
+      }
+    }
+  }
+  spent = Math.max(0, spent);
+  const funded = spent + saved;
+  const target = budget.amount;
+  const remaining = Math.max(0, target - funded);
+  const ratio = target > 0 ? funded / target : 0;
+
+  let daysLeft: number | null = null;
+  let perWeek: number | null = null;
+  if (budget.due_date) {
+    daysLeft = differenceInCalendarDays(parseISO(budget.due_date), now);
+    if (daysLeft > 0 && remaining > 0) {
+      perWeek = remaining / Math.max(1, Math.ceil(daysLeft / 7));
+    }
+  }
+  return { spent, saved, funded, remaining, ratio, daysLeft, perWeek };
 }
