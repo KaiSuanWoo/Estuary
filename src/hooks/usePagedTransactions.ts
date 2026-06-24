@@ -32,7 +32,8 @@ export interface ActivityFilters {
   from?: string;
   to?: string;
   flaggedOnly?: boolean;
-  reimbursableOnly?: boolean;
+  /** Reimbursable expenses you're still owed (not fully settled). */
+  owedOnly?: boolean;
   /** Free-text match against merchant/notes (ilike). */
   search?: string;
 }
@@ -64,7 +65,12 @@ function buildQuery(filters: ActivityFilters) {
   if (filters.from) q = q.gte("date", filters.from);
   if (filters.to) q = q.lte("date", filters.to);
   if (filters.flaggedOnly) q = q.eq("flagged", true);
-  if (filters.reimbursableOnly) q = q.eq("is_reimbursable", true);
+  // "Owed to me": reimbursable expenses not yet fully reimbursed.
+  if (filters.owedOnly)
+    q = q
+      .eq("type", "expense")
+      .eq("is_reimbursable", true)
+      .neq("reimbursement_status", "settled");
 
   // Account match spans both sides of a transfer.
   if (filters.accountIds?.length) {

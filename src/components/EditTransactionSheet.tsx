@@ -64,6 +64,7 @@ export function EditTransactionSheet({
     tx.destination_amount != null ? String(tx.destination_amount) : "",
   );
   const [rate, setRate] = useState(tx.fx_rate != null ? String(tx.fx_rate) : "");
+  const [fee, setFee] = useState(""); // transfer fee, in the source currency
   const [currency, setCurrency] = useState(tx.currency);
   const [srcCurrency, setSrcCurrency] = useState(tx.currency);
   const [categoryId, setCategoryId] = useState(tx.category_id ?? "");
@@ -154,23 +155,27 @@ export function EditTransactionSheet({
 
 
   // Cross-currency transfer: keep amount / rate / received in sync.
+  // Fee (source currency) is deducted before converting: received = (amt − fee) × rate.
+  function syncReceived(a: number, f: number, r: number) {
+    if (a > 0 && r > 0) setDestAmount((Math.max(0, a - f) * r).toFixed(2));
+  }
   function onAmountChange(v: string) {
     setAmount(v);
-    const a = Number(v);
-    const r = Number(rate);
-    if (a > 0 && r > 0) setDestAmount((a * r).toFixed(2));
+    syncReceived(Number(v), Number(fee), Number(rate));
+  }
+  function onFeeChange(v: string) {
+    setFee(v);
+    syncReceived(Number(amount), Number(v), Number(rate));
   }
   function onRateChange(v: string) {
     setRate(v);
-    const a = Number(amount);
-    const r = Number(v);
-    if (a > 0 && r > 0) setDestAmount((a * r).toFixed(2));
+    syncReceived(Number(amount), Number(fee), Number(v));
   }
   function onDestAmountChange(v: string) {
     setDestAmount(v);
-    const a = Number(amount);
+    const net = Math.max(0, Number(amount) - Number(fee));
     const d = Number(v);
-    if (a > 0 && d > 0) setRate((d / a).toFixed(6));
+    if (net > 0 && d > 0) setRate((d / net).toFixed(6));
   }
 
   const canSubmit = (() => {
@@ -217,6 +222,18 @@ export function EditTransactionSheet({
       const amt = Number(amount);
       // Received defaults to the sent amount (1:1) when not specified.
       const recv = Number(destAmount) > 0 ? Number(destAmount) : amt;
+      const f = Number(fee);
+      // Strip any prior "· fee X CUR" fragment so re-entering doesn't duplicate it.
+      const baseNotes = notes
+        .trim()
+        .replace(/\s*·?\s*fee\s+[\d.]+\s+\w+\s*$/i, "")
+        .trim();
+      const transferNotes =
+        f > 0
+          ? [baseNotes, `fee ${f.toFixed(2)} ${fromCurrency}`]
+              .filter(Boolean)
+              .join(" · ") || null
+          : notes.trim() || null;
       await update.mutateAsync({
         id: tx.id,
         patch: {
@@ -226,11 +243,11 @@ export function EditTransactionSheet({
           account_id: from.id,
           destination_account_id: to.id,
           destination_amount: recv,
-          fx_rate: amt > 0 ? recv / amt : null,
+          fx_rate: Number(rate) > 0 ? Number(rate) : amt > 0 ? recv / amt : null,
           date,
           merchant: null,
           category_id: null,
-          notes: notes.trim() || null,
+          notes: transferNotes,
           is_reimbursable: false,
           reimbursement_status: "none",
           linked_transaction_id: null,
@@ -384,6 +401,21 @@ export function EditTransactionSheet({
                     {to?.currency}
                     {crossCurrency && " · cross-currency transfer"}
                   </div>
+
+                  <label className="block text-xs font-medium text-ink-400">
+                    Fee ({fromCurrency}){" "}
+                    <span className="text-ink-600">— deducted before converting</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0"
+                      value={fee}
+                      onChange={(e) => onFeeChange(e.target.value)}
+                      placeholder="0.00"
+                      className={cn(inputCls, "tnum mt-1")}
+                    />
+                  </label>
 
                   <label className="block text-xs font-medium text-ink-400">
                     Exchange rate (1 {fromCurrency} → {to?.currency})

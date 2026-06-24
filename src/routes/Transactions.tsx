@@ -330,7 +330,7 @@ export function Transactions() {
   const [categoryFilters, setCategoryFilters] = useState<Set<string>>(new Set());
   const [tagFilters, setTagFilters] = useState<Set<string>>(new Set());
   // Quick toggle: only reimbursable expenses (money you've fronted).
-  const [reimbOnly, setReimbOnly] = useState(false);
+  const [owedOnly, setOwedOnly] = useState(false);
   // Quick toggle: only transactions flagged for review.
   const [flaggedOnly, setFlaggedOnly] = useState(false);
 
@@ -378,7 +378,7 @@ export function Transactions() {
       from: bounds?.from,
       to: bounds?.to,
       flaggedOnly: flaggedOnly || undefined,
-      reimbursableOnly: reimbOnly || undefined,
+      owedOnly: owedOnly || undefined,
       search: debouncedSearch.trim() || undefined,
     }),
     [
@@ -389,7 +389,7 @@ export function Transactions() {
       bounds?.from,
       bounds?.to,
       flaggedOnly,
-      reimbOnly,
+      owedOnly,
       debouncedSearch,
     ],
   );
@@ -496,7 +496,7 @@ export function Transactions() {
     dateMode !== "all" && !(dateMode === "custom" && !customFrom && !customTo);
   const hasFilters =
     search.trim() !== "" ||
-    reimbOnly ||
+    owedOnly ||
     flaggedOnly ||
     typeFilters.size > 0 ||
     accountFilters.size > 0 ||
@@ -533,7 +533,7 @@ export function Transactions() {
 
   function clearAll() {
     setSearch("");
-    setReimbOnly(false);
+    setOwedOnly(false);
     setFlaggedOnly(false);
     setTypeFilters(new Set());
     setAccountFilters(new Set());
@@ -884,13 +884,14 @@ export function Transactions() {
       {hasData && (
         <button
           type="button"
-          onClick={() => setReimbOnly((v) => !v)}
-          aria-pressed={reimbOnly}
-          aria-label="Show reimbursable only"
+          onClick={() => setOwedOnly((v) => !v)}
+          aria-pressed={owedOnly}
+          aria-label="Show only what I'm owed (unsettled reimbursable)"
+          title="What I'm owed"
           className={cn(
             "fixed bottom-24 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-ink-950/40 backdrop-blur transition-colors",
             "lg:bottom-8 lg:left-auto lg:right-8",
-            reimbOnly
+            owedOnly
               ? "border border-teal-500/60 bg-teal-500/15 text-teal-300 hover:bg-teal-500/25"
               : "border border-ink-700 bg-ink-900/90 text-ink-200 hover:bg-ink-800 hover:text-ink-50",
           )}

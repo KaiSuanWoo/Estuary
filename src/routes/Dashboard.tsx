@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { subMonths } from "date-fns";
-import { ChevronLeft, ChevronRight, Plane, Plus, Target } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Plane, Plus, Target } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -215,23 +215,38 @@ export function Dashboard() {
         </Button>
       </header>
 
-      {/* Account scope filter */}
+      {/* Account scope filter — a compact dropdown (mobile-friendly) */}
       {accounts.length > 1 && (
-        <div className="mb-4 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          <FilterPill
-            label="All accounts"
-            active={accountFilter === ""}
-            onClick={() => setAccountFilter("")}
-          />
-          {accounts.map((a) => (
-            <FilterPill
-              key={a.id}
-              label={a.name}
-              dot={ACCOUNT_TYPE_COLORS[a.type].dot}
-              active={accountFilter === a.id}
-              onClick={() => setAccountFilter(a.id)}
-            />
-          ))}
+        <div className="mb-4">
+          <div className="relative w-full sm:max-w-xs">
+            {accountFilter && (
+              <span
+                className={cn(
+                  "pointer-events-none absolute left-3 top-1/2 size-2.5 -translate-y-1/2 rounded-full",
+                  ACCOUNT_TYPE_COLORS[
+                    accounts.find((a) => a.id === accountFilter)?.type ?? "checking"
+                  ].dot,
+                )}
+              />
+            )}
+            <select
+              aria-label="Filter overview by account"
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              className={cn(
+                "h-9 w-full appearance-none rounded-xl border border-ink-700 bg-ink-900/60 pr-9 text-sm font-medium text-ink-100 focus:border-teal-500 focus:outline-none",
+                accountFilter ? "pl-8" : "pl-3",
+              )}
+            >
+              <option value="">All accounts</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} · {a.currency}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-ink-500" />
+          </div>
         </div>
       )}
 
@@ -459,33 +474,6 @@ export function Dashboard() {
 
 // --- building blocks -------------------------------------------------------
 
-function FilterPill({
-  label,
-  dot,
-  active,
-  onClick,
-}: {
-  label: string;
-  dot?: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-        active
-          ? "border-teal-500 bg-teal-500/10 text-teal-300"
-          : "border-ink-700 text-ink-400 hover:border-ink-600 hover:text-ink-200",
-      )}
-    >
-      {dot && <span className={cn("size-2 shrink-0 rounded-full", dot)} />}
-      {label}
-    </button>
-  );
-}
-
 function Stat({
   label,
   sub,
@@ -560,7 +548,14 @@ function MiniBar({ ratio, savings = false }: { ratio: number; savings?: boolean 
         ? "bg-amber-500"
         : "bg-teal-500";
   return (
-    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800">
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(pct)}
+      aria-label={`${Math.round(ratio * 100)}% of ${savings ? "target" : "budget"}`}
+      className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800"
+    >
       <div
         className={cn("h-full rounded-full transition-all", color)}
         style={{ width: `${pct}%` }}
@@ -583,8 +578,15 @@ function MiniStackedBar({
   const spentPct = Math.min(100, (spent / t) * 100);
   const savedPct = Math.min(100 - spentPct, (saved / t) * 100);
   return (
-    <div className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-ink-800">
-      <div className="h-full bg-teal-600 transition-all" style={{ width: `${spentPct}%` }} />
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(spentPct + savedPct)}
+      aria-label={`${Math.round(((spent + saved) / t) * 100)}% funded`}
+      className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-ink-800"
+    >
+      <div className="h-full bg-indigo-400 transition-all" style={{ width: `${spentPct}%` }} />
       <div className="h-full bg-emerald-400 transition-all" style={{ width: `${savedPct}%` }} />
     </div>
   );

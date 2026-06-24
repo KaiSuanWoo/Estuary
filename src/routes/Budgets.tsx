@@ -208,7 +208,14 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function Bar({ ratio, saving }: { ratio: number; saving: boolean }) {
   const pct = Math.min(100, Math.max(0, ratio * 100));
   return (
-    <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink-800">
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(pct)}
+      aria-label={`${Math.round(ratio * 100)}% of ${saving ? "target" : "budget"}`}
+      className="mt-3 h-2 overflow-hidden rounded-full bg-ink-800"
+    >
       <div
         className={cn(
           "h-full rounded-full transition-all",
@@ -220,7 +227,10 @@ function Bar({ ratio, saving }: { ratio: number; saving: boolean }) {
   );
 }
 
-/** Two-segment bar: spent first, then saved, both toward the target. */
+/**
+ * Two-segment bar: spent first, then saved, both toward the target. Spent and
+ * saved use distinct hues (indigo vs emerald) so they're easy to tell apart.
+ */
 function StackedBar({
   spent,
   saved,
@@ -234,8 +244,15 @@ function StackedBar({
   const spentPct = Math.min(100, (spent / t) * 100);
   const savedPct = Math.min(100 - spentPct, (saved / t) * 100);
   return (
-    <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-ink-800">
-      <div className="h-full bg-teal-600 transition-all" style={{ width: `${spentPct}%` }} />
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(spentPct + savedPct)}
+      aria-label={`${Math.round(((spent + saved) / t) * 100)}% funded`}
+      className="mt-3 flex h-2 overflow-hidden rounded-full bg-ink-800"
+    >
+      <div className="h-full bg-indigo-400 transition-all" style={{ width: `${spentPct}%` }} />
       <div className="h-full bg-emerald-400 transition-all" style={{ width: `${savedPct}%` }} />
     </div>
   );
@@ -359,7 +376,7 @@ function GoalRow({
             "No transactions yet"
           ) : (
             <>
-              <span className="text-teal-300">{formatMoney(spent, base)} spent</span>
+              <span className="text-indigo-300">{formatMoney(spent, base)} spent</span>
               {" · "}
               <span className="text-emerald-400">{formatMoney(saved, base)} saved</span>
             </>
@@ -621,7 +638,7 @@ function BudgetSheet({
                   Transactions ({pickedTxns.size})
                 </span>
                 <span className="tnum text-xs text-ink-500">
-                  <span className="text-teal-300">
+                  <span className="text-indigo-300">
                     {formatMoney(preview.spent, base)} spent
                   </span>
                   {" · "}

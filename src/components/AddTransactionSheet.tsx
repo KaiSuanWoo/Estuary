@@ -38,6 +38,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
   const [toAccountId, setToAccountId] = useState("");
   const [destAmount, setDestAmount] = useState("");
   const [rate, setRate] = useState("");
+  const [fee, setFee] = useState(""); // transfer fee, in the source currency
   const [currency, setCurrency] = useState(""); // "" → use account's currency
   const [srcCurrency, setSrcCurrency] = useState(""); // transfer source currency
   const [categoryId, setCategoryId] = useState("");
@@ -75,24 +76,29 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
     !!to &&
     (crossCurrency || !!from.is_multi_currency || !!to.is_multi_currency);
 
-  // ── Cross-currency transfer: keep amount / rate / received in sync ──────────
+  // ── Cross-currency transfer: keep amount / fee / rate / received in sync ────
+  // Wise model: the fee is taken from the source first, then the remainder is
+  // converted → received = (amount − fee) × rate.
+  function syncReceived(a: number, f: number, r: number) {
+    if (a > 0 && r > 0) setDestAmount((Math.max(0, a - f) * r).toFixed(2));
+  }
   function onAmountChange(v: string) {
     setAmount(v);
-    const a = Number(v);
-    const r = Number(rate);
-    if (a > 0 && r > 0) setDestAmount((a * r).toFixed(2));
+    syncReceived(Number(v), Number(fee), Number(rate));
+  }
+  function onFeeChange(v: string) {
+    setFee(v);
+    syncReceived(Number(amount), Number(v), Number(rate));
   }
   function onRateChange(v: string) {
     setRate(v);
-    const a = Number(amount);
-    const r = Number(v);
-    if (a > 0 && r > 0) setDestAmount((a * r).toFixed(2));
+    syncReceived(Number(amount), Number(fee), Number(v));
   }
   function onDestAmountChange(v: string) {
     setDestAmount(v);
-    const a = Number(amount);
+    const net = Math.max(0, Number(amount) - Number(fee));
     const d = Number(v);
-    if (a > 0 && d > 0) setRate((d / a).toFixed(6));
+    if (net > 0 && d > 0) setRate((d / net).toFixed(6));
   }
 
   const canSubmit = (() => {
@@ -113,6 +119,8 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
       const amt = Number(amount);
       // Received defaults to the sent amount (1:1) when not specified.
       const recv = Number(destAmount) > 0 ? Number(destAmount) : amt;
+      const f = Number(fee);
+      const feeNote = f > 0 ? `fee ${f.toFixed(2)} ${fromCurrency}` : "";
       created = await create.mutateAsync({
         type: "transfer",
         amount: amt,
@@ -120,9 +128,10 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
         account_id: from.id,
         destination_account_id: to.id,
         destination_amount: recv,
-        fx_rate: amt > 0 ? recv / amt : null,
+        // Keep the pure FX rate the user entered when present.
+        fx_rate: Number(rate) > 0 ? Number(rate) : amt > 0 ? recv / amt : null,
         date,
-        notes: notes.trim() || null,
+        notes: [notes.trim(), feeNote].filter(Boolean).join(" · ") || null,
       });
     } else {
       created = await create.mutateAsync({
@@ -264,6 +273,21 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                         </div>
 
                         <label className="block text-xs font-medium text-ink-400">
+                          Fee ({fromCurrency}){" "}
+                          <span className="text-ink-600">— deducted before converting</span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step="0.01"
+                            min="0"
+                            value={fee}
+                            onChange={(e) => onFeeChange(e.target.value)}
+                            placeholder="0.00"
+                            className={cn(inputCls, "tnum mt-1")}
+                          />
+                        </label>
+
+                        <label className="block text-xs font-medium text-ink-400">
                           Exchange rate (1 {fromCurrency} → {to?.currency})
                           <input
                             type="number"
@@ -293,8 +317,10 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
 
                         {Number(amount) > 0 && Number(destAmount) > 0 && (
                           <p className="text-xs text-ink-500">
-                            {Number(amount).toFixed(2)} {fromCurrency} ={" "}
-                            {Number(destAmount).toFixed(2)} {to?.currency}
+                            {Number(amount).toFixed(2)} {fromCurrency}
+                            {Number(fee) > 0 &&
+                              ` − ${Number(fee).toFixed(2)} fee`}{" "}
+                            = {Number(destAmount).toFixed(2)} {to?.currency}
                           </p>
                         )}
                       </div>
