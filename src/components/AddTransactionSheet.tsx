@@ -117,9 +117,11 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
     let created;
     if (isTransfer && to) {
       const amt = Number(amount);
-      // Received defaults to the sent amount (1:1) when not specified.
-      const recv = Number(destAmount) > 0 ? Number(destAmount) : amt;
       const f = Number(fee);
+      const net = Math.max(0, amt - f); // amount left after the fee
+      // Cross-currency: received comes from the rate box. Same-currency:
+      // received = amount − fee (the fee is the only difference).
+      const recv = showRate ? (Number(destAmount) > 0 ? Number(destAmount) : net) : net;
       const feeNote = f > 0 ? `fee ${f.toFixed(2)} ${fromCurrency}` : "";
       created = await create.mutateAsync({
         type: "transfer",
@@ -128,8 +130,8 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
         account_id: from.id,
         destination_account_id: to.id,
         destination_amount: recv,
-        // Keep the pure FX rate the user entered when present.
-        fx_rate: Number(rate) > 0 ? Number(rate) : amt > 0 ? recv / amt : null,
+        // Keep the pure FX rate the user entered for cross-currency transfers.
+        fx_rate: showRate ? (Number(rate) > 0 ? Number(rate) : amt > 0 ? recv / amt : null) : null,
         date,
         notes: [notes.trim(), feeNote].filter(Boolean).join(" · ") || null,
       });
@@ -263,7 +265,24 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                       </select>
                     </Field>
 
-                    {showRate && (
+                    {/* Fee — applies to any transfer (Wise charges fees even
+                        same-currency); deducted from the amount sent. */}
+                    {to && (
+                      <Field label={`Fee (${fromCurrency}) — optional, e.g. Wise fee`}>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min="0"
+                          value={fee}
+                          onChange={(e) => onFeeChange(e.target.value)}
+                          placeholder="0.00"
+                          className={cn(inputCls, "tnum")}
+                        />
+                      </Field>
+                    )}
+
+                    {showRate ? (
                       <div className="space-y-3 rounded-xl border border-ink-700/70 bg-ink-950/40 p-3">
                         <div className="flex items-center gap-2 text-xs text-ink-400">
                           {fromCurrency}
@@ -271,21 +290,6 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                           {to?.currency}
                           {crossCurrency && " · cross-currency transfer"}
                         </div>
-
-                        <label className="block text-xs font-medium text-ink-400">
-                          Fee ({fromCurrency}){" "}
-                          <span className="text-ink-600">— deducted before converting</span>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            step="0.01"
-                            min="0"
-                            value={fee}
-                            onChange={(e) => onFeeChange(e.target.value)}
-                            placeholder="0.00"
-                            className={cn(inputCls, "tnum mt-1")}
-                          />
-                        </label>
 
                         <label className="block text-xs font-medium text-ink-400">
                           Exchange rate (1 {fromCurrency} → {to?.currency})
@@ -324,6 +328,17 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                           </p>
                         )}
                       </div>
+                    ) : (
+                      to &&
+                      Number(fee) > 0 &&
+                      Number(amount) > 0 && (
+                        <p className="text-xs text-ink-500">
+                          {Number(amount).toFixed(2)} {fromCurrency} −{" "}
+                          {Number(fee).toFixed(2)} fee ={" "}
+                          {Math.max(0, Number(amount) - Number(fee)).toFixed(2)}{" "}
+                          {to?.currency} received
+                        </p>
+                      )
                     )}
                   </>
                 ) : isAdjustment ? (
