@@ -95,6 +95,61 @@ export function spendForBudget(
   return Math.max(0, total);
 }
 
+export interface BudgetPacing {
+  /** Fraction of the period elapsed (0..1), or null for open-ended windows. */
+  elapsedRatio: number | null;
+  /** Whole days left in the window, counting today. Null if open-ended. */
+  daysLeft: number | null;
+  /** Total days in the window. Null if open-ended. */
+  daysTotal: number | null;
+  /** Amount still spendable per remaining day (expense), null when none left. */
+  perDayLeft: number | null;
+  /** Spend extrapolated to the period end at the current rate. Null if too early. */
+  projected: number | null;
+  /** True when the spent share is running ahead of the elapsed share. */
+  overPace: boolean | null;
+}
+
+/**
+ * Time-pacing for a recurring budget's current window: how far through the
+ * period we are, how many days remain, the safe daily spend, and whether spend
+ * is running ahead of an even pace. Open-ended custom windows return nulls.
+ */
+export function budgetPacing(
+  b: Budget,
+  spent: number,
+  now = new Date(),
+): BudgetPacing {
+  const w = budgetWindow(b, now);
+  if (!w.from || !w.to) {
+    return {
+      elapsedRatio: null,
+      daysLeft: null,
+      daysTotal: null,
+      perDayLeft: null,
+      projected: null,
+      overPace: null,
+    };
+  }
+  const from = parseISO(w.from);
+  const to = parseISO(w.to);
+  const daysTotal = differenceInCalendarDays(to, from) + 1;
+  const daysLeft = Math.max(0, differenceInCalendarDays(to, now) + 1);
+  const elapsedDays = Math.min(daysTotal, Math.max(0, daysTotal - daysLeft));
+  const elapsedRatio = daysTotal > 0 ? elapsedDays / daysTotal : null;
+
+  const remaining = Math.max(0, b.amount - spent);
+  const perDayLeft = daysLeft > 0 && remaining > 0 ? remaining / daysLeft : null;
+  const projected =
+    elapsedRatio && elapsedRatio > 0.02 ? spent / elapsedRatio : null;
+  const overPace =
+    elapsedRatio != null && b.amount > 0
+      ? spent / b.amount > elapsedRatio + 0.02
+      : null;
+
+  return { elapsedRatio, daysLeft, daysTotal, perDayLeft, projected, overPace };
+}
+
 /** Build budget_id → Set<category_id> from the flat link rows. */
 export function groupLinks(
   links: { budget_id: string; category_id: string }[],

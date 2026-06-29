@@ -24,6 +24,7 @@ import {
 } from "@/hooks/useBudgets";
 import {
   spendForBudget,
+  budgetPacing,
   goalFunding,
   groupLinks,
   groupTxnLinks,
@@ -117,7 +118,7 @@ export function Dashboard() {
   );
 
   // ── Budgets — recurring use a period window; goals are transaction-funded ────
-  const { expenseRows, savingRows, goalRows } = useMemo(() => {
+  const { expenseRows, savingRows, goalRows, expenseTotals } = useMemo(() => {
     const links = groupLinks(budgetLinks);
     const txnLinks = groupTxnLinks(budgetTxnLinks);
     const recurring = budgets.filter((b) => b.type !== "goal");
@@ -130,10 +131,21 @@ export function Dashboard() {
         rates,
         reimbursedMap,
       );
+    const expenseRows = recurring
+      .filter((b) => b.direction !== "saving")
+      .map((b) => {
+        const spent = spentOf(b);
+        return { b, spent, pacing: budgetPacing(b, spent) };
+      });
     return {
-      expenseRows: recurring
-        .filter((b) => b.direction !== "saving")
-        .map((b) => ({ b, spent: spentOf(b) })),
+      expenseRows,
+      expenseTotals: expenseRows.reduce(
+        (acc, { b, spent }) => ({
+          spent: acc.spent + spent,
+          budget: acc.budget + b.amount,
+        }),
+        { spent: 0, budget: 0 },
+      ),
       savingRows: recurring
         .filter((b) => b.direction === "saving")
         .map((b) => ({ b, spent: spentOf(b) })),
@@ -334,44 +346,62 @@ export function Dashboard() {
               hint="Create a budget to track spending."
             />
           ) : (
-            <ul className="space-y-3">
-              {expenseRows.slice(0, 4).map(({ b, spent }) => {
-                const left = b.amount - spent;
-                const ratio = b.amount > 0 ? spent / b.amount : 0;
-                return (
-                  <li key={b.id}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-ink-100">
-                          {b.name}
-                        </p>
-                        <p className="text-xs text-ink-500">{periodLabel(b)}</p>
-                      </div>
-                      <span
-                        className={cn(
-                          "tnum shrink-0 text-sm font-medium",
-                          left < 0 ? "text-rose-400" : "text-ink-200",
-                        )}
-                      >
-                        {formatMoney(Math.abs(left), baseCurrency)}{" "}
-                        {left < 0 ? "over" : "left"}
-                      </span>
-                    </div>
-                    <MiniBar ratio={ratio} />
-                  </li>
-                );
-              })}
-              {expenseRows.length > 4 && (
-                <li>
-                  <Link
-                    to="/budgets"
-                    className="block pt-1 text-xs text-ink-500 hover:text-teal-300"
-                  >
-                    +{expenseRows.length - 4} more
-                  </Link>
-                </li>
+            <div className="space-y-3">
+              {expenseRows.length > 1 && (
+                <BudgetSummaryRow
+                  spent={expenseTotals.spent}
+                  budget={expenseTotals.budget}
+                  base={baseCurrency}
+                />
               )}
-            </ul>
+              <ul className="space-y-3">
+                {expenseRows.slice(0, 4).map(({ b, spent, pacing }) => {
+                  const left = b.amount - spent;
+                  const ratio = b.amount > 0 ? spent / b.amount : 0;
+                  return (
+                    <li key={b.id}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-ink-100">
+                            {b.name}
+                          </p>
+                          <p className="text-xs text-ink-500">
+                            {periodLabel(b)}
+                            {pacing.daysLeft != null &&
+                              ` · ${pacing.daysLeft === 0 ? "ends today" : `${pacing.daysLeft}d left`}`}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <span
+                            className={cn(
+                              "tnum text-sm font-medium",
+                              left < 0 ? "text-rose-400" : "text-ink-200",
+                            )}
+                          >
+                            {formatMoney(Math.abs(left), baseCurrency)}{" "}
+                            {left < 0 ? "over" : "left"}
+                          </span>
+                          <p className="tnum text-[11px] text-ink-500">
+                            {Math.round(ratio * 100)}% used
+                          </p>
+                        </div>
+                      </div>
+                      <MiniBar ratio={ratio} elapsed={pacing.elapsedRatio} />
+                    </li>
+                  );
+                })}
+                {expenseRows.length > 4 && (
+                  <li>
+                    <Link
+                      to="/budgets"
+                      className="block pt-1 text-xs text-ink-500 hover:text-teal-300"
+                    >
+                      +{expenseRows.length - 4} more
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            </div>
           )}
         </Widget>
 
@@ -537,8 +567,19 @@ function Widget({
   );
 }
 
-/** Slim progress bar for the Budget/Goals widgets. */
-function MiniBar({ ratio, savings = false }: { ratio: number; savings?: boolean }) {
+/**
+ * Slim progress bar for the Budget/Goals widgets. Colour signals within vs over
+ * budget (teal → amber → rose); the optional `elapsed` tick marks an even pace.
+ */
+function MiniBar({
+  ratio,
+  savings = false,
+  elapsed,
+}: {
+  ratio: number;
+  savings?: boolean;
+  elapsed?: number | null;
+}) {
   const pct = Math.min(100, Math.max(0, ratio * 100));
   const color = savings
     ? "bg-emerald-500"
@@ -547,6 +588,8 @@ function MiniBar({ ratio, savings = false }: { ratio: number; savings?: boolean 
       : ratio > 0.85
         ? "bg-amber-500"
         : "bg-teal-500";
+  const showMarker =
+    !savings && elapsed != null && elapsed > 0.02 && elapsed < 0.98;
   return (
     <div
       role="progressbar"
@@ -554,12 +597,53 @@ function MiniBar({ ratio, savings = false }: { ratio: number; savings?: boolean 
       aria-valuemax={100}
       aria-valuenow={Math.round(pct)}
       aria-label={`${Math.round(ratio * 100)}% of ${savings ? "target" : "budget"}`}
-      className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800"
+      className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800"
     >
       <div
         className={cn("h-full rounded-full transition-all", color)}
         style={{ width: `${pct}%` }}
       />
+      {showMarker && (
+        <span
+          aria-hidden
+          className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-ink-50/70 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
+          style={{ left: `${elapsed * 100}%` }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Compact aggregate strip atop the Budget widget — all spending budgets combined. */
+function BudgetSummaryRow({
+  spent,
+  budget,
+  base,
+}: {
+  spent: number;
+  budget: number;
+  base: string;
+}) {
+  const ratio = budget > 0 ? spent / budget : 0;
+  const remaining = budget - spent;
+  const tone =
+    ratio > 1 ? "text-rose-400" : ratio > 0.85 ? "text-amber-400" : "text-ink-200";
+  return (
+    <div className="rounded-xl border border-ink-800 bg-ink-950/40 p-3">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-medium text-ink-400">
+          All budgets{" "}
+          <span className="tnum text-ink-600">
+            · {formatMoney(spent, base)} / {formatMoney(budget, base)}
+          </span>
+        </span>
+        <span className={cn("tnum font-medium", tone)}>
+          {remaining >= 0
+            ? `${formatMoney(remaining, base)} left`
+            : `${formatMoney(-remaining, base)} over`}
+        </span>
+      </div>
+      <MiniBar ratio={ratio} />
     </div>
   );
 }

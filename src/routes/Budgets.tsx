@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useBudgets";
 import {
   spendForBudget,
+  budgetPacing,
   goalFunding,
   groupLinks,
   groupTxnLinks,
@@ -83,6 +84,23 @@ export function Budgets() {
   const spending = recurring.filter((b) => b.direction !== "saving");
   const savings = recurring.filter((b) => b.direction === "saving");
   const goals = budgets.filter((b) => b.type === "goal");
+
+  const spendingTotals = useMemo(() => {
+    let spent = 0;
+    let budget = 0;
+    for (const b of spending) {
+      spent += spendForBudget(
+        b,
+        linksByBudget.get(b.id) ?? new Set<string>(),
+        txns,
+        base,
+        rates,
+        reimbursed,
+      );
+      budget += b.amount;
+    }
+    return { spent, budget };
+  }, [spending, linksByBudget, txns, base, rates, reimbursed]);
 
   function recurringRow(b: Budget) {
     const catIds = linksByBudget.get(b.id) ?? new Set<string>();
@@ -151,6 +169,14 @@ export function Budgets() {
         />
       ) : (
         <div className="space-y-5">
+          {spending.length > 1 && (
+            <BudgetTotals
+              spent={spendingTotals.spent}
+              budget={spendingTotals.budget}
+              count={spending.length}
+              base={base}
+            />
+          )}
           {spending.length > 0 && (
             <section>
               <SectionLabel>Spending</SectionLabel>
@@ -205,8 +231,23 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Bar({ ratio, saving }: { ratio: number; saving: boolean }) {
+/**
+ * Progress bar that signals *within vs over* budget by colour (teal → amber →
+ * rose) and, for time-boxed periods, marks where an even pace would sit via a
+ * thin vertical tick — so a fill left of the tick is ahead, right of it behind.
+ */
+function BudgetBar({
+  ratio,
+  saving,
+  elapsed,
+}: {
+  ratio: number;
+  saving: boolean;
+  elapsed?: number | null;
+}) {
   const pct = Math.min(100, Math.max(0, ratio * 100));
+  const showMarker =
+    !saving && elapsed != null && elapsed > 0.02 && elapsed < 0.98;
   return (
     <div
       role="progressbar"
@@ -214,7 +255,7 @@ function Bar({ ratio, saving }: { ratio: number; saving: boolean }) {
       aria-valuemax={100}
       aria-valuenow={Math.round(pct)}
       aria-label={`${Math.round(ratio * 100)}% of ${saving ? "target" : "budget"}`}
-      className="mt-3 h-2 overflow-hidden rounded-full bg-ink-800"
+      className="relative mt-3 h-2.5 overflow-hidden rounded-full bg-ink-800"
     >
       <div
         className={cn(
@@ -223,7 +264,57 @@ function Bar({ ratio, saving }: { ratio: number; saving: boolean }) {
         )}
         style={{ width: `${pct}%` }}
       />
+      {showMarker && (
+        <span
+          aria-hidden
+          title="Even-pace marker"
+          className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-ink-50/70 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
+          style={{ left: `${elapsed * 100}%` }}
+        />
+      )}
     </div>
+  );
+}
+
+/** Aggregate progress across all spending budgets — the page's focal summary. */
+function BudgetTotals({
+  spent,
+  budget,
+  count,
+  base,
+}: {
+  spent: number;
+  budget: number;
+  count: number;
+  base: string;
+}) {
+  const ratio = budget > 0 ? spent / budget : 0;
+  const remaining = budget - spent;
+  const tone = toneFor(ratio, false);
+  return (
+    <Card className="p-4">
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-ink-400">
+            Spending this period{" "}
+            <span className="text-ink-600">· {count} budget{count === 1 ? "" : "s"}</span>
+          </p>
+          <p className="tnum mt-0.5 text-xl font-semibold tracking-tight text-ink-50">
+            {formatMoney(spent, base)}
+            <span className="text-sm font-normal text-ink-500">
+              {" "}
+              / {formatMoney(budget, base)}
+            </span>
+          </p>
+        </div>
+        <span className={cn("tnum shrink-0 text-sm font-medium", tone.text)}>
+          {remaining >= 0
+            ? `${formatMoney(remaining, base)} left`
+            : `${formatMoney(-remaining, base)} over`}
+        </span>
+      </div>
+      <BudgetBar ratio={ratio} saving={false} />
+    </Card>
   );
 }
 
@@ -272,6 +363,8 @@ function BudgetRow({
   const saving = b.direction === "saving";
   const ratio = b.amount > 0 ? spent / b.amount : 0;
   const remaining = b.amount - spent;
+  const pacing = budgetPacing(b, spent);
+  const tone = toneFor(ratio, saving);
 
   const cats =
     catNames.length === 0
@@ -280,9 +373,39 @@ function BudgetRow({
         ? catNames.join(" · ")
         : `${catNames.slice(0, 2).join(" · ")} +${catNames.length - 2}`;
 
+  const remainingLabel = saving
+    ? remaining > 0
+      ? `${formatMoney(remaining, base)} to go`
+      : "Target reached"
+    : remaining >= 0
+      ? `${formatMoney(remaining, base)} left`
+      : `${formatMoney(-remaining, base)} over`;
+
+  // One contextual pace hint: how much can still be spent/saved per day, or a
+  // warning when expense spend is running ahead of the period.
+  let hint: { text: string; tone: string } | null = null;
+  if (saving) {
+    if (remaining > 0 && pacing.perDayLeft != null)
+      hint = {
+        text: `Save ~${formatMoney(pacing.perDayLeft, base)}/day to reach target`,
+        tone: "text-ink-500",
+      };
+  } else if (ratio <= 1) {
+    if (pacing.overPace && pacing.projected != null)
+      hint = {
+        text: `Ahead of pace · on track for ${formatMoney(pacing.projected, base)}`,
+        tone: "text-amber-400",
+      };
+    else if (pacing.perDayLeft != null)
+      hint = {
+        text: `~${formatMoney(pacing.perDayLeft, base)}/day left for ${pacing.daysLeft}d`,
+        tone: "text-ink-500",
+      };
+  }
+
   return (
     <Card className="p-3.5">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span
             className="size-2.5 shrink-0 rounded-full"
@@ -295,31 +418,26 @@ function BudgetRow({
             </p>
           </div>
         </div>
-        <span
-          className={cn(
-            "tnum shrink-0 text-sm font-medium",
-            toneFor(ratio, saving).text,
-          )}
-        >
-          {formatMoney(spent, base)}
-          <span className="text-ink-600"> / {formatMoney(b.amount, base)}</span>
-        </span>
+        <div className="shrink-0 text-right">
+          <span className={cn("tnum text-sm font-medium", tone.text)}>
+            {formatMoney(spent, base)}
+            <span className="text-ink-600"> / {formatMoney(b.amount, base)}</span>
+          </span>
+          <p className={cn("tnum text-[11px] font-medium", tone.text)}>
+            {Math.round(ratio * 100)}% {saving ? "saved" : "used"}
+          </p>
+        </div>
       </div>
-      <Bar ratio={ratio} saving={saving} />
-      <p
-        className={cn(
-          "tnum mt-1.5 text-right text-xs font-medium",
-          toneFor(ratio, saving).text,
+      <BudgetBar ratio={ratio} saving={saving} elapsed={pacing.elapsedRatio} />
+      <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+        <span className={cn("tnum font-medium", tone.text)}>{remainingLabel}</span>
+        {pacing.daysLeft != null && (
+          <span className="tnum text-ink-500">
+            {pacing.daysLeft === 0 ? "Ends today" : `${pacing.daysLeft}d left`}
+          </span>
         )}
-      >
-        {saving
-          ? remaining > 0
-            ? `${formatMoney(remaining, base)} to go`
-            : "Target reached"
-          : remaining >= 0
-            ? `${formatMoney(remaining, base)} left`
-            : `${formatMoney(-remaining, base)} over`}
-      </p>
+      </div>
+      {hint && <p className={cn("tnum mt-1 text-xs", hint.tone)}>{hint.text}</p>}
     </Card>
   );
 }
@@ -362,10 +480,15 @@ function GoalRow({
             </p>
           </div>
         </div>
-        <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
-          {formatMoney(funded, base)}
-          <span className="text-ink-600"> / {formatMoney(b.amount, base)}</span>
-        </span>
+        <div className="shrink-0 text-right">
+          <span className="tnum text-sm font-medium text-emerald-400">
+            {formatMoney(funded, base)}
+            <span className="text-ink-600"> / {formatMoney(b.amount, base)}</span>
+          </span>
+          <p className="tnum text-[11px] font-medium text-emerald-400/80">
+            {Math.round(funding.ratio * 100)}% funded
+          </p>
+        </div>
       </div>
 
       <StackedBar spent={spent} saved={saved} target={b.amount} />
