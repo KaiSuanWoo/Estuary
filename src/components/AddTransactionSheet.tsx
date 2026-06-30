@@ -1,5 +1,5 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowRight, SlidersHorizontal } from "lucide-react";
+import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowRight, Check, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { todayISO } from "@/lib/format";
 import { Button, Sheet } from "@/components/ui";
@@ -47,6 +47,9 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [isReimbursable, setIsReimbursable] = useState(false);
+  // How many transactions have been saved without closing the sheet.
+  const [addedCount, setAddedCount] = useState(0);
+  const amountRef = useRef<HTMLInputElement>(null);
 
   const isTransfer = type === "transfer";
   const isAdjustment = type === "adjustment";
@@ -110,50 +113,76 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
     return true;
   })();
 
+  /** Persist the current form. Returns true on success; never closes the sheet. */
+  async function save(): Promise<boolean> {
+    if (!from) return false;
+    try {
+      let created;
+      if (isTransfer && to) {
+        const amt = Number(amount);
+        const f = Number(fee);
+        const net = Math.max(0, amt - f); // amount left after the fee
+        // Cross-currency: received comes from the rate box. Same-currency:
+        // received = amount − fee (the fee is the only difference).
+        const recv = showRate ? (Number(destAmount) > 0 ? Number(destAmount) : net) : net;
+        const feeNote = f > 0 ? `fee ${f.toFixed(2)} ${fromCurrency}` : "";
+        created = await create.mutateAsync({
+          type: "transfer",
+          amount: amt,
+          currency: fromCurrency,
+          account_id: from.id,
+          destination_account_id: to.id,
+          destination_amount: recv,
+          // Keep the pure FX rate the user entered for cross-currency transfers.
+          fx_rate: showRate ? (Number(rate) > 0 ? Number(rate) : amt > 0 ? recv / amt : null) : null,
+          date,
+          notes: [notes.trim(), feeNote].filter(Boolean).join(" · ") || null,
+        });
+      } else {
+        created = await create.mutateAsync({
+          type,
+          amount: Number(amount),
+          currency: entryCurrency,
+          account_id: from.id,
+          category_id: isAdjustment ? null : categoryId || null,
+          date,
+          merchant: merchant.trim() || null,
+          notes: notes.trim() || null,
+          is_reimbursable: type === "expense" ? isReimbursable : false,
+          reimbursement_status:
+            type === "expense" && isReimbursable ? "pending" : "none",
+        });
+      }
+      if (created && tags.length) {
+        await setTxnTags.mutateAsync({ transactionId: created.id, tagIds: tags });
+      }
+      return true;
+    } catch {
+      return false; // error surfaced via create.isError below
+    }
+  }
+
+  // Save and close (the form's default action / Enter key).
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!from) return;
+    if (await save()) onClose();
+  }
 
-    let created;
-    if (isTransfer && to) {
-      const amt = Number(amount);
-      const f = Number(fee);
-      const net = Math.max(0, amt - f); // amount left after the fee
-      // Cross-currency: received comes from the rate box. Same-currency:
-      // received = amount − fee (the fee is the only difference).
-      const recv = showRate ? (Number(destAmount) > 0 ? Number(destAmount) : net) : net;
-      const feeNote = f > 0 ? `fee ${f.toFixed(2)} ${fromCurrency}` : "";
-      created = await create.mutateAsync({
-        type: "transfer",
-        amount: amt,
-        currency: fromCurrency,
-        account_id: from.id,
-        destination_account_id: to.id,
-        destination_amount: recv,
-        // Keep the pure FX rate the user entered for cross-currency transfers.
-        fx_rate: showRate ? (Number(rate) > 0 ? Number(rate) : amt > 0 ? recv / amt : null) : null,
-        date,
-        notes: [notes.trim(), feeNote].filter(Boolean).join(" · ") || null,
-      });
-    } else {
-      created = await create.mutateAsync({
-        type,
-        amount: Number(amount),
-        currency: entryCurrency,
-        account_id: from.id,
-        category_id: isAdjustment ? null : categoryId || null,
-        date,
-        merchant: merchant.trim() || null,
-        notes: notes.trim() || null,
-        is_reimbursable: type === "expense" ? isReimbursable : false,
-        reimbursement_status:
-          type === "expense" && isReimbursable ? "pending" : "none",
-      });
-    }
-    if (created && tags.length) {
-      await setTxnTags.mutateAsync({ transactionId: created.id, tagIds: tags });
-    }
-    onClose();
+  // Save, then reset only the per-entry fields so the next one can be entered
+  // immediately. Type, accounts, date and currency are kept on purpose.
+  async function onSaveAnother() {
+    if (!(await save())) return;
+    setAddedCount((n) => n + 1);
+    setAmount("");
+    setMerchant("");
+    setNotes("");
+    setCategoryId("");
+    setTags([]);
+    setFee("");
+    setDestAmount("");
+    setRate("");
+    setIsReimbursable(false);
+    amountRef.current?.focus();
   }
 
   const notEnoughAccounts = isTransfer && accounts.length < 2;
@@ -196,6 +225,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                   </label>
                   <div className={cn("flex gap-2", showCurrency && "items-stretch")}>
                     <input
+                      ref={amountRef}
                       type="number"
                       inputMode="decimal"
                       step="0.01"
@@ -442,9 +472,28 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                   </p>
                 )}
 
-                <Button type="submit" size="sm" className="w-full" disabled={!canSubmit}>
-                  {create.isPending ? "Saving…" : "Save transaction"}
-                </Button>
+                {addedCount > 0 && (
+                  <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-teal-300">
+                    <Check className="size-3.5" strokeWidth={3} />
+                    Added {addedCount} — same date &amp; account kept for the next one.
+                  </p>
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    disabled={!canSubmit}
+                    onClick={onSaveAnother}
+                  >
+                    {create.isPending ? "Saving…" : "Save & add another"}
+                  </Button>
+                  <Button type="submit" size="sm" className="flex-1" disabled={!canSubmit}>
+                    {addedCount > 0 ? "Save & close" : "Save"}
+                  </Button>
+                </div>
               </>
             )}
           </form>
