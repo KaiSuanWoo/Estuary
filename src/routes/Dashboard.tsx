@@ -387,6 +387,13 @@ export function Dashboard() {
                         </div>
                       </div>
                       <MiniBar ratio={ratio} elapsed={pacing.elapsedRatio} />
+                      {left < 0 && (
+                        <p className="tnum mt-1 text-[11px] text-rose-400/80">
+                          {formatMoney(spent, baseCurrency)} of{" "}
+                          {formatMoney(b.amount, baseCurrency)} ·{" "}
+                          {formatMoney(-left, baseCurrency)} over
+                        </p>
+                      )}
                     </li>
                   );
                 })}
@@ -580,14 +587,33 @@ function MiniBar({
   savings?: boolean;
   elapsed?: number | null;
 }) {
+  // Over budget → two-tone: amber up to the limit, rose for the overspend.
+  if (!savings && ratio > 1) {
+    const budgetFrac = (1 / ratio) * 100;
+    return (
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={100}
+        aria-label={`${Math.round(ratio * 100)}% of budget — over by ${Math.round((ratio - 1) * 100)}%`}
+        className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-ink-800"
+      >
+        <div className="h-full bg-amber-500" style={{ width: `${budgetFrac}%` }} />
+        <div
+          className="h-full bg-rose-500 ring-1 ring-inset ring-rose-300/30"
+          style={{ width: `${100 - budgetFrac}%` }}
+        />
+      </div>
+    );
+  }
+
   const pct = Math.min(100, Math.max(0, ratio * 100));
   const color = savings
     ? "bg-emerald-500"
-    : ratio > 1
-      ? "bg-rose-500"
-      : ratio > 0.85
-        ? "bg-amber-500"
-        : "bg-teal-500";
+    : ratio > 0.85
+      ? "bg-amber-500"
+      : "bg-teal-500";
   const showMarker =
     !savings && elapsed != null && elapsed > 0.02 && elapsed < 0.98;
   return (

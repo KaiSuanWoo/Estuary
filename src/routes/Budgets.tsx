@@ -245,6 +245,28 @@ function BudgetBar({
   saving: boolean;
   elapsed?: number | null;
 }) {
+  // Over budget → two-tone split: amber up to the limit, rose for the overspend,
+  // so the part you went over is visually distinct from the budget itself.
+  if (!saving && ratio > 1) {
+    const budgetFrac = (1 / ratio) * 100; // share of the bar that is within budget
+    return (
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={100}
+        aria-label={`${Math.round(ratio * 100)}% of budget — over by ${Math.round((ratio - 1) * 100)}%`}
+        className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-ink-800"
+      >
+        <div className="h-full bg-amber-500" style={{ width: `${budgetFrac}%` }} />
+        <div
+          className="h-full bg-rose-500 ring-1 ring-inset ring-rose-300/30"
+          style={{ width: `${100 - budgetFrac}%` }}
+        />
+      </div>
+    );
+  }
+
   const pct = Math.min(100, Math.max(0, ratio * 100));
   const showMarker =
     !saving && elapsed != null && elapsed > 0.02 && elapsed < 0.98;
@@ -390,7 +412,16 @@ function BudgetRow({
         text: `Save ~${formatMoney(pacing.perDayLeft, base)}/day to reach target`,
         tone: "text-ink-500",
       };
-  } else if (ratio <= 1) {
+  } else if (ratio > 1) {
+    // Over budget: contrast the actual daily burn with the budgeted daily allowance.
+    if (pacing.daysTotal && pacing.daysLeft != null) {
+      const elapsedDays = Math.max(1, pacing.daysTotal - pacing.daysLeft);
+      hint = {
+        text: `${formatMoney(spent / elapsedDays, base)}/day vs ${formatMoney(b.amount / pacing.daysTotal, base)}/day budgeted`,
+        tone: "text-rose-400/80",
+      };
+    }
+  } else {
     if (pacing.overPace && pacing.projected != null)
       hint = {
         text: `Ahead of pace · on track for ${formatMoney(pacing.projected, base)}`,
