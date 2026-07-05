@@ -1,6 +1,8 @@
 import {
+  addMonths,
   endOfMonth,
   format,
+  parseISO,
   startOfMonth,
   subMonths,
 } from "date-fns";
@@ -171,6 +173,117 @@ export function spendingByCategory(
   }
 
   return [...slices.values()].sort((a, b) => b.value - a.value);
+}
+
+/**
+ * Category breakdown for either flow direction. Expense reuses the spending
+ * logic; income nets out reimbursement repayments in "net" mode.
+ */
+export function breakdownByCategory(
+  txns: Transaction[],
+  categories: Category[],
+  base: string,
+  rates: RateMap,
+  from: string,
+  to: string,
+  kind: "expense" | "income",
+  mode: CashflowMode = "net",
+): CategorySlice[] {
+  if (kind === "expense")
+    return spendingByCategory(txns, categories, base, rates, from, to, mode);
+
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  const slices = new Map<string, CategorySlice>();
+  for (const t of txns) {
+    if (t.type !== "income" || t.date < from || t.date > to) continue;
+    if (t.excluded_from_cashflow) continue;
+    let amount = inBase(t.amount, t.currency, base, rates);
+    if (mode === "net") {
+      const links = reimbursementLinks(t);
+      if (links.length > 0) {
+        const allocated = links.reduce((s, l) => s + l.amount, 0);
+        const remainder = Math.max(0, t.amount - allocated);
+        if (remainder <= 0) continue;
+        amount = inBase(remainder, t.currency, base, rates);
+      }
+    }
+    if (amount === 0) continue;
+    const cat = t.category_id ? byId.get(t.category_id) : undefined;
+    const key = cat?.id ?? "uncategorised";
+    const slice = slices.get(key);
+    if (slice) slice.value += amount;
+    else
+      slices.set(key, {
+        id: key,
+        name: cat?.name ?? "Uncategorised",
+        value: amount,
+        color: cat?.color ?? "#4d6175",
+      });
+  }
+  return [...slices.values()].sort((a, b) => b.value - a.value);
+}
+
+/** yyyy-MM strings for every month spanned by an inclusive ISO range. */
+export function monthsBetween(from: string, to: string): string[] {
+  const out: string[] = [];
+  let d = startOfMonth(parseISO(from));
+  const end = startOfMonth(parseISO(to));
+  while (d <= end) {
+    out.push(format(d, "yyyy-MM"));
+    d = addMonths(d, 1);
+  }
+  return out;
+}
+
+export interface StackedMonth {
+  label: string;
+  monthKey: string;
+  income: number;
+  net: number;
+  [category: string]: number | string;
+}
+
+/**
+ * Per-month stacked expense-by-category plus income & net — the data behind the
+ * main combined Analytics chart. Categories beyond `topN` fold into "Other".
+ */
+export function stackedCategoryByMonth(
+  txns: Transaction[],
+  categories: Category[],
+  base: string,
+  rates: RateMap,
+  months: string[],
+  mode: CashflowMode = "net",
+  topN = 6,
+): { data: StackedMonth[]; keys: { name: string; color: string }[] } {
+  const all = breakdownByCategory(txns, categories, base, rates, "0000-01-01", "9999-12-31", "expense", mode);
+  const top = all.slice(0, topN);
+  const topNames = new Set(top.map((t) => t.name));
+  const keys = top.map((t) => ({ name: t.name, color: t.color }));
+  const hasOther = all.length > top.length;
+  if (hasOther) keys.push({ name: "Other", color: "#4d6175" });
+
+  const data = months.map<StackedMonth>((mk) => {
+    const from = `${mk}-01`;
+    const to = format(endOfMonth(parseISO(from)), "yyyy-MM-dd");
+    const cats = breakdownByCategory(txns, categories, base, rates, from, to, "expense", mode);
+    const cf = cashflowForRange(txns, base, rates, from, to, mode);
+    const row: StackedMonth = {
+      label: format(parseISO(from), "MMM ''yy"),
+      monthKey: mk,
+      income: cf.income,
+      net: cf.net,
+    };
+    for (const k of top) row[k.name] = 0;
+    let other = 0;
+    for (const c of cats) {
+      if (topNames.has(c.name)) row[c.name] = (row[c.name] as number) + c.value;
+      else other += c.value;
+    }
+    if (hasOther) row["Other"] = other;
+    return row;
+  });
+  return { data, keys };
 }
 
 export interface MonthlyPoint {
