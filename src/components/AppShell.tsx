@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, ListPlus, Settings, Wallet } from "lucide-react";
+import { BarChart3, LayoutDashboard, ListPlus, Settings, Wallet } from "lucide-react";
 import { motion, useAnimationControls } from "motion/react";
 import { cn } from "@/lib/cn";
 import { springSnappy, useReducedMotion } from "@/lib/motion";
@@ -20,6 +20,9 @@ const NAV: NavItem[] = [
   { to: "/", label: "Home", icon: LayoutDashboard, end: true, primary: true },
   { to: "/transactions", label: "Activity", icon: ListPlus, end: false, primary: true },
   { to: "/accounts", label: "Accounts", icon: Wallet, end: false, primary: true },
+  // Analytics lives in the desktop top-nav only (the mobile dock keeps its core
+  // four); mobile reaches it via a Settings entry.
+  { to: "/analytics", label: "Analytics", icon: BarChart3, end: false, primary: false },
   { to: "/settings", label: "Settings", icon: Settings, end: false, primary: true },
 ];
 

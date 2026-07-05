@@ -179,6 +179,89 @@ export interface MonthlyPoint {
   expense: number;
 }
 
+/** Inclusive ISO bounds spanning the last `months` calendar months up to now. */
+export function rangeBounds(
+  months: number,
+  now = new Date(),
+): { from: string; to: string } {
+  return {
+    from: format(startOfMonth(subMonths(now, months - 1)), "yyyy-MM-dd"),
+    to: format(endOfMonth(now), "yyyy-MM-dd"),
+  };
+}
+
+export interface MerchantStat {
+  name: string;
+  value: number;
+  count: number;
+}
+
+/** Top merchants by expense over a range (net-aware), largest first. */
+export function merchantLeaderboard(
+  txns: Transaction[],
+  base: string,
+  rates: RateMap,
+  from: string,
+  to: string,
+  mode: CashflowMode = "net",
+  topN = 8,
+): MerchantStat[] {
+  const reimbursed = mode === "net" ? buildReimbursedMap(txns, base, rates) : null;
+  const m = new Map<string, MerchantStat>();
+  for (const t of txns) {
+    if (t.type !== "expense" || t.date < from || t.date > to) continue;
+    if (t.excluded_from_cashflow) continue;
+    const gross = inBase(t.amount, t.currency, base, rates);
+    const reimb = reimbursed?.get(t.id) ?? 0;
+    const amount = mode === "net" ? Math.max(0, gross - reimb) : gross;
+    if (amount === 0) continue;
+    const name = (t.merchant ?? "").trim() || "Unlabelled";
+    const s = m.get(name);
+    if (s) {
+      s.value += amount;
+      s.count += 1;
+    } else {
+      m.set(name, { name, value: amount, count: 1 });
+    }
+  }
+  return [...m.values()].sort((a, b) => b.value - a.value).slice(0, topN);
+}
+
+export interface CategoryMover {
+  name: string;
+  color: string;
+  delta: number;
+}
+
+/** Biggest category spend changes: current month vs the previous month. */
+export function categoryMovers(
+  txns: Transaction[],
+  categories: Category[],
+  base: string,
+  rates: RateMap,
+  now = new Date(),
+  mode: CashflowMode = "net",
+  topN = 5,
+): CategoryMover[] {
+  const cur = monthBounds(now);
+  const prev = monthBounds(subMonths(now, 1));
+  const curSlices = spendingByCategory(txns, categories, base, rates, cur.from, cur.to, mode);
+  const prevSlices = spendingByCategory(txns, categories, base, rates, prev.from, prev.to, mode);
+  const curMap = new Map(curSlices.map((s) => [s.id, s.value]));
+  const prevMap = new Map(prevSlices.map((s) => [s.id, s.value]));
+  const meta = new Map<string, { name: string; color: string }>();
+  for (const s of [...prevSlices, ...curSlices]) meta.set(s.id, { name: s.name, color: s.color });
+
+  const movers: CategoryMover[] = [];
+  for (const id of new Set([...curMap.keys(), ...prevMap.keys()])) {
+    const delta = (curMap.get(id) ?? 0) - (prevMap.get(id) ?? 0);
+    if (Math.abs(delta) < 0.005) continue;
+    const m = meta.get(id)!;
+    movers.push({ name: m.name, color: m.color, delta });
+  }
+  return movers.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, topN);
+}
+
 /** Income vs expense for each of the last `months` months, base currency. */
 export function monthlyCashflow(
   txns: Transaction[],
