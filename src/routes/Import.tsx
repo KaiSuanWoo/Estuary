@@ -481,13 +481,14 @@ function parseNationwideCSV(text: string): ImportRow[] {
 
 // ─── format detection ─────────────────────────────────────────────────────────
 
-type ImportFormat = "commbank" | "cimb" | "wise" | "nationwide";
+type ImportFormat = "commbank" | "cimb" | "wise" | "nationwide" | "generic";
 
 const FORMAT_LABELS: Record<ImportFormat, string> = {
   commbank:   "CommBank",
   cimb:       "CIMB Clicks",
   wise:       "Wise",
   nationwide: "Nationwide",
+  generic:    "Custom CSV",
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -495,27 +496,164 @@ const SOURCE_LABELS: Record<string, string> = {
   cimb_csv:       "CIMB Clicks",
   wise_csv:       "Wise",
   nationwide_csv: "Nationwide",
+  generic_csv:    "Custom CSV",
 };
 
-function detectAndParse(text: string): { rows: ImportRow[]; format: ImportFormat } {
+/**
+ * Pick a fast-path parser ONLY on a positive header/shape signal. Returns null
+ * for anything unrecognised so the caller falls back to the generic mapper —
+ * never a silent default parser (which silently mangled unknown CSVs).
+ */
+function detectKnownFormat(text: string): ImportFormat | null {
   const firstLine = text.split(/\r?\n/)[0] ?? "";
-  // Wise: "ID,Status,Direction,..."
-  if (/^"?ID"?,\s*"?Status"?,\s*"?Direction"?/i.test(firstLine)) {
-    return { rows: parseWiseCSV(text), format: "wise" };
-  }
-  // CIMB: "Date,Transaction Details,..."
-  if (/^"?Date"?,\s*"?Transaction Details/i.test(firstLine)) {
-    return { rows: parseCIMBCSV(text), format: "cimb" };
-  }
-  // Nationwide: "Account Name:" metadata header, then a
-  // "Date","Transaction type","Description","Paid out","Paid in" table.
+  if (/^"?ID"?,\s*"?Status"?,\s*"?Direction"?/i.test(firstLine)) return "wise";
+  if (/^"?Date"?,\s*"?Transaction Details/i.test(firstLine)) return "cimb";
   if (
     /^"?Account Name/i.test(firstLine) ||
     /"Transaction type"\s*,\s*"Description"\s*,\s*"Paid out"/i.test(text)
-  ) {
-    return { rows: parseNationwideCSV(text), format: "nationwide" };
+  )
+    return "nationwide";
+  // CommBank has no header: first field is a dd/mm/yyyy date, ≥3 columns.
+  if (/^\d{2}\/\d{2}\/\d{4},/.test(firstLine) && splitCsvLine(firstLine).length >= 3)
+    return "commbank";
+  return null;
+}
+
+function parseKnown(text: string, fmt: ImportFormat): ImportRow[] {
+  switch (fmt) {
+    case "wise":       return parseWiseCSV(text);
+    case "cimb":       return parseCIMBCSV(text);
+    case "nationwide": return parseNationwideCSV(text);
+    case "commbank":   return parseCommBankCSV(text);
+    default:           return [];
   }
-  return { rows: parseCommBankCSV(text), format: "commbank" };
+}
+
+// ─── generic column-mapper ────────────────────────────────────────────────────
+
+/** Split a CSV into a header row (or synthesised names) + data rows. */
+function parseGenericCSV(text: string): { headers: string[]; rows: string[][] } {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return { headers: [], rows: [] };
+  const first = splitCsvLine(lines[0]);
+  // First line is a header when every cell is non-empty and non-numeric.
+  const looksHeader =
+    first.length > 1 &&
+    first.every(
+      (c) => c.trim() !== "" && isNaN(Number(c.replace(/[,$\s]/g, ""))),
+    );
+  const headers = looksHeader
+    ? first.map((h, i) => h.trim() || `Column ${i + 1}`)
+    : first.map((_, i) => `Column ${i + 1}`);
+  const body = looksHeader ? lines.slice(1) : lines;
+  return { headers, rows: body.map((l) => splitCsvLine(l)) };
+}
+
+export const DATE_FORMATS = [
+  "DD/MM/YYYY",
+  "MM/DD/YYYY",
+  "YYYY-MM-DD",
+  "DD-MM-YYYY",
+  "DD/MM/YY",
+  "MM/DD/YY",
+  "DD MMM YYYY",
+] as const;
+
+const MONTH_ABBR3: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+/** Parse a date string against one of DATE_FORMATS → ISO yyyy-MM-dd, or null. */
+function parseGenericDate(raw: string, fmt: string): string | null {
+  const parts = raw.trim().split(/[/\-.\s]+/).filter(Boolean);
+  const tokens = fmt.split(/[/\-.\s]+/).filter(Boolean);
+  if (parts.length !== tokens.length) return null;
+  let d = "", m = "", y = "";
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i].toUpperCase();
+    const p = parts[i];
+    if (t === "MMM") {
+      const mm = MONTH_ABBR3[p.slice(0, 3).toLowerCase()];
+      if (!mm) return null;
+      m = String(mm);
+    } else if (t.startsWith("D")) d = p;
+    else if (t.startsWith("M")) m = p;
+    else if (t.startsWith("Y")) y = p;
+  }
+  let yr = parseInt(y, 10);
+  const mo = parseInt(m, 10);
+  const day = parseInt(d, 10);
+  if (!yr || !mo || !day || mo > 12 || day > 31) return null;
+  if (yr < 100) yr += 2000;
+  return `${yr}-${String(mo).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Parse a possibly-formatted money cell to a signed number. */
+function genericAmount(s: string): number {
+  if (!s) return 0;
+  let str = s.trim();
+  const neg = /^\(.*\)$/.test(str) || str.includes("-") || /DR$/i.test(str);
+  str = str.replace(/[^0-9.]/g, "");
+  const n = parseFloat(str);
+  if (isNaN(n)) return 0;
+  return neg ? -Math.abs(n) : n;
+}
+
+export interface ColumnMapping {
+  dateCol: number;
+  descCol: number;
+  notesCol: number | null;
+  amountMode: "single" | "split";
+  amountCol: number | null;
+  inCol: number | null;
+  outCol: number | null;
+  dateFmt: string;
+  /** Single-amount mode: treat a positive value as an expense (some exports do). */
+  invert: boolean;
+}
+
+/** Build ImportRows from raw data + a column mapping. Skips unparseable rows. */
+function buildGenericRows(
+  data: { rows: string[][] },
+  m: ColumnMapping,
+): ImportRow[] {
+  const out: ImportRow[] = [];
+  for (const cells of data.rows) {
+    const date = parseGenericDate(cells[m.dateCol] ?? "", m.dateFmt);
+    if (!date) continue;
+
+    let amount = 0;
+    let type: ImportRow["type"];
+    if (m.amountMode === "single" && m.amountCol != null) {
+      const v = genericAmount(cells[m.amountCol] ?? "");
+      if (v === 0) continue;
+      const isExpense = m.invert ? v > 0 : v < 0;
+      amount = Math.abs(v);
+      type = isExpense ? "expense" : "income";
+    } else {
+      const inV = m.inCol != null ? Math.abs(genericAmount(cells[m.inCol] ?? "")) : 0;
+      const outV = m.outCol != null ? Math.abs(genericAmount(cells[m.outCol] ?? "")) : 0;
+      if (outV > 0) { amount = outV; type = "expense"; }
+      else if (inV > 0) { amount = inV; type = "income"; }
+      else continue;
+    }
+
+    const merchant = (cells[m.descCol] ?? "").trim() || null;
+    const notes =
+      m.notesCol != null ? (cells[m.notesCol] ?? "").trim() || null : null;
+    out.push({
+      type,
+      date,
+      amount,
+      currency: "",
+      account_id: "",
+      merchant,
+      notes,
+      external_id: `${date}|${amount.toFixed(2)}|${(merchant ?? "").slice(0, 24)}`,
+    });
+  }
+  return out;
 }
 
 // ─── component ───────────────────────────────────────────────────────────────
@@ -535,6 +673,9 @@ export function Import() {
   );
 
   const [rows, setRows] = useState<ImportRow[]>([]);
+  const [mapper, setMapper] = useState<{ headers: string[]; rows: string[][] } | null>(
+    null,
+  );
   const [emptyParse, setEmptyParse] = useState(false);
   const [fileName, setFileName] = useState("");
   const [format, setFormat] = useState<ImportFormat>("commbank");
@@ -547,14 +688,23 @@ export function Import() {
   function loadFile(file: File) {
     const reader = new FileReader();
     reader.onload = (e) => {
-      const { rows: parsed, format: fmt } = detectAndParse(
-        e.target?.result as string,
-      );
-      setRows(parsed);
-      setEmptyParse(parsed.length === 0);
+      const text = e.target?.result as string;
       setFileName(file.name);
-      setFormat(fmt);
       setConfirming(false);
+      const known = detectKnownFormat(text);
+      if (known) {
+        const parsed = parseKnown(text, known);
+        setRows(parsed);
+        setMapper(null);
+        setEmptyParse(parsed.length === 0);
+        setFormat(known);
+      } else {
+        // Unrecognised bank → hand off to the generic column mapper.
+        const g = parseGenericCSV(text);
+        setRows([]);
+        setEmptyParse(g.rows.length === 0);
+        setMapper(g.rows.length > 0 ? g : null);
+      }
     };
     reader.readAsText(file);
   }
@@ -674,6 +824,7 @@ export function Import() {
       format === "cimb" ? "cimb_csv"
       : format === "wise" ? "wise_csv"
       : format === "nationwide" ? "nationwide_csv"
+      : format === "generic" ? "generic_csv"
       : "commbank_csv";
     await bulk.mutateAsync({ fileName, source, rows: withAccount });
   }
@@ -683,6 +834,7 @@ export function Import() {
     await deleteBatch.mutateAsync(bulk.data.batchId);
     bulk.reset();
     setRows([]);
+    setMapper(null);
     setEmptyParse(false);
   }
 
@@ -739,10 +891,11 @@ export function Import() {
             <FileUp className="size-8 text-ink-500" />
             <div className="text-center">
               <p className="text-sm font-medium text-ink-300">
-                Drop CommBank, CIMB, Wise, or Nationwide CSV here
+                Drop any bank CSV here
               </p>
               <p className="mt-0.5 text-xs text-ink-600">
-                format is detected automatically · or tap to browse
+                CommBank · CIMB · Wise · Nationwide auto-detected — any other CSV
+                maps by column · or tap to browse
               </p>
             </div>
             <input
@@ -760,11 +913,29 @@ export function Import() {
           <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
             <AlertCircle className="size-4 shrink-0 text-amber-400" />
             <span className="text-sm text-amber-200">
-              Couldn't read any transactions from{" "}
-              <span className="font-medium">{fileName}</span>. Make sure it's an
-              unmodified CommBank, CIMB, Wise, or Nationwide CSV export.
+              Couldn't read any rows from{" "}
+              <span className="font-medium">{fileName}</span>. Make sure it's a
+              CSV file with a row per transaction.
             </span>
           </div>
+        )}
+
+        {/* Unrecognised bank → map the columns yourself */}
+        {mapper && rows.length === 0 && !isDone && (
+          <ColumnMapper
+            data={mapper}
+            fileName={fileName}
+            onApply={(built) => {
+              setRows(built);
+              setFormat("generic");
+              setMapper(null);
+              setEmptyParse(built.length === 0);
+            }}
+            onCancel={() => {
+              setMapper(null);
+              setFileName("");
+            }}
+          />
         )}
 
         {/* ── Preview + account selector ──────────────────────────────────── */}
@@ -1160,5 +1331,245 @@ export function Import() {
         )}
       </div>
     </div>
+  );
+}
+
+// ─── generic column-mapper UI ─────────────────────────────────────────────────
+
+const mapSelectCls =
+  "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-2 text-sm text-ink-50 focus:border-teal-500 focus:outline-none";
+
+function guessCol(headers: string[], re: RegExp, fallback = -1): number {
+  const i = headers.findIndex((h) => re.test(h));
+  return i >= 0 ? i : fallback;
+}
+
+function ColumnSelect({
+  label,
+  value,
+  onChange,
+  headers,
+  allowNone,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  headers: string[];
+  allowNone?: boolean;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-ink-400">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={mapSelectCls}
+      >
+        {allowNone && <option value={-1}>None</option>}
+        {headers.map((h, i) => (
+          <option key={i} value={i}>
+            {h}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** Map an unrecognised bank CSV's columns onto transaction fields. */
+function ColumnMapper({
+  data,
+  fileName,
+  onApply,
+  onCancel,
+}: {
+  data: { headers: string[]; rows: string[][] };
+  fileName: string;
+  onApply: (rows: ImportRow[]) => void;
+  onCancel: () => void;
+}) {
+  const headers = data.headers;
+  const gOut = guessCol(headers, /paid\s*out|debit|withdraw|money\s*out/i);
+  const gIn = guessCol(headers, /paid\s*in|credit|deposit|money\s*in/i);
+
+  const [dateCol, setDateCol] = useState(() =>
+    Math.max(0, guessCol(headers, /date/i, 0)),
+  );
+  const [descCol, setDescCol] = useState(() =>
+    Math.max(
+      0,
+      guessCol(
+        headers,
+        /desc|detail|narrat|payee|merchant|reference|name/i,
+        headers.length > 1 ? 1 : 0,
+      ),
+    ),
+  );
+  const [notesCol, setNotesCol] = useState(-1);
+  const [amountMode, setAmountMode] = useState<"single" | "split">(
+    gOut >= 0 && gIn >= 0 ? "split" : "single",
+  );
+  const [amountCol, setAmountCol] = useState(() =>
+    Math.max(0, guessCol(headers, /amount|value/i, headers.length - 1)),
+  );
+  const [inCol, setInCol] = useState(gIn);
+  const [outCol, setOutCol] = useState(gOut);
+  const [dateFmt, setDateFmt] = useState<string>(DATE_FORMATS[0]);
+  const [invert, setInvert] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const built = useMemo(
+    () =>
+      buildGenericRows(data, {
+        dateCol,
+        descCol,
+        notesCol: notesCol < 0 ? null : notesCol,
+        amountMode,
+        amountCol: amountMode === "single" ? amountCol : null,
+        inCol: amountMode === "split" ? (inCol < 0 ? null : inCol) : null,
+        outCol: amountMode === "split" ? (outCol < 0 ? null : outCol) : null,
+        dateFmt,
+        invert,
+      }),
+    [data, dateCol, descCol, notesCol, amountMode, amountCol, inCol, outCol, dateFmt, invert],
+  );
+  const preview = built.slice(0, 5);
+
+  function apply() {
+    if (built.length === 0) {
+      setError(
+        "No rows parsed — check the date column, date format, and amount column.",
+      );
+      return;
+    }
+    onApply(built);
+  }
+
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-ink-200">Map the columns</h2>
+          <p className="truncate text-xs text-ink-500">
+            {fileName} · unrecognised format · {data.rows.length} rows
+          </p>
+        </div>
+        <button
+          onClick={onCancel}
+          className="shrink-0 text-xs text-ink-500 transition-colors hover:text-ink-300"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <ColumnSelect label="Date column" value={dateCol} onChange={setDateCol} headers={headers} />
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-ink-400">Date format</span>
+          <select
+            value={dateFmt}
+            onChange={(e) => setDateFmt(e.target.value)}
+            className={mapSelectCls}
+          >
+            {DATE_FORMATS.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </label>
+        <ColumnSelect label="Description" value={descCol} onChange={setDescCol} headers={headers} />
+        <ColumnSelect label="Notes (optional)" value={notesCol} onChange={setNotesCol} headers={headers} allowNone />
+      </div>
+
+      <div>
+        <span className="mb-1 block text-xs font-medium text-ink-400">Amount columns</span>
+        <div className="grid grid-cols-2 gap-2">
+          {(["single", "split"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setAmountMode(mode)}
+              className={cn(
+                "h-9 rounded-xl border text-xs font-medium transition-colors",
+                amountMode === mode
+                  ? "border-teal-500 bg-teal-500/10 text-teal-300"
+                  : "border-ink-700 text-ink-400",
+              )}
+            >
+              {mode === "single" ? "One amount column" : "Separate in / out"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {amountMode === "single" ? (
+        <div className="grid grid-cols-2 gap-2">
+          <ColumnSelect label="Amount" value={amountCol} onChange={setAmountCol} headers={headers} />
+          <label className="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-ink-700/60 bg-ink-950/30 px-3">
+            <span className="text-xs text-ink-400">Positive = spent</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={invert}
+              onClick={() => setInvert((v) => !v)}
+              className={cn(
+                "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+                invert ? "bg-teal-500" : "bg-ink-700",
+              )}
+            >
+              <span
+                className={cn(
+                  "block size-3.5 rounded-full bg-white transition-transform",
+                  invert ? "translate-x-4" : "translate-x-0.5",
+                )}
+              />
+            </button>
+          </label>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <ColumnSelect label="Money out (spent)" value={outCol} onChange={setOutCol} headers={headers} allowNone />
+          <ColumnSelect label="Money in (received)" value={inCol} onChange={setInCol} headers={headers} allowNone />
+        </div>
+      )}
+
+      <div className="rounded-xl border border-ink-800 bg-ink-950/40 p-2">
+        <p className="mb-1 px-1 text-xs font-medium text-ink-500">
+          Preview · {built.length} row{built.length === 1 ? "" : "s"} parsed
+        </p>
+        {preview.length === 0 ? (
+          <p className="px-1 py-2 text-xs text-ink-500">
+            Nothing parsed yet — adjust the columns above.
+          </p>
+        ) : (
+          <ul className="divide-y divide-ink-800/70">
+            {preview.map((r, i) => (
+              <li key={i} className="flex items-center gap-3 px-1 py-1.5 text-xs">
+                <span className="tnum w-16 shrink-0 text-ink-500">{r.date}</span>
+                <span className="min-w-0 flex-1 truncate text-ink-300">
+                  {r.merchant ?? "—"}
+                </span>
+                <span
+                  className={cn(
+                    "tnum shrink-0",
+                    r.type === "income" ? "text-teal-400" : "text-ink-300",
+                  )}
+                >
+                  {r.type === "expense" ? "−" : "+"}
+                  {r.amount.toFixed(2)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {error && <p className="text-xs text-rose-400">{error}</p>}
+
+      <Button size="sm" className="w-full" onClick={apply} disabled={built.length === 0}>
+        Use these columns · {built.length}
+      </Button>
+    </Card>
   );
 }
