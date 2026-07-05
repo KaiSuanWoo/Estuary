@@ -575,14 +575,24 @@ function Stat({
   tone?: "up" | "down";
   accent?: boolean;
 }) {
+  // Adaptive size so big values (e.g. $12,345,678) don't overflow the card,
+  // including on 375px phones where the grid is two columns.
+  const size =
+    value.length > 14
+      ? "text-base lg:text-lg"
+      : value.length > 11
+        ? "text-lg lg:text-xl"
+        : "text-xl lg:text-2xl";
+
   return (
-    <Card className="p-3.5 lg:p-4">
-      <p className="text-xs font-medium text-ink-400">
+    <Card className="min-w-0 p-3.5 lg:p-4">
+      <p className="truncate text-xs font-medium text-ink-400">
         {label} {sub && <span className="text-ink-600">· {sub}</span>}
       </p>
       <p
         className={cn(
-          "tnum mt-1 text-xl font-semibold tracking-tight lg:text-2xl",
+          "tnum mt-1 break-words font-semibold leading-tight tracking-tight",
+          size,
           accent
             ? "text-ink-50"
             : tone === "up"

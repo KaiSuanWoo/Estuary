@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import {
   ArrowRight,
   Check,
@@ -97,12 +97,10 @@ export function Onboarding() {
     ? {
         enter: { opacity: 0 },
         center: { opacity: 1 },
-        exit: { opacity: 0 },
       }
     : {
         enter: (d: number) => ({ opacity: 0, x: d * 40 }),
         center: { opacity: 1, x: 0 },
-        exit: (d: number) => ({ opacity: 0, x: d * -40 }),
       };
 
   return (
@@ -134,17 +132,17 @@ export function Onboarding() {
 
         {/* Steps */}
         <div className="flex w-full flex-1 flex-col">
-          <AnimatePresence mode="wait" custom={dir} initial={false}>
-            <motion.div
-              key={step}
-              custom={dir}
-              variants={variants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={reduce ? { duration: 0.12 } : springSnappy}
-              className="flex flex-1 flex-col pt-7 sm:pt-6"
-            >
+          {/* Enter-only keyed remount: the step keys the div so React swaps it
+              immediately — no AnimatePresence exit that could stall to a blank. */}
+          <motion.div
+            key={step}
+            custom={dir}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            transition={reduce ? { duration: 0.12 } : springSnappy}
+            className="flex flex-1 flex-col pt-7 sm:pt-6"
+          >
             {step === "welcome" && (
               <StepShell
                 icon={<Sparkles className="size-7" />}
@@ -359,7 +357,6 @@ export function Onboarding() {
               </StepShell>
             )}
           </motion.div>
-        </AnimatePresence>
         </div>
 
         {/* Signed-in hint */}
