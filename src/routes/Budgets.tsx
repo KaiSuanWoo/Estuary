@@ -3,7 +3,12 @@ import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { Check, ChevronLeft, Plus, Search, Target, Trash2 } from "lucide-react";
 import { useCategories } from "@/hooks/useCategories";
-import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
+import {
+  useTransactions,
+  useReimbursedAmountMap,
+  useCreateTransaction,
+} from "@/hooks/useTransactions";
+import { useAccounts } from "@/hooks/useAccounts";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import {
@@ -15,6 +20,7 @@ import {
   useSetBudgetCategories,
   useBudgetTransactionLinks,
   useSetBudgetTransactions,
+  useSetTransactionGoals,
 } from "@/hooks/useBudgets";
 import {
   spendForBudget,
@@ -26,10 +32,11 @@ import {
   type GoalFunding,
 } from "@/lib/budgets";
 import type { RateMap } from "@/lib/fx";
-import { formatMoney, formatSignedMoney } from "@/lib/format";
+import { formatMoney, formatSignedMoney, todayISO } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Button, Card, EmptyState, Sheet, Spinner } from "@/components/ui";
 import type {
+  Account,
   Budget,
   BudgetDirection,
   BudgetPeriod,
@@ -64,6 +71,7 @@ function toneFor(ratio: number, saving: boolean): { bar: string; text: string } 
 export function Budgets() {
   const { data: categories = [], isLoading } = useCategories();
   const { data: txns = [] } = useTransactions();
+  const { data: accounts = [] } = useAccounts();
   const { data: budgets = [] } = useBudgets();
   const { data: links = [] } = useBudgetLinks();
   const { data: txnLinks = [] } = useBudgetTransactionLinks();
@@ -72,6 +80,7 @@ export function Budgets() {
   const rates = useRateMap();
 
   const [sheet, setSheet] = useState<Budget | "new" | null>(null);
+  const [contribute, setContribute] = useState<Budget | null>(null);
 
   const linksByBudget = useMemo(() => groupLinks(links), [links]);
   const txnsByBudget = useMemo(() => groupTxnLinks(txnLinks), [txnLinks]);
@@ -122,9 +131,14 @@ export function Budgets() {
     const funding = goalFunding(b, ids, txns, base, rates, reimbursed);
     return (
       <li key={b.id}>
-        <button onClick={() => setSheet(b)} className="block w-full text-left">
-          <GoalRow budget={b} funding={funding} count={ids.size} base={base} />
-        </button>
+        <GoalRow
+          budget={b}
+          funding={funding}
+          count={ids.size}
+          base={base}
+          onEdit={() => setSheet(b)}
+          onContribute={() => setContribute(b)}
+        />
       </li>
     );
   }
@@ -217,6 +231,15 @@ export function Budgets() {
               : txnsByBudget.get(sheet.id) ?? new Set<string>()
           }
           onClose={() => setSheet(null)}
+        />
+      )}
+
+      {contribute && (
+        <ContributeSheet
+          goal={contribute}
+          accounts={accounts}
+          base={base}
+          onClose={() => setContribute(null)}
         />
       )}
     </div>
@@ -487,17 +510,22 @@ function GoalRow({
   funding,
   count,
   base,
+  onEdit,
+  onContribute,
 }: {
   budget: Budget;
   funding: GoalFunding;
   count: number;
   base: string;
+  onEdit: () => void;
+  onContribute: () => void;
 }) {
   const { spent, saved, funded, remaining, daysLeft, perWeek } = funding;
   const over = funded > b.amount + 0.005;
 
   return (
     <Card className="p-3.5">
+      <button onClick={onEdit} className="block w-full text-left">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span
@@ -550,6 +578,13 @@ function GoalRow({
           ~{formatMoney(perWeek, base)}/wk to stay on track
         </p>
       )}
+      </button>
+      <button
+        onClick={onContribute}
+        className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-ink-700/60 py-1.5 text-xs font-medium text-teal-300 transition-colors hover:border-teal-500/50 hover:bg-teal-500/5"
+      >
+        <Plus className="size-3.5" /> Contribute
+      </button>
     </Card>
   );
 }
@@ -1090,5 +1125,158 @@ function TransactionPicker({
         )}
       </div>
     </div>
+  );
+}
+
+// ─── Contribute to a goal ─────────────────────────────────────────────────────
+
+/**
+ * Record a contribution toward a goal. It's a transfer between two of your
+ * accounts (money moved into savings) linked to the goal, so it counts as
+ * "saved" without distorting income/net worth. With a single account it falls
+ * back to a neutral balance adjustment.
+ */
+function ContributeSheet({
+  goal,
+  accounts,
+  base,
+  onClose,
+}: {
+  goal: Budget;
+  accounts: Account[];
+  base: string;
+  onClose: () => void;
+}) {
+  const create = useCreateTransaction();
+  const setGoals = useSetTransactionGoals();
+
+  const first = accounts[0];
+  const second = accounts.find((a) => a.id !== first?.id);
+  const [amount, setAmount] = useState("");
+  const [fromId, setFromId] = useState(first?.id ?? "");
+  const [toId, setToId] = useState(second?.id ?? "");
+  const [date, setDate] = useState(todayISO());
+  const [error, setError] = useState<string | null>(null);
+
+  const from = accounts.find((a) => a.id === fromId) ?? first;
+  const to = accounts.find((a) => a.id === toId);
+  const multi = accounts.length >= 2;
+  const pending = create.isPending || setGoals.isPending;
+  const field =
+    "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 focus:border-teal-500 focus:outline-none";
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const amt = Number(amount);
+    if (!(amt > 0) || !from) return;
+    if (multi && (!to || to.id === from.id)) {
+      setError("Pick two different accounts to move money between.");
+      return;
+    }
+    setError(null);
+    try {
+      const txn =
+        multi && to
+          ? await create.mutateAsync({
+              type: "transfer",
+              amount: amt,
+              currency: from.currency,
+              account_id: from.id,
+              destination_account_id: to.id,
+              destination_amount: from.currency === to.currency ? amt : null,
+              date,
+              merchant: `Contribution · ${goal.name}`,
+            })
+          : await create.mutateAsync({
+              type: "adjustment",
+              amount: amt,
+              currency: from.currency,
+              account_id: from.id,
+              date,
+              merchant: `Contribution · ${goal.name}`,
+            });
+      await setGoals.mutateAsync({ transactionId: txn.id, budgetIds: [goal.id] });
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  return (
+    <Sheet title={`Contribute to ${goal.name}`} onClose={onClose}>
+      {accounts.length === 0 ? (
+        <p className="py-4 text-center text-sm text-ink-400">
+          Add an account first, then you can contribute.
+        </p>
+      ) : (
+        <form onSubmit={submit} className="space-y-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-ink-400">Amount</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              required
+              autoFocus
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              className={cn(field, "tnum text-lg")}
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-ink-400">
+              {multi ? "From account" : "Account"}
+            </span>
+            <select value={fromId} onChange={(e) => setFromId(e.target.value)} className={field}>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} · {a.currency}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {multi && (
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-ink-400">Into account</span>
+              <select value={toId} onChange={(e) => setToId(e.target.value)} className={field}>
+                {accounts
+                  .filter((a) => a.id !== fromId)
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} · {a.currency}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-ink-400">Date</span>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
+          </label>
+
+          <p className="text-xs text-ink-600">
+            {multi
+              ? "Moves money between your accounts and counts toward this goal — neutral to income."
+              : "Recorded as a set-aside on this account, counted toward this goal."}
+          </p>
+
+          {error && <p className="text-xs text-rose-400">{error}</p>}
+
+          <Button
+            type="submit"
+            size="sm"
+            className="w-full"
+            disabled={!(Number(amount) > 0) || pending}
+          >
+            {pending ? "Saving…" : `Contribute ${amount ? formatMoney(Number(amount), from?.currency ?? base) : ""}`}
+          </Button>
+        </form>
+      )}
+    </Sheet>
   );
 }
