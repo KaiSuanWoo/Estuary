@@ -38,6 +38,13 @@ export type RuleMatchOperator =
 export type FxRateSource = "api" | "manual";
 export type ProfileStatus = "pending" | "approved" | "rejected";
 
+/** One line of an external portfolio snapshot (e.g. a Zenith brokerage account). */
+export interface InvestmentAccount {
+  name: string;
+  currency: string;
+  value: number;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -539,6 +546,36 @@ export interface Database {
           date?: string;
           rate?: number;
           source?: FxRateSource;
+        };
+        Relationships: [];
+      };
+      investment_snapshots: {
+        Row: {
+          user_id: string;
+          source: string;
+          base_currency: string;
+          total: number;
+          as_of: string | null;
+          accounts: InvestmentAccount[];
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          source?: string;
+          base_currency: string;
+          total?: number;
+          as_of?: string | null;
+          accounts?: InvestmentAccount[];
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          source?: string;
+          base_currency?: string;
+          total?: number;
+          as_of?: string | null;
+          accounts?: InvestmentAccount[];
+          updated_at?: string;
         };
         Relationships: [];
       };

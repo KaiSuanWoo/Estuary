@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, Download, LogOut, RefreshCw, ShieldCheck, Tag, Target } from "lucide-react";
+import { ChevronRight, Download, LogOut, RefreshCw, ShieldCheck, Tag, Target, TrendingUp } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useProfile } from "@/hooks/useProfile";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
 import { useAccounts } from "@/hooks/useAccounts";
-import { useFxRates, useLiveRates, useUpsertFxRate } from "@/hooks/useFxRates";
+import { useFxRates, useLiveRates, useRateMap, useUpsertFxRate } from "@/hooks/useFxRates";
+import {
+  useInvestmentSnapshot,
+  useUpsertInvestmentSnapshot,
+  useClearInvestmentSnapshot,
+} from "@/hooks/useInvestmentSnapshot";
 import { buildRateMap, convert } from "@/lib/fx";
+import { investmentTotalInBase, parseZenithSnapshot } from "@/lib/investments";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { CURRENCIES, PAY_CYCLES } from "@/lib/constants";
 import { Button, Card, PageHeader, Spinner } from "@/components/ui";
@@ -130,6 +137,8 @@ export function Settings() {
 
           <ExchangeRates baseCurrency={settings.base_currency} />
 
+          <ZenithSync baseCurrency={settings.base_currency} />
+
           <Card className="flex items-center justify-between">
             <div className="min-w-0">
               <p className="text-sm font-medium text-ink-200">Signed in as</p>
@@ -146,6 +155,114 @@ export function Settings() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Investments bridge — reads Zenith's live snapshot, with a manual-paste fallback. */
+function ZenithSync({ baseCurrency }: { baseCurrency: string }) {
+  const { data: snapshot } = useInvestmentSnapshot();
+  const upsert = useUpsertInvestmentSnapshot();
+  const clear = useClearInvestmentSnapshot();
+  const rates = useRateMap();
+
+  const [open, setOpen] = useState(false);
+  const [raw, setRaw] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const totalBase = investmentTotalInBase(snapshot, baseCurrency, rates);
+  const n = snapshot?.accounts.length ?? 0;
+
+  function onImport() {
+    setError(null);
+    let parsed;
+    try {
+      parsed = parseZenithSnapshot(raw);
+    } catch (e) {
+      setError((e as Error).message);
+      return;
+    }
+    upsert.mutate(
+      {
+        source: "zenith",
+        base_currency: parsed.base_currency,
+        total: parsed.total,
+        as_of: parsed.as_of,
+        accounts: parsed.accounts,
+      },
+      {
+        onSuccess: () => {
+          setRaw("");
+          setOpen(false);
+        },
+        onError: (e) => setError((e as Error).message),
+      },
+    );
+  }
+
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-violet-500/12 text-violet-300">
+            <TrendingUp className="size-4" />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-ink-200">Investments · Zenith</h2>
+            <p className="mt-0.5 text-xs text-ink-500">
+              {snapshot
+                ? `${formatMoney(totalBase, baseCurrency)} · ${n} account${n === 1 ? "" : "s"}${
+                    snapshot.as_of
+                      ? ` · ${new Date(snapshot.as_of).toLocaleDateString()}`
+                      : ""
+                  }`
+                : "Not connected — Zenith syncs your portfolio total here."}
+            </p>
+          </div>
+        </div>
+        {snapshot && (
+          <button
+            onClick={() => clear.mutate("zenith")}
+            className="shrink-0 text-xs text-ink-500 transition-colors hover:text-rose-400"
+          >
+            Disconnect
+          </button>
+        )}
+      </div>
+
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="text-xs font-medium text-teal-400 transition-colors hover:text-teal-300"
+      >
+        {open ? "Hide manual import" : "Import from a Zenith export…"}
+      </button>
+
+      {open && (
+        <div className="space-y-2">
+          <textarea
+            value={raw}
+            onChange={(e) => setRaw(e.target.value)}
+            rows={5}
+            placeholder={
+              '{ "base_currency": "AUD", "total": 42150,\n  "accounts": [ { "name": "IBKR", "currency": "USD", "value": 21000 } ] }'
+            }
+            className="w-full rounded-xl border border-ink-700 bg-ink-950/60 p-3 font-mono text-xs text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none"
+          />
+          {error && <p className="text-xs text-rose-400">{error}</p>}
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-ink-600">
+              Zenith writes this live; paste an export to sync manually.
+            </p>
+            <Button
+              size="sm"
+              onClick={onImport}
+              disabled={!raw.trim() || upsert.isPending}
+            >
+              {upsert.isPending ? "Saving…" : "Import"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

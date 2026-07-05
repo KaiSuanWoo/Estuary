@@ -32,6 +32,8 @@ import {
 } from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
+import { useInvestmentSnapshot } from "@/hooks/useInvestmentSnapshot";
+import { investmentTotalInBase } from "@/lib/investments";
 import { balancesByCurrency } from "@/lib/balances";
 import { ACCOUNT_TYPE_COLORS } from "@/lib/account-colors";
 import { totalInBase } from "@/lib/fx";
@@ -49,7 +51,7 @@ import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Button, Card, EmptyState, Spinner } from "@/components/ui";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
-import type { Budget } from "@/lib/types";
+import type { Budget, InvestmentSnapshot } from "@/lib/types";
 
 const TOOLTIP_STYLE = {
   background: "#111a24",
@@ -78,6 +80,7 @@ export function Dashboard() {
   const { data: budgetLinks = [] } = useBudgetLinks();
   const { data: budgetTxnLinks = [] } = useBudgetTransactionLinks();
   const reimbursedMap = useReimbursedAmountMap();
+  const { data: investSnapshot } = useInvestmentSnapshot();
 
   const accounts = accountsQ.data ?? [];
   const txns = allTxnsQ.data ?? [];
@@ -99,6 +102,13 @@ export function Dashboard() {
   // it) but only over the scoped account(s).
   const byCurrency = balancesByCurrency(scopedAccounts, txns);
   const { total: netWorth, missing } = totalInBase(byCurrency, baseCurrency, rates);
+
+  // Investments (Zenith) fold into net worth only in the all-accounts view.
+  const showInvest = !accountFilter && !!investSnapshot;
+  const investBase = showInvest
+    ? investmentTotalInBase(investSnapshot, baseCurrency, rates)
+    : 0;
+  const combinedNetWorth = netWorth + investBase;
 
   const refDate = useMemo(
     () => (monthBack === 0 ? new Date() : subMonths(new Date(), monthBack)),
@@ -269,7 +279,8 @@ export function Dashboard() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat
               label={accountFilter ? "Balance" : "Net worth"}
-              value={formatMoney(netWorth, baseCurrency)}
+              sub={showInvest ? "cash + invest" : undefined}
+              value={formatMoney(showInvest ? combinedNetWorth : netWorth, baseCurrency)}
               accent
             />
             <Stat
@@ -293,6 +304,21 @@ export function Dashboard() {
           </div>
         );
       })()}
+
+      {showInvest && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-full bg-ink-800/70 px-2.5 py-1 text-ink-300">
+            Cash{" "}
+            <span className="tnum text-ink-100">
+              {formatMoney(netWorth, baseCurrency)}
+            </span>
+          </span>
+          <span className="rounded-full bg-violet-500/12 px-2.5 py-1 text-violet-300">
+            Investments{" "}
+            <span className="tnum">{formatMoney(investBase, baseCurrency)}</span>
+          </span>
+        </div>
+      )}
 
       {(byCurrency && Object.keys(byCurrency).length > 1) || missing.length > 0 ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -327,6 +353,31 @@ export function Dashboard() {
           <CategoryDonut slices={categorySlices} base={baseCurrency} />
         </Widget>
       </div>
+
+      {/* Investments — pulled live from Zenith */}
+      {showInvest && investSnapshot && (
+        <div className="mt-4">
+          <Widget
+            title="Investments"
+            hint={
+              investSnapshot.as_of
+                ? `Zenith · as of ${new Date(investSnapshot.as_of).toLocaleDateString()}`
+                : "Zenith"
+            }
+            action={
+              <Link to="/settings" className="text-sm text-teal-400">
+                Manage
+              </Link>
+            }
+          >
+            <InvestmentsList
+              snapshot={investSnapshot}
+              base={baseCurrency}
+              investBase={investBase}
+            />
+          </Widget>
+        </div>
+      )}
 
       {/* Budgets — expense (counts down) & savings (count up) */}
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -635,6 +686,53 @@ function MiniBar({
           className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-ink-50/70 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
           style={{ left: `${elapsed * 100}%` }}
         />
+      )}
+    </div>
+  );
+}
+
+/** Zenith portfolio breakdown — total in base + each external account. */
+function InvestmentsList({
+  snapshot,
+  base,
+  investBase,
+}: {
+  snapshot: InvestmentSnapshot;
+  base: string;
+  investBase: number;
+}) {
+  return (
+    <div>
+      <div className="mb-3 flex items-end justify-between">
+        <span className="text-xs text-ink-500">Portfolio value</span>
+        <span className="tnum text-lg font-semibold text-violet-300">
+          {formatMoney(investBase, base)}
+        </span>
+      </div>
+      {snapshot.accounts.length > 0 ? (
+        <ul className="space-y-2">
+          {snapshot.accounts.map((a, i) => (
+            <li
+              key={`${a.name}-${i}`}
+              className="flex items-center justify-between gap-3 text-sm"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="size-2 shrink-0 rounded-full bg-violet-400" />
+                <span className="truncate text-ink-200">{a.name}</span>
+              </span>
+              <span className="tnum shrink-0 text-ink-300">
+                {formatMoney(a.value, a.currency)}
+                {a.currency !== base && (
+                  <span className="ml-1 text-ink-600">{a.currency}</span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-ink-500">
+          Portfolio total only — no per-account breakdown provided.
+        </p>
       )}
     </div>
   );

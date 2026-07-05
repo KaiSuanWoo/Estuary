@@ -39,6 +39,11 @@ export type SettingsUpdate = Tables["settings"]["Update"];
 export type Profile = Tables["profiles"]["Row"];
 export type ProfileUpdate = Tables["profiles"]["Update"];
 
+export type InvestmentSnapshot = Tables["investment_snapshots"]["Row"];
+export type InvestmentSnapshotInsert = Tables["investment_snapshots"]["Insert"];
+
+export type { InvestmentAccount } from "./database.types";
+
 export type {
   AccountType,
   SavingsType,
