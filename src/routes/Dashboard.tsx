@@ -1,14 +1,11 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
-import { subMonths } from "date-fns";
+import { Link, useNavigate } from "react-router-dom";
+import { format, subMonths } from "date-fns";
 import { ChevronDown, ChevronLeft, ChevronRight, Plane, Plus, Target } from "lucide-react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -44,12 +41,12 @@ import {
   monthlyCashflow,
   spendingByCategory,
   type CashflowMode,
-  type CategorySlice,
   type MonthlyPoint,
 } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Button, Card, EmptyState, Spinner } from "@/components/ui";
+import { HoverDonut } from "@/components/HoverDonut";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
 import type { Budget, InvestmentSnapshot } from "@/lib/types";
 
@@ -114,9 +111,17 @@ export function Dashboard() {
     () => (monthBack === 0 ? new Date() : subMonths(new Date(), monthBack)),
     [monthBack],
   );
+  const navigate = useNavigate();
   const { from, to } = monthBounds(refDate);
   const month = cashflowForRange(scopedTxns, baseCurrency, rates, from, to, cashflowMode);
-  const trend = monthlyCashflow(scopedTxns, baseCurrency, rates, 6, undefined, cashflowMode);
+  // Trend carries each bar's yyyy-MM so a click can deep-link into Analytics.
+  const trend = useMemo(
+    () =>
+      monthlyCashflow(scopedTxns, baseCurrency, rates, 6, undefined, cashflowMode).map(
+        (p, i) => ({ ...p, monthKey: format(subMonths(new Date(), 5 - i), "yyyy-MM") }),
+      ),
+    [scopedTxns, baseCurrency, rates, cashflowMode],
+  );
   const categorySlices = spendingByCategory(
     scopedTxns,
     categoriesQ.data ?? [],
@@ -343,14 +348,30 @@ export function Dashboard() {
 
       {/* Charts */}
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Widget title="Cashflow" hint="Last 6 months" className="lg:col-span-2">
-          <CashflowBars data={trend} base={baseCurrency} />
+        <Widget title="Cashflow" hint="Last 6 months · tap a month for detail" className="lg:col-span-2">
+          <CashflowBars
+            data={trend}
+            base={baseCurrency}
+            onMonthClick={(mk) => navigate(`/analytics?month=${mk}`)}
+          />
         </Widget>
         <Widget
           title="Spending"
           hint={`By category, ${monthBack === 0 ? "this month" : monthLabel(refDate)}`}
+          action={
+            <Link
+              to={`/analytics?month=${format(refDate, "yyyy-MM")}`}
+              className="text-sm text-teal-400"
+            >
+              More details
+            </Link>
+          }
         >
-          <CategoryDonut slices={categorySlices} base={baseCurrency} />
+          {categorySlices.length === 0 ? (
+            <ChartEmpty label="No spending recorded this month" />
+          ) : (
+            <HoverDonut slices={categorySlices} base={baseCurrency} centerLabel="Spent" legendCount={5} />
+          )}
         </Widget>
       </div>
 
@@ -810,13 +831,31 @@ function MiniStackedBar({
   );
 }
 
-function CashflowBars({ data, base }: { data: MonthlyPoint[]; base: string }) {
+function CashflowBars({
+  data,
+  base,
+  onMonthClick,
+}: {
+  data: (MonthlyPoint & { monthKey: string })[];
+  base: string;
+  onMonthClick?: (monthKey: string) => void;
+}) {
   const hasData = data.some((d) => d.income > 0 || d.expense > 0);
   if (!hasData) return <ChartEmpty label="No activity in the last 6 months" />;
 
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={data} barGap={4} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
+      <BarChart
+        data={data}
+        barGap={4}
+        margin={{ top: 8, right: 4, bottom: 0, left: 4 }}
+        onClick={(s) => {
+          const mk = (s?.activePayload?.[0]?.payload as { monthKey?: string } | undefined)
+            ?.monthKey;
+          if (mk) onMonthClick?.(mk);
+        }}
+        className={onMonthClick ? "cursor-pointer" : undefined}
+      >
         <CartesianGrid vertical={false} stroke="#1c2632" />
         <XAxis
           dataKey="label"
@@ -839,69 +878,6 @@ function CashflowBars({ data, base }: { data: MonthlyPoint[]; base: string }) {
   );
 }
 
-function CategoryDonut({
-  slices,
-  base,
-}: {
-  slices: CategorySlice[];
-  base: string;
-}) {
-  if (slices.length === 0)
-    return <ChartEmpty label="No spending recorded this month" />;
-
-  const total = slices.reduce((sum, s) => sum + s.value, 0);
-
-  return (
-    <div className="flex items-center gap-4">
-      <div className="relative h-36 w-36 shrink-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={slices}
-              dataKey="value"
-              nameKey="name"
-              innerRadius={48}
-              outerRadius={68}
-              paddingAngle={2}
-              stroke="none"
-            >
-              {slices.map((s) => (
-                <Cell key={s.id} fill={s.color} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={TOOLTIP_STYLE}
-              itemStyle={{ color: "#eef4fa" }}
-              labelStyle={{ color: "#eef4fa" }}
-              formatter={(value) => formatMoney(Number(value), base)}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[11px] text-ink-500">Spent</span>
-          <span className="tnum text-sm font-semibold text-ink-100">
-            {formatMoney(total, base)}
-          </span>
-        </div>
-      </div>
-      <ul className="min-w-0 flex-1 space-y-1.5">
-        {slices.slice(0, 5).map((s) => (
-          <li key={s.id} className="flex items-center gap-2 text-sm">
-            <span
-              className="size-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: s.color }}
-            />
-            <span className="flex-1 truncate text-ink-300">{s.name}</span>
-            <span className="tnum shrink-0 text-ink-400">
-              {formatMoney(s.value, base)}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function ChartEmpty({ label }: { label: string }) {
   return (
     <div className="flex h-[180px] items-center justify-center rounded-xl border border-dashed border-ink-800 text-center text-sm text-ink-500">
@@ -911,11 +887,13 @@ function ChartEmpty({ label }: { label: string }) {
 }
 
 export function FloatingAdd({ onClick }: { onClick: () => void }) {
+  // Persistent on every breakpoint so the action survives scrolling — on mobile
+  // it sits above the dock; on desktop it anchors to the bottom-right corner.
   return (
     <button
       onClick={onClick}
       aria-label="Add transaction"
-      className="fixed bottom-24 right-5 z-20 flex size-14 items-center justify-center rounded-full bg-teal-500 text-ink-950 shadow-lg shadow-teal-500/20 transition-transform active:scale-95 lg:hidden"
+      className="fixed bottom-24 right-5 z-20 flex size-14 items-center justify-center rounded-full bg-teal-500 text-ink-950 shadow-lg shadow-teal-500/20 transition-transform hover:bg-teal-400 active:scale-95 lg:bottom-8 lg:right-8"
     >
       <Plus className="size-7" strokeWidth={2.5} />
     </button>
