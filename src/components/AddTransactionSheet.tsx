@@ -9,6 +9,9 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
 import { useCreateTransaction } from "@/hooks/useTransactions";
 import { useSetTransactionTags } from "@/hooks/useTags";
+import { useBaseCurrency } from "@/hooks/useSettings";
+import { useRateMap } from "@/hooks/useFxRates";
+import { convert } from "@/lib/fx";
 import type { TransactionType } from "@/lib/types";
 
 const inputCls =
@@ -31,6 +34,8 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
   const { data: categories = [] } = useCategories();
   const create = useCreateTransaction();
   const setTxnTags = useSetTransactionTags();
+  const baseCurrency = useBaseCurrency();
+  const liveRates = useRateMap();
 
   const [type, setType] = useState<SheetType>("expense");
   const [amount, setAmount] = useState("");
@@ -151,6 +156,13 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
           is_reimbursable: type === "expense" ? isReimbursable : false,
           reimbursement_status:
             type === "expense" && isReimbursable ? "pending" : "none",
+          // Stamp the entry-time rate to base so this row's P&L value never
+          // restates as live rates move (non-transfer rows only — on transfers
+          // fx_rate means source→destination).
+          fx_rate:
+            entryCurrency !== baseCurrency
+              ? convert(1, entryCurrency, baseCurrency, liveRates)
+              : null,
         });
       }
       if (created && tags.length) {

@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { qk } from "@/lib/query";
 import { useAuth } from "@/lib/auth";
+import { useBaseCurrency } from "@/hooks/useSettings";
+import { useRateMap } from "@/hooks/useFxRates";
+import { convert } from "@/lib/fx";
 import type { ImportBatch, ReimbursementStatus } from "@/lib/types";
 
 export interface ImportRow {
@@ -42,6 +45,8 @@ export interface ImportResult {
 export function useBulkImport() {
   const client = useQueryClient();
   const { user } = useAuth();
+  const baseCurrency = useBaseCurrency();
+  const liveRates = useRateMap();
 
   return useMutation({
     mutationFn: async ({
@@ -112,6 +117,15 @@ export function useBulkImport() {
         import_batch_id: batch.id,
         external_id: r.external_id ?? null,
         flagged: r.flagged ?? false,
+        // Stamp foreign-currency P&L rows with the rate at import time so they
+        // don't restate as live rates move. Approximation for back-dated rows
+        // (we stamp today's rate); transfers keep fx_rate for src→dst only.
+        fx_rate:
+          (r.type === "expense" || r.type === "income") &&
+          r.currency &&
+          r.currency !== baseCurrency
+            ? convert(1, r.currency, baseCurrency, liveRates)
+            : null,
       }));
 
       const { error: txErr } = await supabase

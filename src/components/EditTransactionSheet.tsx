@@ -20,6 +20,9 @@ import {
   useReimbursableExpenses,
   useTransactionsByIds,
 } from "@/hooks/useTransactions";
+import { useBaseCurrency } from "@/hooks/useSettings";
+import { useRateMap } from "@/hooks/useFxRates";
+import { convert } from "@/lib/fx";
 import type { Transaction, TransactionType } from "@/lib/types";
 import type { ReimbursementStatus } from "@/lib/database.types";
 
@@ -47,6 +50,8 @@ export function EditTransactionSheet({
 }) {
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
+  const baseCurrency = useBaseCurrency();
+  const liveRates = useRateMap();
   const update = useUpdateTransaction();
   const del = useDeleteTransaction();
   const setTxnTags = useSetTransactionTags();
@@ -267,7 +272,14 @@ export function EditTransactionSheet({
           account_id: from.id,
           destination_account_id: null,
           destination_amount: null,
-          fx_rate: null,
+          // Preserve the historical stamp; only re-stamp when the currency
+          // itself changed (or the row was never stamped).
+          fx_rate:
+            entryCurrency === baseCurrency
+              ? null
+              : entryCurrency === tx.currency && tx.type !== "transfer" && tx.fx_rate != null
+                ? tx.fx_rate
+                : convert(1, entryCurrency, baseCurrency, liveRates),
           category_id: isAdjustment ? null : categoryId || null,
           date,
           merchant: merchant.trim() || null,
