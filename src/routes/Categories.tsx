@@ -374,6 +374,7 @@ function EditCategorySheet({
   const [name, setName] = useState(category.name);
   const [color, setColor] = useState(category.color ?? SWATCHES[0]);
   const [icon, setIcon] = useState(category.icon ?? "");
+  const [isFixed, setIsFixed] = useState(category.is_fixed);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   async function onSubmit(e: FormEvent) {
@@ -384,6 +385,7 @@ function EditCategorySheet({
         name: name.trim(),
         color,
         icon: icon || null,
+        is_fixed: category.kind === "expense" ? isFixed : false,
       },
     });
     onClose();
@@ -412,6 +414,35 @@ function EditCategorySheet({
           <ColorPicker value={color} onChange={setColor} />
 
           <IconPicker value={icon} color={color} onChange={setIcon} />
+
+          {category.kind === "expense" && (
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-ink-700/60 bg-ink-950/30 p-3">
+              <div>
+                <p className="text-sm font-medium text-ink-200">Fixed cost</p>
+                <p className="text-xs text-ink-500">
+                  Contractual/unavoidable (rent, utilities) — split out from
+                  discretionary spend in Analytics
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isFixed}
+                onClick={() => setIsFixed((v) => !v)}
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors",
+                  isFixed ? "bg-sky-500" : "bg-ink-700",
+                )}
+              >
+                <span
+                  className={cn(
+                    "block h-4 w-4 rounded-full bg-white shadow transition-transform",
+                    isFixed ? "translate-x-5" : "translate-x-0.5",
+                  )}
+                />
+              </button>
+            </label>
+          )}
 
           {update.isError && (
             <p className="text-xs text-red-400">

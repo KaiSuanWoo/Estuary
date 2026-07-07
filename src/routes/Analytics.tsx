@@ -13,10 +13,11 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  ComposedChart,
   Line,
+  LineChart,
   ReferenceLine,
   ResponsiveContainer,
+  Sankey,
   Tooltip,
   XAxis,
   YAxis,
@@ -25,24 +26,31 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   ChevronDown,
+  RefreshCcw,
   TrendingUp,
 } from "lucide-react";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useCategories } from "@/hooks/useCategories";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
+import { useAliasMap } from "@/hooks/useMerchantAliases";
 import { groupLinks } from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import { balancesByCurrency } from "@/lib/balances";
 import { convert, type RateMap } from "@/lib/fx";
+import { detectRecurring } from "@/lib/recurring";
 import {
+  amountInBase,
   breakdownByCategory,
+  buildMoneyFlow,
   cashflowForRange,
+  categoryAnomalies,
   categoryMovers,
+  monthEndProjection,
   monthsBetween,
   rangeBounds,
-  stackedCategoryByMonth,
+  savingsRateSeries,
   type CashflowMode,
   type CategorySlice,
 } from "@/lib/analytics";
@@ -100,7 +108,7 @@ function txnBaseValue(
   reimbursed: Map<string, number>,
   mode: CashflowMode,
 ): number {
-  const gross = convert(t.amount, t.currency, base, rates) ?? t.amount;
+  const gross = amountInBase(t.amount, t, base, rates);
   if (mode === "net" && t.type === "expense")
     return Math.max(0, gross - (reimbursed.get(t.id) ?? 0));
   return gross;
@@ -162,6 +170,7 @@ export function Analytics() {
   const { data: budgets = [] } = useBudgets();
   const { data: budgetLinks = [] } = useBudgetLinks();
   const reimbursedMap = useReimbursedAmountMap();
+  const aliasMap = useAliasMap();
   const base = useBaseCurrency();
   const rates = useRateMap();
 
@@ -213,8 +222,31 @@ export function Analytics() {
     const expenseCats = breakdownByCategory(scoped, categories, base, rates, WIDE.from, WIDE.to, "expense", txnMode);
     const incomeCats = breakdownByCategory(scoped, categories, base, rates, WIDE.from, WIDE.to, "income", txnMode);
     const movers = categoryMovers(txns, categories, base, rates, undefined, txnMode, 5);
-    const stacked = stackedCategoryByMonth(scoped, categories, base, rates, activeMonths, txnMode, 6);
     const cumulative = cumulativeSpendSeries(scoped, base, rates, reimbursedMap, txnMode);
+
+    // Money flow (Sankey): income sources → hub → categories + saved/deficit.
+    const flow = buildMoneyFlow(incomeCats, expenseCats, 6);
+
+    // Savings-rate trend over every month that has data (oldest → newest).
+    const trendMonths = [...dataMonthSet].sort().slice(-12);
+    const savingsTrend = savingsRateSeries(txns, base, rates, trendMonths, txnMode);
+
+    // Fixed vs discretionary split of the period's expenses.
+    const fixedIds = new Set(categories.filter((c) => c.is_fixed).map((c) => c.id));
+    const fixedCats = expenseCats.filter((c) => fixedIds.has(c.id));
+    const discCats = expenseCats.filter((c) => !fixedIds.has(c.id));
+    const fixedTotal = fixedCats.reduce((s, c) => s + c.value, 0);
+    const discTotal = discCats.reduce((s, c) => s + c.value, 0);
+
+    // Full-ledger signals (history is the signal — never period-scoped).
+    const recurring = detectRecurring(txns, base, rates, aliasMap);
+    const includesCurrentMonth = period.months.includes(format(new Date(), "yyyy-MM"));
+    const projection = includesCurrentMonth
+      ? monthEndProjection(txns, base, rates, txnMode)
+      : null;
+    const anomalies = includesCurrentMonth
+      ? categoryAnomalies(txns, categories, base, rates, txnMode)
+      : [];
 
     // Currency exposure across all accounts (portfolio-wide, not period-scoped).
     const byCur = balancesByCurrency(accounts, txns);
@@ -269,14 +301,22 @@ export function Analytics() {
       expenseCats,
       incomeCats,
       movers,
-      stacked,
       cumulative,
+      flow,
+      savingsTrend,
+      fixedCats,
+      discCats,
+      fixedTotal,
+      discTotal,
+      recurring,
+      projection,
+      anomalies,
       exposure,
       exposureTotal,
       budgetRows,
       savingsRate,
     };
-  }, [txns, categories, accounts, budgets, budgetLinks, reimbursedMap, base, rates, txnMode, period, dataMonthSet]);
+  }, [txns, categories, accounts, budgets, budgetLinks, reimbursedMap, aliasMap, base, rates, txnMode, period, dataMonthSet]);
 
   function toggleMonth(k: string) {
     setSelectedMonths((prev) =>
@@ -418,34 +458,31 @@ export function Analytics() {
 
           <Insights view={view} base={base} />
 
-          {/* MAIN combined chart: stacked spend by category + income & net lines */}
+          {/* MAIN chart: money flow — income sources → categories + saved */}
           <Widget
-            title="Spending composition vs income"
-            hint="Stacked category spend per month, with income and net overlaid"
+            title="Money flow"
+            hint="Where income came from and where it went — the surplus flows to Saved"
           >
-            {view.stacked.data.length === 0 ? (
-              <ChartEmpty label="No months with entries in range" />
+            {!view.flow ? (
+              <ChartEmpty label="No income or spending in range" />
             ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <ComposedChart data={view.stacked.data} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
-                  <CartesianGrid vertical={false} stroke="#1c2632" />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 12 }} />
-                  <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: "#6f8499", fontSize: 11 }} tickFormatter={(v) => compact(v, base)} />
+              <ResponsiveContainer width="100%" height={320}>
+                <Sankey
+                  data={view.flow}
+                  nodePadding={28}
+                  margin={{ top: 12, right: 8, bottom: 12, left: 8 }}
+                  node={(p: unknown) => <FlowNode {...(p as FlowNodeProps)} base={base} />}
+                  link={{ stroke: "#4d6175", strokeOpacity: 0.28 }}
+                >
                   <Tooltip
                     contentStyle={TOOLTIP_STYLE}
                     itemStyle={{ color: "#eef4fa" }}
                     labelStyle={{ color: "#eef4fa" }}
-                    formatter={(v: number, n: string) => [formatMoney(v, base), n]}
+                    formatter={(v: number) => formatMoney(Number(v), base)}
                   />
-                  {view.stacked.keys.map((k) => (
-                    <Bar key={k.name} dataKey={k.name} stackId="spend" fill={k.color} />
-                  ))}
-                  <Line type="monotone" dataKey="income" name="Income" stroke="#7fd1b9" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="net" name="Net" stroke="#e0a458" strokeWidth={2} strokeDasharray="4 3" dot={{ r: 3 }} />
-                </ComposedChart>
+                </Sankey>
               </ResponsiveContainer>
             )}
-            <Legend keys={view.stacked.keys} extra={[{ name: "Income", color: "#7fd1b9" }, { name: "Net", color: "#e0a458" }]} />
           </Widget>
 
           {/* Cumulative spending over the period */}
@@ -475,6 +512,60 @@ export function Analytics() {
               </ResponsiveContainer>
             )}
           </Widget>
+
+          {/* Savings-rate trend + fixed vs discretionary */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Widget title="Savings rate" hint="Net ÷ income, per month">
+              {view.savingsTrend.filter((p) => p.rate != null).length < 2 ? (
+                <p className="py-6 text-center text-sm text-ink-500">
+                  Needs at least two months with income.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={view.savingsTrend} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
+                    <CartesianGrid vertical={false} stroke="#1c2632" />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      width={38}
+                      tick={{ fill: "#6f8499", fontSize: 11 }}
+                      tickFormatter={(v) => `${v}%`}
+                    />
+                    <Tooltip
+                      contentStyle={TOOLTIP_STYLE}
+                      itemStyle={{ color: "#eef4fa" }}
+                      labelStyle={{ color: "#eef4fa" }}
+                      formatter={(v: number) => [`${Math.round(v)}%`, "Savings rate"]}
+                    />
+                    <ReferenceLine y={0} stroke="#fb7185" strokeDasharray="4 3" />
+                    <Line
+                      type="monotone"
+                      dataKey="rate"
+                      stroke="#7fd1b9"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      connectNulls={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </Widget>
+
+            <Widget title="Fixed vs discretionary" hint="Committed bills vs controllable spend">
+              {view.fixedTotal + view.discTotal <= 0 ? (
+                <p className="py-6 text-center text-sm text-ink-500">No spending in range.</p>
+              ) : (
+                <FixedVsDiscretionary
+                  fixedTotal={view.fixedTotal}
+                  discTotal={view.discTotal}
+                  fixedCats={view.fixedCats}
+                  discCats={view.discCats}
+                  base={base}
+                />
+              )}
+            </Widget>
+          </div>
 
           {/* Expense breakdown — expandable category bars */}
           <Widget title="Where money went" hint="Expenses by category — tap a row for detail">
@@ -509,6 +600,50 @@ export function Analytics() {
                 reimbursed={reimbursedMap}
                 mode={txnMode}
               />
+            )}
+          </Widget>
+
+          {/* Recurring & subscriptions — detected from the full ledger */}
+          <Widget
+            title="Recurring & subscriptions"
+            hint={
+              view.recurring.length > 0
+                ? `≈ ${formatMoney(view.recurring.reduce((s, r) => s + r.monthlyEquivalent, 0), base)}/month committed`
+                : "Detected from steady intervals and stable amounts"
+            }
+          >
+            {view.recurring.length === 0 ? (
+              <p className="py-6 text-center text-sm text-ink-500">
+                No recurring charges detected yet — needs ≥3 charges to the same
+                merchant at a steady interval.
+              </p>
+            ) : (
+              <ul className="divide-y divide-ink-800/60">
+                {view.recurring.slice(0, 8).map((r) => (
+                  <li key={r.merchant} className="flex items-center gap-3 py-2 text-sm">
+                    <RefreshCcw className="size-3.5 shrink-0 text-ink-500" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-ink-200">{r.merchant}</p>
+                      <p className="text-xs text-ink-500">
+                        {r.cadence} · ×{r.count} ·{" "}
+                        {r.maybeStopped ? (
+                          <span className="text-amber-400">
+                            no charge since {format(parseISO(r.lastDate), "d MMM")} — stopped?
+                          </span>
+                        ) : (
+                          <>next ~{format(parseISO(r.nextDue), "d MMM")}</>
+                        )}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="tnum text-ink-200">{formatMoney(r.typicalAmount, base)}</p>
+                      <p className="tnum text-xs text-ink-600">
+                        {formatMoney(r.monthlyEquivalent, base)}/mo
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </Widget>
 
@@ -900,12 +1035,42 @@ interface AnalyticsView {
   movers: { name: string; color: string; delta: number }[];
   budgetRows: { name: string; spent: number; amount: number }[];
   savingsRate: number;
+  projection: {
+    projected: number;
+    spent: number;
+    daysElapsed: number;
+    daysInMonth: number;
+    vsPrior: number | null;
+  } | null;
+  anomalies: { name: string; z: number; current: number; mean: number }[];
+  recurring: { monthlyEquivalent: number }[];
 }
 
 function Insights({ view, base }: { view: AnalyticsView; base: string }) {
   const items: string[] = [];
+
+  if (view.projection) {
+    const p = view.projection;
+    const vs =
+      p.vsPrior == null
+        ? ""
+        : Math.abs(p.vsPrior) < 0.05
+          ? " — in line with your recent months"
+          : ` — ${Math.round(Math.abs(p.vsPrior) * 100)}% ${p.vsPrior > 0 ? "above" : "below"} your recent average`;
+    items.push(
+      `On pace for ${formatMoney(p.projected, base)} spend this month (${formatMoney(p.spent, base)} in ${p.daysElapsed} of ${p.daysInMonth} days)${vs}.`,
+    );
+  }
+
+  for (const a of view.anomalies.slice(0, 2)) {
+    items.push(
+      `${a.name} is well ${a.z > 0 ? "above" : "below"} its usual level: ${formatMoney(a.current, base)} vs ~${formatMoney(a.mean, base)} typical.`,
+    );
+  }
+
   if (view.expenseCats[0])
     items.push(`Biggest expense: ${view.expenseCats[0].name} (${formatMoney(view.expenseCats[0].value, base)}).`);
+
   const overs = view.budgetRows.filter((b) => b.spent > b.amount + 0.005);
   if (overs.length > 0) {
     const worst = overs.reduce((a, b) => (b.spent - b.amount > a.spent - a.amount ? b : a));
@@ -913,6 +1078,13 @@ function Insights({ view, base }: { view: AnalyticsView; base: string }) {
       `${overs.length} budget${overs.length === 1 ? "" : "s"} over — worst: ${worst.name} by ${formatMoney(worst.spent - worst.amount, base)}.`,
     );
   }
+
+  const subs = view.recurring.reduce((s, r) => s + r.monthlyEquivalent, 0);
+  if (subs > 0)
+    items.push(
+      `Recurring bills commit ≈ ${formatMoney(subs, base)}/month before you spend a cent.`,
+    );
+
   if (view.movers[0]) {
     const m = view.movers[0];
     items.push(`${m.name} spending ${m.delta > 0 ? "up" : "down"} ${formatMoney(Math.abs(m.delta), base)} vs last month.`);
@@ -937,21 +1109,81 @@ function Insights({ view, base }: { view: AnalyticsView; base: string }) {
   );
 }
 
-function Legend({
-  keys,
-  extra = [],
-}: {
-  keys: { name: string; color: string }[];
-  extra?: { name: string; color: string }[];
-}) {
+interface FlowNodeProps {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  containerWidth: number;
+  payload: { name: string; color: string; value: number };
+}
+
+/** Sankey node: coloured block + name/value label on the outward side. */
+function FlowNode({ x, y, width, height, containerWidth, payload, base }: FlowNodeProps & { base: string }) {
+  const isLeftHalf = x + width / 2 < containerWidth / 2;
+  const labelX = isLeftHalf ? x + width + 6 : x - 6;
+  const anchor = isLeftHalf ? "start" : "end";
   return (
-    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-      {[...keys, ...extra].map((k) => (
-        <span key={k.name} className="flex items-center gap-1.5 text-xs text-ink-400">
-          <span className="size-2 rounded-full" style={{ backgroundColor: k.color }} />
-          {k.name}
-        </span>
-      ))}
+    <g>
+      <rect x={x} y={y} width={width} height={height} fill={payload.color} rx={2} fillOpacity={0.9} />
+      <text x={labelX} y={y + height / 2 - 2} textAnchor={anchor} fill="#c6d3df" fontSize={12}>
+        {payload.name}
+      </text>
+      <text x={labelX} y={y + height / 2 + 12} textAnchor={anchor} fill="#6f8499" fontSize={11} className="tnum">
+        {formatMoney(payload.value, base)}
+      </text>
+    </g>
+  );
+}
+
+/** Two-tone committed-vs-controllable split with per-side category chips. */
+function FixedVsDiscretionary({
+  fixedTotal,
+  discTotal,
+  fixedCats,
+  discCats,
+  base,
+}: {
+  fixedTotal: number;
+  discTotal: number;
+  fixedCats: CategorySlice[];
+  discCats: CategorySlice[];
+  base: string;
+}) {
+  const total = fixedTotal + discTotal;
+  const fixedPct = (fixedTotal / total) * 100;
+  return (
+    <div className="space-y-3">
+      <div className="flex h-3 overflow-hidden rounded-full bg-ink-800">
+        <div className="h-full bg-sky-500/80" style={{ width: `${fixedPct}%` }} />
+        <div className="h-full bg-amber-500/80" style={{ width: `${100 - fixedPct}%` }} />
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <p className="text-xs font-medium text-sky-300">
+            Fixed · {Math.round(fixedPct)}%
+          </p>
+          <p className="tnum font-semibold text-ink-100">{formatMoney(fixedTotal, base)}</p>
+          <p className="mt-1 truncate text-xs text-ink-500">
+            {fixedCats.length === 0
+              ? "No categories marked fixed yet — set them in Categories."
+              : fixedCats.map((c) => c.name).join(" · ")}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-medium text-amber-300">
+            Discretionary · {Math.round(100 - fixedPct)}%
+          </p>
+          <p className="tnum font-semibold text-ink-100">{formatMoney(discTotal, base)}</p>
+          <p className="mt-1 truncate text-xs text-ink-500">
+            {discCats.map((c) => c.name).join(" · ") || "—"}
+          </p>
+        </div>
+      </div>
+      <p className="text-xs text-ink-600">
+        Discretionary is the lever — fixed costs only move by renegotiating or
+        cancelling.
+      </p>
     </div>
   );
 }

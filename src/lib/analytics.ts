@@ -1,5 +1,6 @@
 import {
   addMonths,
+  differenceInCalendarDays,
   endOfMonth,
   format,
   parseISO,
@@ -19,6 +20,24 @@ function inBase(
 ): number {
   const v = convert(amount, currency, base, rates);
   return v == null ? 0 : v;
+}
+
+/**
+ * Convert an amount belonging to a transaction, preferring the FX rate stamped
+ * at entry (`fx_rate`) — the accountant-correct treatment: P&L at historical
+ * rates, so past months don't restate as today's rate moves. On transfers
+ * `fx_rate` means source→destination (not →base), so it is never used here.
+ * Falls back to the live map for unstamped rows.
+ */
+export function amountInBase(
+  amount: number,
+  t: Transaction,
+  base: string,
+  rates: RateMap,
+): number {
+  if (t.type !== "transfer" && t.fx_rate != null && t.fx_rate > 0 && t.currency !== base)
+    return amount * t.fx_rate;
+  return inBase(amount, t.currency, base, rates);
 }
 
 export interface Cashflow {
@@ -60,7 +79,7 @@ function buildReimbursedMap(
   for (const t of txns) {
     if (t.type !== "income") continue;
     for (const link of reimbursementLinks(t)) {
-      const amt = inBase(link.amount, t.currency, base, rates);
+      const amt = amountInBase(link.amount, t, base, rates);
       map.set(link.expense_id, (map.get(link.expense_id) ?? 0) + amt);
     }
   }
@@ -104,13 +123,13 @@ export function cashflowForRange(
         if (links.length > 0) {
           const allocated = links.reduce((s, l) => s + l.amount, 0);
           const remainder = Math.max(0, t.amount - allocated);
-          if (remainder > 0) income += inBase(remainder, t.currency, base, rates);
+          if (remainder > 0) income += amountInBase(remainder, t, base, rates);
           continue;
         }
       }
-      income += inBase(t.amount, t.currency, base, rates);
+      income += amountInBase(t.amount, t, base, rates);
     } else if (t.type === "expense") {
-      const gross = inBase(t.amount, t.currency, base, rates);
+      const gross = amountInBase(t.amount, t, base, rates);
       if (mode === "net" && reimbursed) {
         const reimb = reimbursed.get(t.id) ?? 0;
         expense += Math.max(0, gross - reimb);
@@ -152,7 +171,7 @@ export function spendingByCategory(
     if (t.type !== "expense" || t.date < from || t.date > to) continue;
     if (t.excluded_from_cashflow) continue;
 
-    const gross = inBase(t.amount, t.currency, base, rates);
+    const gross = amountInBase(t.amount, t, base, rates);
     const reimb = reimbursed?.get(t.id) ?? 0;
     const amount = mode === "net" ? Math.max(0, gross - reimb) : gross;
     if (amount === 0) continue;
@@ -197,14 +216,14 @@ export function breakdownByCategory(
   for (const t of txns) {
     if (t.type !== "income" || t.date < from || t.date > to) continue;
     if (t.excluded_from_cashflow) continue;
-    let amount = inBase(t.amount, t.currency, base, rates);
+    let amount = amountInBase(t.amount, t, base, rates);
     if (mode === "net") {
       const links = reimbursementLinks(t);
       if (links.length > 0) {
         const allocated = links.reduce((s, l) => s + l.amount, 0);
         const remainder = Math.max(0, t.amount - allocated);
         if (remainder <= 0) continue;
-        amount = inBase(remainder, t.currency, base, rates);
+        amount = amountInBase(remainder, t, base, rates);
       }
     }
     if (amount === 0) continue;
@@ -324,7 +343,7 @@ export function merchantLeaderboard(
   for (const t of txns) {
     if (t.type !== "expense" || t.date < from || t.date > to) continue;
     if (t.excluded_from_cashflow) continue;
-    const gross = inBase(t.amount, t.currency, base, rates);
+    const gross = amountInBase(t.amount, t, base, rates);
     const reimb = reimbursed?.get(t.id) ?? 0;
     const amount = mode === "net" ? Math.max(0, gross - reimb) : gross;
     if (amount === 0) continue;
@@ -392,4 +411,186 @@ export function monthlyCashflow(
     points.push({ label: format(d, "MMM"), income: cf.income, expense: cf.expense });
   }
   return points;
+}
+
+// ─── analyst extensions ───────────────────────────────────────────────────────
+
+export interface SavingsRatePoint {
+  label: string;
+  monthKey: string;
+  /** net / income for that month, as a percentage (null when no income). */
+  rate: number | null;
+}
+
+/** Monthly savings rate (net ÷ income) for the given yyyy-MM months. */
+export function savingsRateSeries(
+  txns: Transaction[],
+  base: string,
+  rates: RateMap,
+  months: string[],
+  mode: CashflowMode = "net",
+): SavingsRatePoint[] {
+  return months.map((mk) => {
+    const from = `${mk}-01`;
+    const to = format(endOfMonth(parseISO(from)), "yyyy-MM-dd");
+    const cf = cashflowForRange(txns, base, rates, from, to, mode);
+    return {
+      label: format(parseISO(from), "MMM ''yy"),
+      monthKey: mk,
+      rate: cf.income > 0 ? (cf.net / cf.income) * 100 : null,
+    };
+  });
+}
+
+export interface MonthProjection {
+  /** Spent so far this calendar month. */
+  spent: number;
+  /** Spend extrapolated to month end at the current daily pace. */
+  projected: number;
+  /** Average full-month spend over the trailing comparison months. */
+  priorAvg: number | null;
+  /** projected vs priorAvg, as a fraction (0.13 = 13% above). Null without history. */
+  vsPrior: number | null;
+  daysElapsed: number;
+  daysInMonth: number;
+}
+
+/**
+ * Month-end spend projection for the CURRENT month: linear extrapolation of
+ * the month-to-date pace, compared against the average of up to `lookback`
+ * fully-elapsed prior months that had any spending.
+ */
+export function monthEndProjection(
+  txns: Transaction[],
+  base: string,
+  rates: RateMap,
+  mode: CashflowMode = "net",
+  now = new Date(),
+  lookback = 3,
+): MonthProjection | null {
+  const { from, to } = monthBounds(now);
+  const daysInMonth = differenceInCalendarDays(parseISO(to), parseISO(from)) + 1;
+  const daysElapsed = Math.min(daysInMonth, differenceInCalendarDays(now, parseISO(from)) + 1);
+  // Too early in the month for the pace to mean anything.
+  if (daysElapsed < 3) return null;
+
+  const spent = cashflowForRange(txns, base, rates, from, to, mode).expense;
+  if (spent <= 0) return null;
+  const projected = (spent / daysElapsed) * daysInMonth;
+
+  const priors: number[] = [];
+  for (let i = 1; i <= lookback; i++) {
+    const b = monthBounds(subMonths(now, i));
+    const e = cashflowForRange(txns, base, rates, b.from, b.to, mode).expense;
+    if (e > 0) priors.push(e);
+  }
+  const priorAvg = priors.length ? priors.reduce((s, x) => s + x, 0) / priors.length : null;
+
+  return {
+    spent,
+    projected,
+    priorAvg,
+    vsPrior: priorAvg ? projected / priorAvg - 1 : null,
+    daysElapsed,
+    daysInMonth,
+  };
+}
+
+export interface CategoryAnomaly {
+  name: string;
+  color: string;
+  /** Standard deviations away from the trailing-months mean (signed). */
+  z: number;
+  current: number;
+  mean: number;
+}
+
+/**
+ * Categories whose current-month spend sits ≥ `threshold` standard deviations
+ * from their own trailing-month norm. Needs ≥3 months of history per category
+ * to say anything.
+ */
+export function categoryAnomalies(
+  txns: Transaction[],
+  categories: Category[],
+  base: string,
+  rates: RateMap,
+  mode: CashflowMode = "net",
+  now = new Date(),
+  lookback = 6,
+  threshold = 2,
+): CategoryAnomaly[] {
+  const cur = monthBounds(now);
+  const current = spendingByCategory(txns, categories, base, rates, cur.from, cur.to, mode);
+  const history = new Map<string, number[]>();
+  const meta = new Map<string, { name: string; color: string }>();
+
+  for (let i = 1; i <= lookback; i++) {
+    const b = monthBounds(subMonths(now, i));
+    for (const s of spendingByCategory(txns, categories, base, rates, b.from, b.to, mode)) {
+      const xs = history.get(s.id) ?? [];
+      xs.push(s.value);
+      history.set(s.id, xs);
+      meta.set(s.id, { name: s.name, color: s.color });
+    }
+  }
+
+  const out: CategoryAnomaly[] = [];
+  for (const s of current) {
+    const xs = history.get(s.id);
+    if (!xs || xs.length < 3) continue;
+    const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length);
+    if (sd < 1) continue; // flat history — any wobble would look extreme
+    const z = (s.value - mean) / sd;
+    if (Math.abs(z) >= threshold) out.push({ name: s.name, color: s.color, z, current: s.value, mean });
+  }
+  return out.sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
+}
+
+export interface MoneyFlow {
+  nodes: { name: string; color: string }[];
+  links: { source: number; target: number; value: number }[];
+}
+
+/**
+ * Sankey data for the money-flow chart: income categories → a central Income
+ * node → expense categories, with the surplus flowing to "Saved" (or a
+ * "From savings" source covering a deficit). Small categories beyond `topN`
+ * fold into "Other".
+ */
+export function buildMoneyFlow(
+  incomeCats: CategorySlice[],
+  expenseCats: CategorySlice[],
+  topN = 6,
+): MoneyFlow | null {
+  const totalIn = incomeCats.reduce((s, c) => s + c.value, 0);
+  const totalOut = expenseCats.reduce((s, c) => s + c.value, 0);
+  if (totalIn <= 0 && totalOut <= 0) return null;
+
+  const fold = (cats: CategorySlice[]) => {
+    const top = cats.slice(0, topN);
+    const rest = cats.slice(topN).reduce((s, c) => s + c.value, 0);
+    if (rest > 0) top.push({ id: "other", name: "Other", value: rest, color: "#4d6175" });
+    return top.filter((c) => c.value > 0.005);
+  };
+
+  const nodes: MoneyFlow["nodes"] = [];
+  const links: MoneyFlow["links"] = [];
+  const add = (name: string, color: string) => nodes.push({ name, color }) - 1;
+
+  const inSlices = fold(incomeCats);
+  const outSlices = fold(expenseCats);
+  const hub = add("Income", "#7fd1b9");
+
+  for (const c of inSlices) links.push({ source: add(c.name, c.color), target: hub, value: c.value });
+  // A deficit month still has to balance: the extra spend comes from savings.
+  if (totalOut > totalIn && totalOut - totalIn > 0.005)
+    links.push({ source: add("From savings", "#e0a458"), target: hub, value: totalOut - totalIn });
+
+  for (const c of outSlices) links.push({ source: hub, target: add(c.name, c.color), value: c.value });
+  if (totalIn > totalOut && totalIn - totalOut > 0.005)
+    links.push({ source: hub, target: add("Saved", "#34d399"), value: totalIn - totalOut });
+
+  return links.length ? { nodes, links } : null;
 }
