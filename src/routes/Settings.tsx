@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, Download, LogOut, RefreshCw, ShieldCheck, Tag, Target, TrendingUp } from "lucide-react";
+import { ChevronRight, Download, LogOut, RefreshCw, ShieldCheck, Store, Tag, Target, TrendingUp } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useProfile } from "@/hooks/useProfile";
 import { useSettings, useUpdateSettings } from "@/hooks/useSettings";
@@ -112,6 +112,21 @@ export function Settings() {
                 <div>
                   <p className="font-medium text-ink-100">Budgets</p>
                   <p className="text-xs text-ink-500">Monthly limits per category</p>
+                </div>
+              </div>
+              <ChevronRight className="size-5 text-ink-500" />
+            </Card>
+          </Link>
+
+          <Link to="/merchants">
+            <Card className="flex items-center justify-between transition-colors hover:bg-ink-900">
+              <div className="flex items-center gap-3">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-ink-800 text-ink-300">
+                  <Store className="size-4" />
+                </span>
+                <div>
+                  <p className="font-medium text-ink-100">Merchants</p>
+                  <p className="text-xs text-ink-500">Group & rename bank descriptors</p>
                 </div>
               </div>
               <ChevronRight className="size-5 text-ink-500" />

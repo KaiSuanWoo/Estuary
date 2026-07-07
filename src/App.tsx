@@ -26,6 +26,7 @@ const Budgets = lazy(() => import("@/routes/Budgets").then((m) => ({ default: m.
 const Import = lazy(() => import("@/routes/Import").then((m) => ({ default: m.Import })));
 const Rules = lazy(() => import("@/routes/Rules").then((m) => ({ default: m.Rules })));
 const Analytics = lazy(() => import("@/routes/Analytics").then((m) => ({ default: m.Analytics })));
+const Merchants = lazy(() => import("@/routes/Merchants").then((m) => ({ default: m.Merchants })));
 
 function FullScreenSpinner() {
   return (
@@ -56,6 +57,7 @@ export function App() {
                   <Route path="categories" element={<Categories />} />
                   <Route path="budgets" element={<Budgets />} />
                   <Route path="analytics" element={<Analytics />} />
+                  <Route path="merchants" element={<Merchants />} />
                   <Route path="rules" element={<Rules />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="import" element={<Import />} />
