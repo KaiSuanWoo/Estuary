@@ -10,8 +10,12 @@ import {
   useReorderAccounts,
 } from "@/hooks/useAccounts";
 import { useTransactions } from "@/hooks/useTransactions";
+import {
+  useReconciliations,
+  useCreateReconciliation,
+} from "@/hooks/useReconciliations";
 import { accountBalancesByCurrency, isMultiCurrency } from "@/lib/balances";
-import { formatMoney } from "@/lib/format";
+import { formatDate, formatMoney, todayISO } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ACCOUNT_TYPE_COLORS, ACCOUNT_TYPE_LABELS } from "@/lib/account-colors";
 import { Button, Card, EmptyState, PageHeader, Sheet, Skeleton } from "@/components/ui";
@@ -443,6 +447,8 @@ function EditAccountSheet({
           </Button>
         </form>
 
+        <ReconcileSection account={account} />
+
         <div className="mt-3 border-t border-ink-800 pt-3">
           {confirmArchive ? (
             <div className="flex items-center gap-3">
@@ -468,6 +474,91 @@ function EditAccountSheet({
           )}
         </div>
     </Sheet>
+  );
+}
+
+// ─── Reconciliation ───────────────────────────────────────────────────────────
+
+/**
+ * Statement check: type what the bank shows, Estuary compares it against its
+ * computed balance and stores the checkpoint — drift gets caught monthly
+ * instead of a year later. Multi-currency accounts reconcile their primary
+ * currency.
+ */
+function ReconcileSection({ account }: { account: Account }) {
+  const { data: txns = [] } = useTransactions();
+  const { data: checks = [] } = useReconciliations();
+  const create = useCreateReconciliation();
+
+  const [stated, setStated] = useState("");
+
+  const computed =
+    accountBalancesByCurrency(account, txns)[account.currency] ?? 0;
+  const last = checks.find((r) => r.account_id === account.id);
+  const justSaved = create.data?.account_id === account.id ? create.data : null;
+  const shown = justSaved ?? last;
+
+  async function reconcile() {
+    const bank = Number(stated);
+    if (!Number.isFinite(bank)) return;
+    await create.mutateAsync({
+      account_id: account.id,
+      date: todayISO(),
+      stated_balance: bank,
+      computed_balance: computed,
+      difference: bank - computed,
+    });
+    setStated("");
+  }
+
+  return (
+    <div className="mt-3 border-t border-ink-800 pt-3">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <p className="text-xs font-medium text-ink-400">Reconcile with your bank</p>
+        {shown && (
+          <p
+            className={cn(
+              "tnum text-xs",
+              Math.abs(shown.difference) < 0.005 ? "text-teal-400" : "text-amber-400",
+            )}
+          >
+            {formatDate(shown.date)} ·{" "}
+            {Math.abs(shown.difference) < 0.005
+              ? "matched"
+              : `off by ${formatMoney(Math.abs(shown.difference), account.currency)}`}
+          </p>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="number"
+          inputMode="decimal"
+          step="0.01"
+          value={stated}
+          onChange={(e) => setStated(e.target.value)}
+          placeholder={`Bank shows… (${account.currency})`}
+          className="tnum h-9 flex-1 rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={reconcile}
+          disabled={stated.trim() === "" || create.isPending}
+          className="shrink-0"
+        >
+          {create.isPending ? "Checking…" : "Check"}
+        </Button>
+      </div>
+      <p className="tnum mt-1.5 text-xs text-ink-600">
+        Estuary computes {formatMoney(computed, account.currency)}
+        {stated.trim() !== "" && Number.isFinite(Number(stated)) && (
+          <>
+            {" "}· difference{" "}
+            {formatMoney(Number(stated) - computed, account.currency)}
+          </>
+        )}
+      </p>
+    </div>
   );
 }
 
