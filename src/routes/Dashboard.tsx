@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { format, subMonths } from "date-fns";
 import { ChevronDown, ChevronLeft, ChevronRight, Plane, Plus, Target } from "lucide-react";
@@ -850,9 +850,12 @@ function CashflowBars({
         barGap={4}
         margin={{ top: 8, right: 4, bottom: 0, left: 4 }}
         onClick={(s) => {
-          const mk = (s?.activePayload?.[0]?.payload as { monthKey?: string } | undefined)
-            ?.monthKey;
-          if (mk) onMonthClick?.(mk);
+          const p = s?.activePayload?.[0]?.payload as
+            | { monthKey?: string; income?: number; expense?: number }
+            | undefined;
+          // Empty months have nothing to drill into — ignore the click.
+          if (p?.monthKey && ((p.income ?? 0) > 0 || (p.expense ?? 0) > 0))
+            onMonthClick?.(p.monthKey);
         }}
         className={onMonthClick ? "cursor-pointer" : undefined}
       >
@@ -886,14 +889,35 @@ function ChartEmpty({ label }: { label: string }) {
   );
 }
 
-export function FloatingAdd({ onClick }: { onClick: () => void }) {
-  // Persistent on every breakpoint so the action survives scrolling — on mobile
-  // it sits above the dock; on desktop it anchors to the bottom-right corner.
+export function FloatingAdd({
+  onClick,
+  className,
+}: {
+  onClick: () => void;
+  className?: string;
+}) {
+  // Mobile: always visible above the dock (the primary add affordance).
+  // Desktop web: revealed only once the page is scrolled (like the floating
+  // search button), so it never crowds the header CTA on a fresh view.
+  // `className` lets pages with their own floating stacks (Activity) slot it
+  // higher so nothing overlaps.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 300);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
     <button
       onClick={onClick}
       aria-label="Add transaction"
-      className="fixed bottom-24 right-5 z-20 flex size-14 items-center justify-center rounded-full bg-teal-500 text-ink-950 shadow-lg shadow-teal-500/20 transition-transform hover:bg-teal-400 active:scale-95 lg:bottom-8 lg:right-8"
+      className={cn(
+        "fixed bottom-24 right-5 z-20 flex size-14 items-center justify-center rounded-full bg-teal-500 text-ink-950 shadow-lg shadow-teal-500/20 transition-all hover:bg-teal-400 active:scale-95 lg:bottom-8 lg:right-8",
+        !scrolled && "lg:pointer-events-none lg:translate-y-2 lg:opacity-0",
+        className,
+      )}
     >
       <Plus className="size-7" strokeWidth={2.5} />
     </button>

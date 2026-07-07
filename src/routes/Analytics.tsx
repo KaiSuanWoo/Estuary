@@ -8,17 +8,25 @@ import {
   subMonths,
 } from "date-fns";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowDownRight, ArrowUpRight, TrendingUp } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  ChevronDown,
+  TrendingUp,
+} from "lucide-react";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useCategories } from "@/hooks/useCategories";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -27,21 +35,21 @@ import { groupLinks } from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import { balancesByCurrency } from "@/lib/balances";
-import { convert } from "@/lib/fx";
+import { convert, type RateMap } from "@/lib/fx";
 import {
   breakdownByCategory,
   cashflowForRange,
   categoryMovers,
-  merchantLeaderboard,
   monthsBetween,
   rangeBounds,
   stackedCategoryByMonth,
   type CashflowMode,
+  type CategorySlice,
 } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
-import { HoverDonut } from "@/components/HoverDonut";
+import type { Transaction } from "@/lib/types";
 
 const TOOLTIP_STYLE = {
   background: "#111a24",
@@ -84,14 +92,50 @@ function presetRange(preset: string, now = new Date()): { from: string; to: stri
   }
 }
 
-/** Last 18 months as yyyy-MM, newest first — the month multi-select source. */
-function recentMonths(now = new Date()): { key: string; label: string }[] {
-  const out: { key: string; label: string }[] = [];
-  for (let i = 0; i < 18; i++) {
-    const d = subMonths(now, i);
-    out.push({ key: format(d, "yyyy-MM"), label: format(d, "MMM ''yy") });
+/** Convert a transaction's amount to base, net of reimbursements in net mode. */
+function txnBaseValue(
+  t: Transaction,
+  base: string,
+  rates: RateMap,
+  reimbursed: Map<string, number>,
+  mode: CashflowMode,
+): number {
+  const gross = convert(t.amount, t.currency, base, rates) ?? t.amount;
+  if (mode === "net" && t.type === "expense")
+    return Math.max(0, gross - (reimbursed.get(t.id) ?? 0));
+  return gross;
+}
+
+/**
+ * Daily cumulative spend series (net-aware), optionally restricted to a
+ * category set — income in those categories nets off as a refund, matching
+ * how budgets count spend.
+ */
+function cumulativeSpendSeries(
+  txns: Transaction[],
+  base: string,
+  rates: RateMap,
+  reimbursed: Map<string, number>,
+  mode: CashflowMode,
+  categoryIds?: Set<string>,
+): { date: string; label: string; cum: number }[] {
+  const daily = new Map<string, number>();
+  for (const t of txns) {
+    if (t.excluded_from_cashflow) continue;
+    if (categoryIds && (!t.category_id || !categoryIds.has(t.category_id))) continue;
+    if (t.type === "expense") {
+      daily.set(t.date, (daily.get(t.date) ?? 0) + txnBaseValue(t, base, rates, reimbursed, mode));
+    } else if (categoryIds && t.type === "income") {
+      // Refund into a tracked category reduces its spend (mirrors spendForBudget).
+      daily.set(t.date, (daily.get(t.date) ?? 0) - (convert(t.amount, t.currency, base, rates) ?? t.amount));
+    }
   }
-  return out;
+  const dates = [...daily.keys()].sort();
+  let cum = 0;
+  return dates.map((d) => {
+    cum += daily.get(d)!;
+    return { date: d, label: format(parseISO(d), "d MMM"), cum: Math.max(0, cum) };
+  });
 }
 
 export function Analytics() {
@@ -121,7 +165,20 @@ export function Analytics() {
   const base = useBaseCurrency();
   const rates = useRateMap();
 
-  // Resolve the active period → ISO bounds, the month list, an in-scope test.
+  // Months that actually have entries — the only ones offered or charted.
+  const monthsWithData = useMemo(() => {
+    const s = new Set(txns.map((t) => t.date.slice(0, 7)));
+    return [...s]
+      .sort()
+      .reverse()
+      .map((key) => ({ key, label: format(parseISO(`${key}-01`), "MMM ''yy") }));
+  }, [txns]);
+  const dataMonthSet = useMemo(
+    () => new Set(monthsWithData.map((m) => m.key)),
+    [monthsWithData],
+  );
+
+  // Resolve the active period → month list, an in-scope test, a label.
   const period = useMemo(() => {
     if (mode === "months") {
       const list = [...selectedMonths].sort();
@@ -150,12 +207,14 @@ export function Analytics() {
 
   const view = useMemo(() => {
     const scoped = txns.filter((t) => period.inScope(t.date));
+    // Empty months carry no information — drop them from the per-month charts.
+    const activeMonths = period.months.filter((mk) => dataMonthSet.has(mk));
     const cf = cashflowForRange(scoped, base, rates, WIDE.from, WIDE.to, txnMode);
     const expenseCats = breakdownByCategory(scoped, categories, base, rates, WIDE.from, WIDE.to, "expense", txnMode);
     const incomeCats = breakdownByCategory(scoped, categories, base, rates, WIDE.from, WIDE.to, "income", txnMode);
-    const merchants = merchantLeaderboard(scoped, base, rates, WIDE.from, WIDE.to, txnMode, 8);
     const movers = categoryMovers(txns, categories, base, rates, undefined, txnMode, 5);
-    const stacked = stackedCategoryByMonth(scoped, categories, base, rates, period.months, txnMode, 6);
+    const stacked = stackedCategoryByMonth(scoped, categories, base, rates, activeMonths, txnMode, 6);
+    const cumulative = cumulativeSpendSeries(scoped, base, rates, reimbursedMap, txnMode);
 
     // Currency exposure across all accounts (portfolio-wide, not period-scoped).
     const byCur = balancesByCurrency(accounts, txns);
@@ -169,7 +228,14 @@ export function Analytics() {
     const exposureTotal = exposure.reduce((s, e) => s + e.base, 0);
 
     // Budgets — only meaningful for a single month (monthly amounts).
-    let budgetRows: { id: string; name: string; color: string; spent: number; amount: number }[] = [];
+    let budgetRows: {
+      id: string;
+      name: string;
+      color: string;
+      spent: number;
+      amount: number;
+      catIds: Set<string>;
+    }[] = [];
     if (period.months.length === 1) {
       const links = groupLinks(budgetLinks);
       budgetRows = budgets
@@ -180,19 +246,37 @@ export function Analytics() {
           for (const t of scoped) {
             if (!t.category_id || !catIds.has(t.category_id)) continue;
             if (t.type === "expense")
-              spent += (convert(t.amount, t.currency, base, rates) ?? t.amount) - (reimbursedMap.get(t.id) ?? 0);
+              spent += txnBaseValue(t, base, rates, reimbursedMap, txnMode);
             else if (t.type === "income")
               spent -= convert(t.amount, t.currency, base, rates) ?? t.amount;
           }
-          return { id: b.id, name: b.name, color: b.color ?? "#4d6175", spent: Math.max(0, spent), amount: b.amount };
+          return {
+            id: b.id,
+            name: b.name,
+            color: b.color ?? "#4d6175",
+            spent: Math.max(0, spent),
+            amount: b.amount,
+            catIds,
+          };
         });
     }
 
     const savingsRate = cf.income > 0 ? cf.net / cf.income : 0;
-    return { cf, expenseCats, incomeCats, merchants, movers, stacked, exposure, exposureTotal, budgetRows, savingsRate };
-  }, [txns, categories, accounts, budgets, budgetLinks, reimbursedMap, base, rates, txnMode, period]);
-
-  const months = useMemo(() => recentMonths(), []);
+    return {
+      scoped,
+      activeMonths,
+      cf,
+      expenseCats,
+      incomeCats,
+      movers,
+      stacked,
+      cumulative,
+      exposure,
+      exposureTotal,
+      budgetRows,
+      savingsRate,
+    };
+  }, [txns, categories, accounts, budgets, budgetLinks, reimbursedMap, base, rates, txnMode, period, dataMonthSet]);
 
   function toggleMonth(k: string) {
     setSelectedMonths((prev) =>
@@ -288,9 +372,11 @@ export function Analytics() {
               </div>
             )}
           </div>
+        ) : monthsWithData.length === 0 ? (
+          <p className="text-xs text-ink-500">No months with entries yet.</p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
-            {months.map((m) => {
+            {monthsWithData.map((m) => {
               const on = selectedMonths.includes(m.key);
               return (
                 <button
@@ -338,7 +424,7 @@ export function Analytics() {
             hint="Stacked category spend per month, with income and net overlaid"
           >
             {view.stacked.data.length === 0 ? (
-              <ChartEmpty label="No months in range" />
+              <ChartEmpty label="No months with entries in range" />
             ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <ComposedChart data={view.stacked.data} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
@@ -352,95 +438,106 @@ export function Analytics() {
                     formatter={(v: number, n: string) => [formatMoney(v, base), n]}
                   />
                   {view.stacked.keys.map((k) => (
-                    <Bar key={k.name} dataKey={k.name} stackId="spend" fill={k.color} radius={[0, 0, 0, 0]} />
+                    <Bar key={k.name} dataKey={k.name} stackId="spend" fill={k.color} />
                   ))}
-                  <Line type="monotone" dataKey="income" name="Income" stroke="#7fd1b9" strokeWidth={2} dot={{ r: 2 }} />
-                  <Line type="monotone" dataKey="net" name="Net" stroke="#e0a458" strokeWidth={2} strokeDasharray="4 3" dot={false} />
+                  <Line type="monotone" dataKey="income" name="Income" stroke="#7fd1b9" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="net" name="Net" stroke="#e0a458" strokeWidth={2} strokeDasharray="4 3" dot={{ r: 3 }} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
             <Legend keys={view.stacked.keys} extra={[{ name: "Income", color: "#7fd1b9" }, { name: "Net", color: "#e0a458" }]} />
           </Widget>
 
-          {/* Income & expense breakdowns */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Widget title="Where money went" hint="Expenses by category">
-              {view.expenseCats.length === 0 ? (
-                <ChartEmpty label="No spending in range" />
-              ) : (
-                <HoverDonut slices={view.expenseCats} base={base} centerLabel="Spent" />
-              )}
-            </Widget>
-            <Widget title="Where money came from" hint="Income by category">
-              {view.incomeCats.length === 0 ? (
-                <ChartEmpty label="No income in range" />
-              ) : (
-                <HoverDonut slices={view.incomeCats} base={base} centerLabel="Earned" />
-              )}
-            </Widget>
-          </div>
+          {/* Cumulative spending over the period */}
+          <Widget title="Cumulative spending" hint="Running total across the period">
+            {view.cumulative.length === 0 ? (
+              <ChartEmpty label="No spending in range" />
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={view.cumulative} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
+                  <defs>
+                    <linearGradient id="cumSpend" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#fb7185" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#fb7185" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="#1c2632" />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} minTickGap={24} />
+                  <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: "#6f8499", fontSize: 11 }} tickFormatter={(v) => compact(v, base)} />
+                  <Tooltip
+                    contentStyle={TOOLTIP_STYLE}
+                    itemStyle={{ color: "#eef4fa" }}
+                    labelStyle={{ color: "#eef4fa" }}
+                    formatter={(v: number) => [formatMoney(v, base), "Spent so far"]}
+                  />
+                  <Area type="monotone" dataKey="cum" stroke="#fb7185" strokeWidth={2} fill="url(#cumSpend)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </Widget>
 
-          {/* Merchants + budgets */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Widget title="Top merchants" hint="By spend in range">
-              {view.merchants.length === 0 ? (
-                <ChartEmpty label="No merchants in range" />
-              ) : (
-                <ResponsiveContainer width="100%" height={Math.max(140, view.merchants.length * 34)}>
-                  <BarChart data={view.merchants} layout="vertical" margin={{ top: 0, right: 12, bottom: 0, left: 4 }}>
-                    <XAxis type="number" hide />
-                    <YAxis type="category" dataKey="name" width={92} tickLine={false} axisLine={false} tick={{ fill: "#9fb0c0", fontSize: 12 }} />
-                    <Tooltip
-                      cursor={{ fill: "rgba(255,255,255,0.03)" }}
-                      contentStyle={TOOLTIP_STYLE}
-                      formatter={(v: number) => formatMoney(v, base)}
-                    />
-                    <Bar dataKey="value" fill="#3f72af" radius={[0, 5, 5, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </Widget>
+          {/* Expense breakdown — expandable category bars */}
+          <Widget title="Where money went" hint="Expenses by category — tap a row for detail">
+            {view.expenseCats.length === 0 ? (
+              <ChartEmpty label="No spending in range" />
+            ) : (
+              <CategoryBreakdown
+                slices={view.expenseCats}
+                scoped={view.scoped}
+                months={view.activeMonths}
+                kind="expense"
+                base={base}
+                rates={rates}
+                reimbursed={reimbursedMap}
+                mode={txnMode}
+              />
+            )}
+          </Widget>
 
-            <Widget
-              title="Budgets"
-              hint={period.months.length === 1 ? period.label : "Select a single month to see budgets"}
-            >
-              {period.months.length !== 1 ? (
-                <p className="py-6 text-center text-sm text-ink-500">
-                  Budgets are monthly — pick one month to see them.
-                </p>
-              ) : view.budgetRows.length === 0 ? (
-                <p className="py-6 text-center text-sm text-ink-500">No spending budgets set.</p>
-              ) : (
-                <ul className="space-y-2.5">
-                  {view.budgetRows.map((b) => {
-                    const ratio = b.amount > 0 ? b.spent / b.amount : 0;
-                    const over = b.spent > b.amount;
-                    return (
-                      <li key={b.id}>
-                        <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
-                            <span className="truncate text-ink-200">{b.name}</span>
-                          </span>
-                          <span className={cn("tnum shrink-0", over ? "text-rose-400" : "text-ink-400")}>
-                            {formatMoney(b.spent, base)}
-                            <span className="text-ink-600"> / {formatMoney(b.amount, base)}</span>
-                          </span>
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-ink-800">
-                          <div
-                            className={cn("h-full rounded-full", over ? "bg-rose-500" : ratio > 0.85 ? "bg-amber-500" : "bg-teal-500")}
-                            style={{ width: `${Math.min(100, ratio * 100)}%` }}
-                          />
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </Widget>
-          </div>
+          {/* Income breakdown */}
+          <Widget title="Where money came from" hint="Income by category — tap a row for detail">
+            {view.incomeCats.length === 0 ? (
+              <ChartEmpty label="No income in range" />
+            ) : (
+              <CategoryBreakdown
+                slices={view.incomeCats}
+                scoped={view.scoped}
+                months={view.activeMonths}
+                kind="income"
+                base={base}
+                rates={rates}
+                reimbursed={reimbursedMap}
+                mode={txnMode}
+              />
+            )}
+          </Widget>
+
+          {/* Budgets — deep per-budget detail for a single month */}
+          <Widget
+            title="Budgets"
+            hint={
+              period.months.length === 1
+                ? `${period.label} — tap a budget for detail`
+                : "Select a single month to see budgets"
+            }
+          >
+            {period.months.length !== 1 ? (
+              <p className="py-6 text-center text-sm text-ink-500">
+                Budgets are monthly — pick one month to see them.
+              </p>
+            ) : view.budgetRows.length === 0 ? (
+              <p className="py-6 text-center text-sm text-ink-500">No spending budgets set.</p>
+            ) : (
+              <BudgetsDetail
+                rows={view.budgetRows}
+                scoped={view.scoped}
+                base={base}
+                rates={rates}
+                reimbursed={reimbursedMap}
+                mode={txnMode}
+              />
+            )}
+          </Widget>
 
           {/* Movers + currency exposure */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -496,6 +593,282 @@ export function Analytics() {
   );
 }
 
+// ─── Category breakdown (expandable bar rows) ─────────────────────────────────
+
+function CategoryBreakdown({
+  slices,
+  scoped,
+  months,
+  kind,
+  base,
+  rates,
+  reimbursed,
+  mode,
+}: {
+  slices: CategorySlice[];
+  scoped: Transaction[];
+  months: string[];
+  kind: "expense" | "income";
+  base: string;
+  rates: RateMap;
+  reimbursed: Map<string, number>;
+  mode: CashflowMode;
+}) {
+  const [open, setOpen] = useState<string | null>(null);
+  const total = slices.reduce((s, x) => s + x.value, 0) || 1;
+
+  return (
+    <ul className="space-y-1">
+      {slices.map((s) => {
+        const isOpen = open === s.id;
+        const pct = (s.value / total) * 100;
+        return (
+          <li key={s.id} className={cn("rounded-xl transition-colors", isOpen && "bg-ink-950/40")}>
+            <button
+              onClick={() => setOpen(isOpen ? null : s.id)}
+              className="block w-full rounded-xl px-2 py-2 text-left transition-colors hover:bg-ink-800/40"
+            >
+              <div className="mb-1.5 flex items-center justify-between gap-2 text-sm">
+                <span className="flex min-w-0 items-center gap-2">
+                  <ChevronDown
+                    className={cn("size-3.5 shrink-0 text-ink-500 transition-transform", !isOpen && "-rotate-90")}
+                  />
+                  <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                  <span className="truncate text-ink-200">{s.name}</span>
+                </span>
+                <span className="tnum shrink-0 text-ink-300">
+                  {formatMoney(s.value, base)}
+                  <span className="ml-1.5 text-xs text-ink-600">{Math.round(pct)}%</span>
+                </span>
+              </div>
+              <div className="ml-6 h-2 overflow-hidden rounded-full bg-ink-800">
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: s.color }} />
+              </div>
+            </button>
+
+            {isOpen && (
+              <CategoryDetail
+                slice={s}
+                scoped={scoped}
+                months={months}
+                kind={kind}
+                base={base}
+                rates={rates}
+                reimbursed={reimbursed}
+                mode={mode}
+              />
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function CategoryDetail({
+  slice,
+  scoped,
+  months,
+  kind,
+  base,
+  rates,
+  reimbursed,
+  mode,
+}: {
+  slice: CategorySlice;
+  scoped: Transaction[];
+  months: string[];
+  kind: "expense" | "income";
+  base: string;
+  rates: RateMap;
+  reimbursed: Map<string, number>;
+  mode: CashflowMode;
+}) {
+  const inCategory = (t: Transaction) =>
+    slice.id === "uncategorised" ? !t.category_id : t.category_id === slice.id;
+
+  const catTxns = useMemo(
+    () =>
+      scoped
+        .filter((t) => t.type === kind && inCategory(t))
+        .map((t) => ({ t, v: txnBaseValue(t, base, rates, reimbursed, mode) }))
+        .sort((a, b) => b.v - a.v),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scoped, slice.id, kind, base, rates, reimbursed, mode],
+  );
+
+  const series = useMemo(
+    () =>
+      months.map((mk) => ({
+        label: format(parseISO(`${mk}-01`), "MMM ''yy"),
+        value: catTxns
+          .filter(({ t }) => t.date.startsWith(mk))
+          .reduce((s, { t: _t, v }) => s + v, 0),
+      })),
+    [months, catTxns],
+  );
+
+  const avg = months.length > 1 ? slice.value / months.length : null;
+
+  return (
+    <div className="space-y-3 px-2 pb-3 pl-8">
+      {avg != null && (
+        <p className="tnum text-xs text-ink-500">
+          ~{formatMoney(avg, base)}/month average over {months.length} months
+        </p>
+      )}
+
+      {/* Per-month bars — only when there's a trend to show */}
+      {months.length > 1 && (
+        <ResponsiveContainer width="100%" height={130}>
+          <BarChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+            <CartesianGrid vertical={false} stroke="#1c2632" />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} />
+            <YAxis hide />
+            <Tooltip
+              cursor={{ fill: "rgba(255,255,255,0.03)" }}
+              contentStyle={TOOLTIP_STYLE}
+              formatter={(v: number) => [formatMoney(v, base), slice.name]}
+            />
+            <Bar dataKey="value" fill={slice.color} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+
+      {/* Largest entries */}
+      <div>
+        <p className="mb-1 text-xs font-medium text-ink-500">
+          Largest {kind === "expense" ? "expenses" : "income"} · {catTxns.length} entr{catTxns.length === 1 ? "y" : "ies"}
+        </p>
+        <ul className="divide-y divide-ink-800/60">
+          {catTxns.slice(0, 6).map(({ t, v }) => (
+            <li key={t.id} className="flex items-center gap-3 py-1.5 text-sm">
+              <span className="tnum w-14 shrink-0 text-xs text-ink-500">
+                {format(parseISO(t.date), "d MMM")}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-ink-300">
+                {t.merchant || "—"}
+              </span>
+              <span className="tnum shrink-0 text-ink-200">{formatMoney(v, base)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ─── Budgets detail (single month) ────────────────────────────────────────────
+
+function BudgetsDetail({
+  rows,
+  scoped,
+  base,
+  rates,
+  reimbursed,
+  mode,
+}: {
+  rows: { id: string; name: string; color: string; spent: number; amount: number; catIds: Set<string> }[];
+  scoped: Transaction[];
+  base: string;
+  rates: RateMap;
+  reimbursed: Map<string, number>;
+  mode: CashflowMode;
+}) {
+  const [open, setOpen] = useState<string | null>(null);
+
+  return (
+    <ul className="space-y-1">
+      {rows.map((b) => {
+        const isOpen = open === b.id;
+        const ratio = b.amount > 0 ? b.spent / b.amount : 0;
+        const over = b.spent > b.amount + 0.005;
+        // Daily cumulative spend for this budget's categories → crossing date.
+        const series = cumulativeSpendSeries(scoped, base, rates, reimbursed, mode, b.catIds);
+        const crossed = over ? series.find((p) => p.cum > b.amount) : undefined;
+
+        return (
+          <li key={b.id} className={cn("rounded-xl transition-colors", isOpen && "bg-ink-950/40")}>
+            <button
+              onClick={() => setOpen(isOpen ? null : b.id)}
+              className="block w-full rounded-xl px-2 py-2 text-left transition-colors hover:bg-ink-800/40"
+            >
+              <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+                <span className="flex min-w-0 items-center gap-2">
+                  <ChevronDown
+                    className={cn("size-3.5 shrink-0 text-ink-500 transition-transform", !isOpen && "-rotate-90")}
+                  />
+                  <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
+                  <span className="truncate text-ink-200">{b.name}</span>
+                </span>
+                <span className={cn("tnum shrink-0", over ? "text-rose-400" : "text-ink-400")}>
+                  {formatMoney(b.spent, base)}
+                  <span className="text-ink-600"> / {formatMoney(b.amount, base)}</span>
+                </span>
+              </div>
+              <div className="ml-6 flex h-2 overflow-hidden rounded-full bg-ink-800">
+                {over ? (
+                  <>
+                    <div className="h-full bg-amber-500" style={{ width: `${(b.amount / b.spent) * 100}%` }} />
+                    <div className="h-full bg-rose-500" style={{ width: `${100 - (b.amount / b.spent) * 100}%` }} />
+                  </>
+                ) : (
+                  <div
+                    className={cn("h-full rounded-full", ratio > 0.85 ? "bg-amber-500" : "bg-teal-500")}
+                    style={{ width: `${Math.min(100, ratio * 100)}%` }}
+                  />
+                )}
+              </div>
+              <p className={cn("tnum ml-6 mt-1 text-xs", over ? "text-rose-400" : "text-ink-500")}>
+                {over
+                  ? `Over by ${formatMoney(b.spent - b.amount, base)}${crossed ? ` · crossed the limit on ${crossed.label}` : ""}`
+                  : `${formatMoney(b.amount - b.spent, base)} left · ${Math.round(ratio * 100)}% used`}
+              </p>
+            </button>
+
+            {isOpen && (
+              <div className="px-2 pb-3 pl-8">
+                {series.length === 0 ? (
+                  <p className="py-2 text-xs text-ink-500">No entries this month.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={150}>
+                    <AreaChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
+                      <defs>
+                        <linearGradient id={`bud-${b.id}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={b.color} stopOpacity={0.35} />
+                          <stop offset="100%" stopColor={b.color} stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} stroke="#1c2632" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} minTickGap={20} />
+                      <YAxis tickLine={false} axisLine={false} width={44} tick={{ fill: "#6f8499", fontSize: 11 }} tickFormatter={(v) => compact(v, base)} domain={[0, (dataMax: number) => Math.max(dataMax, b.amount) * 1.1]} />
+                      <Tooltip
+                        contentStyle={TOOLTIP_STYLE}
+                        itemStyle={{ color: "#eef4fa" }}
+                        labelStyle={{ color: "#eef4fa" }}
+                        formatter={(v: number) => [formatMoney(v, base), "Spent so far"]}
+                      />
+                      <ReferenceLine
+                        y={b.amount}
+                        stroke="#fb7185"
+                        strokeDasharray="5 4"
+                        label={{ value: "Budget", position: "insideTopRight", fill: "#fb7185", fontSize: 11 }}
+                      />
+                      <Area type="stepAfter" dataKey="cum" stroke={b.color} strokeWidth={2} fill={`url(#bud-${b.id})`} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// ─── shared bits ──────────────────────────────────────────────────────────────
+
 /** Compact axis money (e.g. $1.2k) so the y-axis stays narrow. */
 function compact(v: number, base: string): string {
   const abs = Math.abs(v);
@@ -523,16 +896,23 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: "up"
 
 interface AnalyticsView {
   cf: { income: number; expense: number; net: number };
-  expenseCats: { id: string; name: string; value: number; color: string }[];
-  merchants: { name: string; value: number; count: number }[];
+  expenseCats: CategorySlice[];
   movers: { name: string; color: string; delta: number }[];
+  budgetRows: { name: string; spent: number; amount: number }[];
   savingsRate: number;
 }
 
 function Insights({ view, base }: { view: AnalyticsView; base: string }) {
   const items: string[] = [];
-  if (view.expenseCats[0]) items.push(`Biggest expense: ${view.expenseCats[0].name} (${formatMoney(view.expenseCats[0].value, base)}).`);
-  if (view.merchants[0]) items.push(`Top merchant: ${view.merchants[0].name} (${formatMoney(view.merchants[0].value, base)}).`);
+  if (view.expenseCats[0])
+    items.push(`Biggest expense: ${view.expenseCats[0].name} (${formatMoney(view.expenseCats[0].value, base)}).`);
+  const overs = view.budgetRows.filter((b) => b.spent > b.amount + 0.005);
+  if (overs.length > 0) {
+    const worst = overs.reduce((a, b) => (b.spent - b.amount > a.spent - a.amount ? b : a));
+    items.push(
+      `${overs.length} budget${overs.length === 1 ? "" : "s"} over — worst: ${worst.name} by ${formatMoney(worst.spent - worst.amount, base)}.`,
+    );
+  }
   if (view.movers[0]) {
     const m = view.movers[0];
     items.push(`${m.name} spending ${m.delta > 0 ? "up" : "down"} ${formatMoney(Math.abs(m.delta), base)} vs last month.`);

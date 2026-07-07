@@ -935,7 +935,8 @@ export function Transactions() {
         />
       )}
 
-      <FloatingAdd onClick={() => setAdding(true)} />
+      {/* Top slot of the desktop right-edge stack (Receipt 8 · Flag 24 · Search 40). */}
+      <FloatingAdd onClick={() => setAdding(true)} className="lg:bottom-56" />
       {adding && <AddTransactionSheet onClose={() => setAdding(false)} />}
       {editing && (
         <EditTransactionSheet tx={editing} onClose={() => setEditing(null)} />
