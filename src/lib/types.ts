@@ -42,6 +42,10 @@ export type ProfileUpdate = Tables["profiles"]["Update"];
 export type InvestmentSnapshot = Tables["investment_snapshots"]["Row"];
 export type InvestmentSnapshotInsert = Tables["investment_snapshots"]["Insert"];
 
+export type MerchantAlias = Tables["merchant_aliases"]["Row"];
+export type Reconciliation = Tables["reconciliations"]["Row"];
+export type ReconciliationInsert = Tables["reconciliations"]["Insert"];
+
 export type { InvestmentAccount } from "./database.types";
 
 export type {

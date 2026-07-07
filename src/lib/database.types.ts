@@ -177,6 +177,7 @@ export interface Database {
           user_id: string;
           name: string;
           kind: CategoryKind;
+          is_fixed: boolean;
           parent_id: string | null;
           icon: string | null;
           color: string | null;
@@ -190,6 +191,7 @@ export interface Database {
           user_id: string;
           name: string;
           kind: CategoryKind;
+          is_fixed?: boolean;
           parent_id?: string | null;
           icon?: string | null;
           color?: string | null;
@@ -203,6 +205,7 @@ export interface Database {
           user_id?: string;
           name?: string;
           kind?: CategoryKind;
+          is_fixed?: boolean;
           parent_id?: string | null;
           icon?: string | null;
           color?: string | null;
@@ -546,6 +549,60 @@ export interface Database {
           date?: string;
           rate?: number;
           source?: FxRateSource;
+        };
+        Relationships: [];
+      };
+      merchant_aliases: {
+        Row: {
+          user_id: string;
+          raw: string;
+          canonical: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          raw: string;
+          canonical: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          raw?: string;
+          canonical?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      reconciliations: {
+        Row: {
+          id: string;
+          user_id: string;
+          account_id: string;
+          date: string;
+          stated_balance: number;
+          computed_balance: number;
+          difference: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          account_id: string;
+          date: string;
+          stated_balance: number;
+          computed_balance: number;
+          difference: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          account_id?: string;
+          date?: string;
+          stated_balance?: number;
+          computed_balance?: number;
+          difference?: number;
+          created_at?: string;
         };
         Relationships: [];
       };

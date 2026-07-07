@@ -46,4 +46,6 @@ export const qk = {
   importBatches: ["import_batches"] as const,
   categorizationRules: ["categorization_rules"] as const,
   investmentSnapshot: ["investment_snapshot"] as const,
+  merchantAliases: ["merchant_aliases"] as const,
+  reconciliations: ["reconciliations"] as const,
 };
