@@ -549,7 +549,8 @@ export function categoryAnomalies(
 }
 
 export interface MoneyFlow {
-  nodes: { name: string; color: string }[];
+  /** `side` fixes which way each node's label points (in→right, out/hub→left). */
+  nodes: { name: string; color: string; side: "in" | "hub" | "out" }[];
   links: { source: number; target: number; value: number }[];
 }
 
@@ -577,20 +578,21 @@ export function buildMoneyFlow(
 
   const nodes: MoneyFlow["nodes"] = [];
   const links: MoneyFlow["links"] = [];
-  const add = (name: string, color: string) => nodes.push({ name, color }) - 1;
+  const add = (name: string, color: string, side: "in" | "hub" | "out") =>
+    nodes.push({ name, color, side }) - 1;
 
   const inSlices = fold(incomeCats);
   const outSlices = fold(expenseCats);
-  const hub = add("Income", "#7fd1b9");
+  const hub = add("Income", "#7fd1b9", "hub");
 
-  for (const c of inSlices) links.push({ source: add(c.name, c.color), target: hub, value: c.value });
+  for (const c of inSlices) links.push({ source: add(c.name, c.color, "in"), target: hub, value: c.value });
   // A deficit month still has to balance: the extra spend comes from savings.
   if (totalOut > totalIn && totalOut - totalIn > 0.005)
-    links.push({ source: add("From savings", "#e0a458"), target: hub, value: totalOut - totalIn });
+    links.push({ source: add("From savings", "#e0a458", "in"), target: hub, value: totalOut - totalIn });
 
-  for (const c of outSlices) links.push({ source: hub, target: add(c.name, c.color), value: c.value });
+  for (const c of outSlices) links.push({ source: hub, target: add(c.name, c.color, "out"), value: c.value });
   if (totalIn > totalOut && totalIn - totalOut > 0.005)
-    links.push({ source: hub, target: add("Saved", "#34d399"), value: totalIn - totalOut });
+    links.push({ source: hub, target: add("Saved", "#34d399", "out"), value: totalIn - totalOut });
 
   return links.length ? { nodes, links } : null;
 }

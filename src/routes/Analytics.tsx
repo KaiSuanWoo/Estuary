@@ -1114,15 +1114,19 @@ interface FlowNodeProps {
   y: number;
   width: number;
   height: number;
-  containerWidth: number;
-  payload: { name: string; color: string; value: number };
+  payload: { name: string; color: string; value: number; side: "in" | "hub" | "out" };
 }
 
-/** Sankey node: coloured block + name/value label on the outward side. */
-function FlowNode({ x, y, width, height, containerWidth, payload, base }: FlowNodeProps & { base: string }) {
-  const isLeftHalf = x + width / 2 < containerWidth / 2;
-  const labelX = isLeftHalf ? x + width + 6 : x - 6;
-  const anchor = isLeftHalf ? "start" : "end";
+/**
+ * Sankey node: coloured block + name/value label. Income sources (`side: "in"`)
+ * label to the RIGHT so they never clip the left edge; the hub and expense
+ * sinks label to the LEFT. Side is baked into the data so this needs no
+ * (unreliable) containerWidth from recharts.
+ */
+function FlowNode({ x, y, width, height, payload, base }: FlowNodeProps & { base: string }) {
+  const toRight = payload.side === "in";
+  const labelX = toRight ? x + width + 8 : x - 8;
+  const anchor = toRight ? "start" : "end";
   return (
     <g>
       <rect x={x} y={y} width={width} height={height} fill={payload.color} rx={2} fillOpacity={0.9} />
