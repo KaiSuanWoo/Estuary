@@ -1,8 +1,15 @@
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { qk } from "@/lib/query";
 import { useAuth } from "@/lib/auth";
-import type { InvestmentSnapshot, InvestmentSnapshotInsert } from "@/lib/types";
+import { linkedInvestmentValues, type BalanceOverride } from "@/lib/investments";
+import type {
+  Account,
+  InvestmentAccount,
+  InvestmentSnapshot,
+  InvestmentSnapshotInsert,
+} from "@/lib/types";
 
 /**
  * The latest external investment snapshot (Zenith) for the signed-in user.
@@ -26,6 +33,69 @@ export function useInvestmentSnapshot(source = "zenith") {
       if (error) throw error;
       return data ?? null;
     },
+  });
+}
+
+/**
+ * Balance overrides for Zenith-linked accounts — pass to the `balances.ts`
+ * helpers so linked accounts report Zenith's live value instead of the
+ * opening-balance ± transactions derivation.
+ */
+export function useInvestmentOverrides(
+  accounts: Account[],
+): Map<string, BalanceOverride> {
+  const { data: snapshot } = useInvestmentSnapshot();
+  return useMemo(
+    () => linkedInvestmentValues(accounts, snapshot),
+    [accounts, snapshot],
+  );
+}
+
+/**
+ * Mirror snapshot accounts into real `accounts` rows (type 'investment',
+ * keyed on external_source/external_key) and archive linked rows that
+ * disappeared. The zenith-sync edge function does the same server-side; this
+ * client copy keeps the manual-paste import path equivalent.
+ */
+export function useMaterializeInvestmentAccounts(source = "zenith") {
+  const client = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (snapshotAccounts: InvestmentAccount[]) => {
+      if (snapshotAccounts.length > 0) {
+        const { error } = await supabase.from("accounts").upsert(
+          snapshotAccounts.map((a) => ({
+            user_id: user!.id,
+            name: a.name,
+            type: "investment" as const,
+            currency: a.currency,
+            external_source: source,
+            external_key: a.name,
+            is_archived: false,
+            updated_at: new Date().toISOString(),
+          })),
+          { onConflict: "user_id,external_source,external_key" },
+        );
+        if (error) throw error;
+      }
+
+      let archive = supabase
+        .from("accounts")
+        .update({ is_archived: true, updated_at: new Date().toISOString() })
+        .eq("user_id", user!.id)
+        .eq("external_source", source);
+      const keys = snapshotAccounts.map((a) => a.name);
+      if (keys.length > 0)
+        archive = archive.not(
+          "external_key",
+          "in",
+          `(${keys.map((k) => `"${k.replaceAll('"', '\\"')}"`).join(",")})`,
+        );
+      const { error } = await archive;
+      if (error) throw error;
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: qk.accounts }),
   });
 }
 
@@ -59,7 +129,7 @@ export function useUpsertInvestmentSnapshot() {
   });
 }
 
-/** Disconnect Zenith — remove the snapshot row. */
+/** Disconnect Zenith — remove the snapshot row and archive linked accounts. */
 export function useClearInvestmentSnapshot() {
   const client = useQueryClient();
   const { user } = useAuth();
@@ -72,7 +142,16 @@ export function useClearInvestmentSnapshot() {
         .eq("user_id", user!.id)
         .eq("source", source);
       if (error) throw error;
+      const { error: archErr } = await supabase
+        .from("accounts")
+        .update({ is_archived: true, updated_at: new Date().toISOString() })
+        .eq("user_id", user!.id)
+        .eq("external_source", source);
+      if (archErr) throw archErr;
     },
-    onSuccess: () => client.setQueryData(qk.investmentSnapshot, null),
+    onSuccess: () => {
+      client.setQueryData(qk.investmentSnapshot, null);
+      void client.invalidateQueries({ queryKey: qk.accounts });
+    },
   });
 }

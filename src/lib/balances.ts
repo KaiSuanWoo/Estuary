@@ -1,3 +1,4 @@
+import type { BalanceOverride } from "./investments";
 import type { Account, Transaction } from "./types";
 
 /**
@@ -8,8 +9,19 @@ import type { Account, Transaction } from "./types";
  * This collapses every currency into a single number — only correct for a
  * single-currency account. For multi-currency accounts use
  * `accountBalancesByCurrency` instead.
+ *
+ * `overrides` (account id → {currency, value}) short-circuits the derivation
+ * for externally-valued accounts (Zenith-linked investments): the external
+ * system is the source of truth, so local transactions don't move the balance.
  */
-export function accountBalance(account: Account, txns: Transaction[]): number {
+export function accountBalance(
+  account: Account,
+  txns: Transaction[],
+  overrides?: Map<string, BalanceOverride>,
+): number {
+  const ext = overrides?.get(account.id);
+  if (ext) return ext.value;
+
   let balance = account.opening_balance;
 
   for (const tx of txns) {
@@ -39,7 +51,11 @@ export function accountBalance(account: Account, txns: Transaction[]): number {
 export function accountBalancesByCurrency(
   account: Account,
   txns: Transaction[],
+  overrides?: Map<string, BalanceOverride>,
 ): Record<string, number> {
+  const ext = overrides?.get(account.id);
+  if (ext) return { [ext.currency]: ext.value };
+
   const totals: Record<string, number> = { [account.currency]: account.opening_balance };
   const add = (cur: string, amt: number) => {
     totals[cur] = (totals[cur] ?? 0) + amt;
@@ -70,10 +86,11 @@ export function isMultiCurrency(balances: Record<string, number>): boolean {
 export function balancesByCurrency(
   accounts: Account[],
   txns: Transaction[],
+  overrides?: Map<string, BalanceOverride>,
 ): Record<string, number> {
   const totals: Record<string, number> = {};
   for (const account of accounts) {
-    const perCur = accountBalancesByCurrency(account, txns);
+    const perCur = accountBalancesByCurrency(account, txns, overrides);
     for (const [cur, val] of Object.entries(perCur)) {
       totals[cur] = (totals[cur] ?? 0) + val;
     }

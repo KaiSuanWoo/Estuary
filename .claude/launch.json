@@ -1,0 +1,28 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "estuary",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173,
+      "autoPort": true
+    },
+    {
+      "name": "zenith",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/kai/Desktop/Repository/Zenith/client",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5175",
+        "--host",
+        "127.0.0.1"
+      ],
+      "port": 5175
+    }
+  ]
+}

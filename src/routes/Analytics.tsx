@@ -32,6 +32,7 @@ import {
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useCategories } from "@/hooks/useCategories";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useInvestmentOverrides } from "@/hooks/useInvestmentSnapshot";
 import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
 import { useAliasMap } from "@/hooks/useMerchantAliases";
 import { groupLinks } from "@/lib/budgets";
@@ -171,6 +172,7 @@ export function Analytics() {
   const { data: budgetLinks = [] } = useBudgetLinks();
   const reimbursedMap = useReimbursedAmountMap();
   const aliasMap = useAliasMap();
+  const overrides = useInvestmentOverrides(accounts);
   const base = useBaseCurrency();
   const rates = useRateMap();
 
@@ -249,7 +251,7 @@ export function Analytics() {
       : [];
 
     // Currency exposure across all accounts (portfolio-wide, not period-scoped).
-    const byCur = balancesByCurrency(accounts, txns);
+    const byCur = balancesByCurrency(accounts, txns, overrides);
     const exposure = Object.entries(byCur)
       .map(([currency, amount]) => ({
         currency,
@@ -316,7 +318,7 @@ export function Analytics() {
       budgetRows,
       savingsRate,
     };
-  }, [txns, categories, accounts, budgets, budgetLinks, reimbursedMap, aliasMap, base, rates, txnMode, period, dataMonthSet]);
+  }, [txns, categories, accounts, budgets, budgetLinks, reimbursedMap, aliasMap, overrides, base, rates, txnMode, period, dataMonthSet]);
 
   function toggleMonth(k: string) {
     setSelectedMonths((prev) =>

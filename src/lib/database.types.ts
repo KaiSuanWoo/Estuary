@@ -18,7 +18,13 @@ export type Json =
   | Json[];
 
 // --- domain string unions (mirror the CHECK constraints) -------------------
-export type AccountType = "checking" | "savings" | "cash" | "investmentCash" | "credit";
+export type AccountType =
+  | "checking"
+  | "savings"
+  | "cash"
+  | "investmentCash"
+  | "credit"
+  | "investment";
 export type SavingsType = "fixed" | "disposable" | "investment" | "custom";
 export type CategoryKind = "expense" | "income";
 export type BudgetDirection = "expense" | "saving";
@@ -126,6 +132,8 @@ export interface Database {
           display_order: number;
           is_archived: boolean;
           notes: string | null;
+          external_source: string | null;
+          external_key: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -146,6 +154,8 @@ export interface Database {
           display_order?: number;
           is_archived?: boolean;
           notes?: string | null;
+          external_source?: string | null;
+          external_key?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -166,6 +176,8 @@ export interface Database {
           display_order?: number;
           is_archived?: boolean;
           notes?: string | null;
+          external_source?: string | null;
+          external_key?: string | null;
           created_at?: string;
           updated_at?: string;
         };

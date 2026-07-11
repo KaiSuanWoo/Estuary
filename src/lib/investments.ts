@@ -1,5 +1,30 @@
 import { convert, type RateMap } from "./fx";
-import type { InvestmentAccount, InvestmentSnapshot } from "./types";
+import type { Account, InvestmentAccount, InvestmentSnapshot } from "./types";
+
+/**
+ * Balance override for one externally-valued account: `{ currency, value }`
+ * replaces the opening-balance ± transactions derivation entirely.
+ */
+export type BalanceOverride = { currency: string; value: number };
+
+/**
+ * Snapshot values for Zenith-linked accounts, keyed by account id. Linked
+ * accounts mirror Zenith's live valuation — recorded transfers move the cash
+ * side only, so money isn't double-counted once the deposit lands in Zenith.
+ */
+export function linkedInvestmentValues(
+  accounts: Account[],
+  snapshot: InvestmentSnapshot | null | undefined,
+): Map<string, BalanceOverride> {
+  const m = new Map<string, BalanceOverride>();
+  if (!snapshot) return m;
+  for (const a of accounts) {
+    if (a.external_source !== snapshot.source || !a.external_key) continue;
+    const row = snapshot.accounts.find((r) => r.name === a.external_key);
+    if (row) m.set(a.id, { currency: row.currency, value: row.value });
+  }
+  return m;
+}
 
 /** Snapshot total converted into the user's base currency (raw fallback). */
 export function investmentTotalInBase(

@@ -29,7 +29,10 @@ import {
 } from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
-import { useInvestmentSnapshot } from "@/hooks/useInvestmentSnapshot";
+import {
+  useInvestmentOverrides,
+  useInvestmentSnapshot,
+} from "@/hooks/useInvestmentSnapshot";
 import { investmentTotalInBase } from "@/lib/investments";
 import { balancesByCurrency } from "@/lib/balances";
 import { ACCOUNT_TYPE_COLORS } from "@/lib/account-colors";
@@ -96,16 +99,29 @@ export function Dashboard() {
   );
 
   // Balances use the FULL txns (so transfers into a scoped account still credit
-  // it) but only over the scoped account(s).
-  const byCurrency = balancesByCurrency(scopedAccounts, txns);
+  // it) but only over the scoped account(s). Zenith-linked investment accounts
+  // report Zenith's live valuation via `overrides`, so they fold into net worth
+  // exactly once.
+  const overrides = useInvestmentOverrides(accounts);
+  const byCurrency = balancesByCurrency(scopedAccounts, txns, overrides);
   const { total: netWorth, missing } = totalInBase(byCurrency, baseCurrency, rates);
 
-  // Investments (Zenith) fold into net worth only in the all-accounts view.
-  const showInvest = !accountFilter && !!investSnapshot;
-  const investBase = showInvest
-    ? investmentTotalInBase(investSnapshot, baseCurrency, rates)
-    : 0;
-  const combinedNetWorth = netWorth + investBase;
+  // Cash / investments split. A snapshot whose accounts aren't materialised yet
+  // (legacy manual import) still adds its total on top, like before the link.
+  const investAccounts = scopedAccounts.filter((a) => a.type === "investment");
+  const hasLinked = accounts.some((a) => a.external_source === "zenith");
+  const legacyInvest =
+    !accountFilter && investSnapshot && !hasLinked
+      ? investmentTotalInBase(investSnapshot, baseCurrency, rates)
+      : 0;
+  const linkedInvest = totalInBase(
+    balancesByCurrency(investAccounts, txns, overrides),
+    baseCurrency,
+    rates,
+  ).total;
+  const investBase = linkedInvest + legacyInvest;
+  const showInvest = !accountFilter && (investAccounts.length > 0 || legacyInvest > 0);
+  const combinedNetWorth = netWorth + legacyInvest;
 
   const refDate = useMemo(
     () => (monthBack === 0 ? new Date() : subMonths(new Date(), monthBack)),
@@ -285,7 +301,7 @@ export function Dashboard() {
             <Stat
               label={accountFilter ? "Balance" : "Net worth"}
               sub={showInvest ? "cash + invest" : undefined}
-              value={formatMoney(showInvest ? combinedNetWorth : netWorth, baseCurrency)}
+              value={formatMoney(combinedNetWorth, baseCurrency)}
               accent
             />
             <Stat
@@ -315,7 +331,7 @@ export function Dashboard() {
           <span className="rounded-full bg-ink-800/70 px-2.5 py-1 text-ink-300">
             Cash{" "}
             <span className="tnum text-ink-100">
-              {formatMoney(netWorth, baseCurrency)}
+              {formatMoney(combinedNetWorth - investBase, baseCurrency)}
             </span>
           </span>
           <span className="rounded-full bg-violet-500/12 px-2.5 py-1 text-violet-300">

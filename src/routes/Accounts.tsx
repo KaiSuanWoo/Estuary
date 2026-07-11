@@ -14,7 +14,9 @@ import {
   useReconciliations,
   useCreateReconciliation,
 } from "@/hooks/useReconciliations";
+import { useInvestmentOverrides } from "@/hooks/useInvestmentSnapshot";
 import { accountBalancesByCurrency, isMultiCurrency } from "@/lib/balances";
+import type { BalanceOverride } from "@/lib/investments";
 import { formatDate, formatMoney, todayISO } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ACCOUNT_TYPE_COLORS, ACCOUNT_TYPE_LABELS } from "@/lib/account-colors";
@@ -25,13 +27,20 @@ import type { Transaction } from "@/lib/types";
 const inputCls =
   "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
 
-const ACCOUNT_TYPES: AccountType[] = ["checking", "savings", "cash", "investmentCash"];
+const ACCOUNT_TYPES: AccountType[] = [
+  "checking",
+  "savings",
+  "cash",
+  "investment",
+  "investmentCash",
+];
 
 export function Accounts() {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const { data: accounts = [], isLoading } = useAccounts();
   const { data: txns = [] } = useTransactions();
+  const overrides = useInvestmentOverrides(accounts);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -71,7 +80,12 @@ export function Accounts() {
               transactions.
             </p>
           )}
-          <AccountList accounts={accounts} txns={txns} onEdit={setEditing} />
+          <AccountList
+            accounts={accounts}
+            txns={txns}
+            overrides={overrides}
+            onEdit={setEditing}
+          />
         </>
       )}
 
@@ -88,10 +102,12 @@ export function Accounts() {
 function AccountList({
   accounts,
   txns,
+  overrides,
   onEdit,
 }: {
   accounts: Account[];
   txns: Transaction[];
+  overrides: Map<string, BalanceOverride>;
   onEdit: (a: Account) => void;
 }) {
   const reorder = useReorderAccounts();
@@ -125,6 +141,7 @@ function AccountList({
           key={a.id}
           account={a}
           txns={txns}
+          overrides={overrides}
           isDefault={i === 0}
           onEdit={onEdit}
           onCommit={commit}
@@ -137,19 +154,21 @@ function AccountList({
 function AccountRow({
   account: a,
   txns,
+  overrides,
   isDefault,
   onEdit,
   onCommit,
 }: {
   account: Account;
   txns: Transaction[];
+  overrides: Map<string, BalanceOverride>;
   isDefault: boolean;
   onEdit: (a: Account) => void;
   onCommit: () => void;
 }) {
   const controls = useDragControls();
   const col = ACCOUNT_TYPE_COLORS[a.type];
-  const balances = accountBalancesByCurrency(a, txns);
+  const balances = accountBalancesByCurrency(a, txns, overrides);
   const multi = a.is_multi_currency || isMultiCurrency(balances);
   const isCredit = a.type === "credit";
   const owed = isCredit ? -(balances[a.currency] ?? 0) : 0;
@@ -190,6 +209,11 @@ function AccountRow({
             {isDefault && (
               <span className="shrink-0 rounded-full bg-teal-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-teal-300">
                 Default
+              </span>
+            )}
+            {a.external_source === "zenith" && (
+              <span className="shrink-0 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-violet-300">
+                Zenith
               </span>
             )}
           </p>
@@ -363,8 +387,17 @@ function EditAccountSheet({
     onClose();
   }
 
+  const isLinked = account.external_source === "zenith";
+
   return (
     <Sheet title="Edit account" onClose={onClose}>
+        {isLinked && (
+          <p className="mb-3 rounded-xl bg-violet-500/10 px-3 py-2 text-xs text-violet-300">
+            Synced from Zenith — the balance mirrors your live portfolio value,
+            and the name follows Zenith's. Transfers you record here move the
+            other account's cash only.
+          </p>
+        )}
         <form onSubmit={onSubmit} className="space-y-3">
           <div className="grid grid-cols-[1fr_5rem] gap-2">
             <label className="block">
@@ -447,7 +480,8 @@ function EditAccountSheet({
           </Button>
         </form>
 
-        <ReconcileSection account={account} />
+        {/* Linked accounts are valued by Zenith — nothing local to reconcile. */}
+        {!isLinked && <ReconcileSection account={account} />}
 
         <div className="mt-3 border-t border-ink-800 pt-3">
           {confirmArchive ? (

@@ -9,6 +9,7 @@ import { useFxRates, useLiveRates, useRateMap, useUpsertFxRate } from "@/hooks/u
 import {
   useInvestmentSnapshot,
   useUpsertInvestmentSnapshot,
+  useMaterializeInvestmentAccounts,
   useClearInvestmentSnapshot,
 } from "@/hooks/useInvestmentSnapshot";
 import { buildRateMap, convert } from "@/lib/fx";
@@ -177,6 +178,7 @@ export function Settings() {
 function ZenithSync({ baseCurrency }: { baseCurrency: string }) {
   const { data: snapshot } = useInvestmentSnapshot();
   const upsert = useUpsertInvestmentSnapshot();
+  const materialize = useMaterializeInvestmentAccounts();
   const clear = useClearInvestmentSnapshot();
   const rates = useRateMap();
 
@@ -206,6 +208,9 @@ function ZenithSync({ baseCurrency }: { baseCurrency: string }) {
       },
       {
         onSuccess: () => {
+          // Keep the manual path equivalent to the live push: mirror snapshot
+          // accounts into real investment accounts.
+          materialize.mutate(parsed.accounts);
           setRaw("");
           setOpen(false);
         },
@@ -230,7 +235,7 @@ function ZenithSync({ baseCurrency }: { baseCurrency: string }) {
                       ? ` · ${new Date(snapshot.as_of).toLocaleDateString()}`
                       : ""
                   }`
-                : "Not connected — Zenith syncs your portfolio total here."}
+                : "Not linked yet — open Zenith once and it syncs automatically."}
             </p>
           </div>
         </div>
