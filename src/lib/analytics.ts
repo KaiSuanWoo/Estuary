@@ -67,8 +67,25 @@ export function monthLabel(now = new Date()): string {
 }
 
 /**
+ * Amounts below half a cent are rounding dust, not money. A fully reimbursed
+ * expense must net to *nothing* — not to a $0.00 sliver that still puts its
+ * category on a chart — so every net-mode total is tested against this rather
+ * than against exact zero.
+ */
+const NEGLIGIBLE = 0.005;
+
+/** True when a netted amount is small enough to treat as fully cancelled out. */
+export function isNegligible(value: number): boolean {
+  return Math.abs(value) < NEGLIGIBLE;
+}
+
+/**
  * Build a map of expense_id → total amount already reimbursed (in base currency).
- * Uses the full txns list so cross-month reimbursements are captured.
+ *
+ * Always pass the FULL ledger here, never a date- or account-filtered slice:
+ * a repayment logged in a different month (or into a different account) still
+ * cancels its expense, and looking at a narrow window would silently report
+ * that expense at full cost.
  */
 function buildReimbursedMap(
   txns: Transaction[],
@@ -97,6 +114,9 @@ function buildReimbursedMap(
  *   - All income/expenses at face value; no reimbursement adjustments
  *
  * Both modes: transactions with `excluded_from_cashflow` are always skipped.
+ *
+ * `ledger` is the full transaction list used to resolve reimbursements; pass it
+ * whenever `txns` has been pre-filtered (by period or account).
  */
 export function cashflowForRange(
   txns: Transaction[],
@@ -105,9 +125,10 @@ export function cashflowForRange(
   from: string,
   to: string,
   mode: CashflowMode = "net",
+  ledger: Transaction[] = txns,
 ): Cashflow {
   const reimbursed =
-    mode === "net" ? buildReimbursedMap(txns, base, rates) : null;
+    mode === "net" ? buildReimbursedMap(ledger, base, rates) : null;
 
   let income = 0;
   let expense = 0;
@@ -123,7 +144,8 @@ export function cashflowForRange(
         if (links.length > 0) {
           const allocated = links.reduce((s, l) => s + l.amount, 0);
           const remainder = Math.max(0, t.amount - allocated);
-          if (remainder > 0) income += amountInBase(remainder, t, base, rates);
+          if (!isNegligible(remainder))
+            income += amountInBase(remainder, t, base, rates);
           continue;
         }
       }
@@ -131,8 +153,8 @@ export function cashflowForRange(
     } else if (t.type === "expense") {
       const gross = amountInBase(t.amount, t, base, rates);
       if (mode === "net" && reimbursed) {
-        const reimb = reimbursed.get(t.id) ?? 0;
-        expense += Math.max(0, gross - reimb);
+        const net = gross - (reimbursed.get(t.id) ?? 0);
+        if (!isNegligible(net)) expense += Math.max(0, net);
       } else {
         expense += gross;
       }
@@ -150,8 +172,11 @@ export interface CategorySlice {
 
 /**
  * Expense totals grouped by category for a date range, largest first.
- * In "net" mode reimbursable expenses contribute their net cost.
- * Excluded transactions are always omitted.
+ * In "net" mode reimbursable expenses contribute their net cost, and one that
+ * has been repaid in full drops out entirely — it cost nothing, so it earns no
+ * place in the breakdown. Excluded transactions are always omitted.
+ *
+ * Pass `ledger` (the full transaction list) whenever `txns` is pre-filtered.
  */
 export function spendingByCategory(
   txns: Transaction[],
@@ -161,9 +186,10 @@ export function spendingByCategory(
   from: string,
   to: string,
   mode: CashflowMode = "net",
+  ledger: Transaction[] = txns,
 ): CategorySlice[] {
   const reimbursed =
-    mode === "net" ? buildReimbursedMap(txns, base, rates) : null;
+    mode === "net" ? buildReimbursedMap(ledger, base, rates) : null;
   const byId = new Map(categories.map((c) => [c.id, c]));
   const slices = new Map<string, CategorySlice>();
 
@@ -174,7 +200,7 @@ export function spendingByCategory(
     const gross = amountInBase(t.amount, t, base, rates);
     const reimb = reimbursed?.get(t.id) ?? 0;
     const amount = mode === "net" ? Math.max(0, gross - reimb) : gross;
-    if (amount === 0) continue;
+    if (isNegligible(amount)) continue;
 
     const cat = t.category_id ? byId.get(t.category_id) : undefined;
     const key = cat?.id ?? "uncategorised";
@@ -207,9 +233,10 @@ export function breakdownByCategory(
   to: string,
   kind: "expense" | "income",
   mode: CashflowMode = "net",
+  ledger: Transaction[] = txns,
 ): CategorySlice[] {
   if (kind === "expense")
-    return spendingByCategory(txns, categories, base, rates, from, to, mode);
+    return spendingByCategory(txns, categories, base, rates, from, to, mode, ledger);
 
   const byId = new Map(categories.map((c) => [c.id, c]));
   const slices = new Map<string, CategorySlice>();
@@ -220,13 +247,14 @@ export function breakdownByCategory(
     if (mode === "net") {
       const links = reimbursementLinks(t);
       if (links.length > 0) {
+        // A repayment isn't income — only any unallocated surplus is.
         const allocated = links.reduce((s, l) => s + l.amount, 0);
         const remainder = Math.max(0, t.amount - allocated);
-        if (remainder <= 0) continue;
+        if (isNegligible(remainder)) continue;
         amount = amountInBase(remainder, t, base, rates);
       }
     }
-    if (amount === 0) continue;
+    if (isNegligible(amount)) continue;
     const cat = t.category_id ? byId.get(t.category_id) : undefined;
     const key = cat?.id ?? "uncategorised";
     const slice = slices.get(key);
@@ -337,8 +365,9 @@ export function merchantLeaderboard(
   to: string,
   mode: CashflowMode = "net",
   topN = 8,
+  ledger: Transaction[] = txns,
 ): MerchantStat[] {
-  const reimbursed = mode === "net" ? buildReimbursedMap(txns, base, rates) : null;
+  const reimbursed = mode === "net" ? buildReimbursedMap(ledger, base, rates) : null;
   const m = new Map<string, MerchantStat>();
   for (const t of txns) {
     if (t.type !== "expense" || t.date < from || t.date > to) continue;
@@ -346,7 +375,7 @@ export function merchantLeaderboard(
     const gross = amountInBase(t.amount, t, base, rates);
     const reimb = reimbursed?.get(t.id) ?? 0;
     const amount = mode === "net" ? Math.max(0, gross - reimb) : gross;
-    if (amount === 0) continue;
+    if (isNegligible(amount)) continue;
     const name = (t.merchant ?? "").trim() || "Unlabelled";
     const s = m.get(name);
     if (s) {
@@ -402,12 +431,13 @@ export function monthlyCashflow(
   months = 6,
   now = new Date(),
   mode: CashflowMode = "net",
+  ledger: Transaction[] = txns,
 ): MonthlyPoint[] {
   const points: MonthlyPoint[] = [];
   for (let i = months - 1; i >= 0; i--) {
     const d = subMonths(now, i);
     const { from, to } = monthBounds(d);
-    const cf = cashflowForRange(txns, base, rates, from, to, mode);
+    const cf = cashflowForRange(txns, base, rates, from, to, mode, ledger);
     points.push({ label: format(d, "MMM"), income: cf.income, expense: cf.expense });
   }
   return points;

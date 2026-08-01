@@ -129,14 +129,16 @@ export function Dashboard() {
   );
   const navigate = useNavigate();
   const { from, to } = monthBounds(refDate);
-  const month = cashflowForRange(scopedTxns, baseCurrency, rates, from, to, cashflowMode);
+  // Each of these sums a scoped slice but resolves reimbursements against the
+  // full ledger (`txns`) — a repayment in another month or account still counts.
+  const month = cashflowForRange(scopedTxns, baseCurrency, rates, from, to, cashflowMode, txns);
   // Trend carries each bar's yyyy-MM so a click can deep-link into Analytics.
   const trend = useMemo(
     () =>
-      monthlyCashflow(scopedTxns, baseCurrency, rates, 6, undefined, cashflowMode).map(
+      monthlyCashflow(scopedTxns, baseCurrency, rates, 6, undefined, cashflowMode, txns).map(
         (p, i) => ({ ...p, monthKey: format(subMonths(new Date(), 5 - i), "yyyy-MM") }),
       ),
-    [scopedTxns, baseCurrency, rates, cashflowMode],
+    [scopedTxns, txns, baseCurrency, rates, cashflowMode],
   );
   const categorySlices = spendingByCategory(
     scopedTxns,
@@ -146,6 +148,7 @@ export function Dashboard() {
     from,
     to,
     cashflowMode,
+    txns,
   );
 
   // ── Budgets — recurring use a period window; goals are transaction-funded ────

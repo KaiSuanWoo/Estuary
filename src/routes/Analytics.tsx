@@ -41,6 +41,7 @@ import { useRateMap } from "@/hooks/useFxRates";
 import { balancesByCurrency } from "@/lib/balances";
 import { convert, type RateMap } from "@/lib/fx";
 import { detectRecurring } from "@/lib/recurring";
+import { reimbursementLinks } from "@/lib/reimbursements";
 import {
   amountInBase,
   breakdownByCategory,
@@ -48,6 +49,7 @@ import {
   cashflowForRange,
   categoryAnomalies,
   categoryMovers,
+  isNegligible,
   monthEndProjection,
   monthsBetween,
   rangeBounds,
@@ -101,7 +103,13 @@ function presetRange(preset: string, now = new Date()): { from: string; to: stri
   }
 }
 
-/** Convert a transaction's amount to base, net of reimbursements in net mode. */
+/**
+ * Convert a transaction's amount to base, net of reimbursements in net mode:
+ * an expense drops to what it actually cost, and a repayment income drops to
+ * whatever part of it wasn't allocated against an expense. Either can land on
+ * zero, which means the transaction shouldn't be counted at all — callers test
+ * the result with `isNegligible`.
+ */
 function txnBaseValue(
   t: Transaction,
   base: string,
@@ -110,8 +118,15 @@ function txnBaseValue(
   mode: CashflowMode,
 ): number {
   const gross = amountInBase(t.amount, t, base, rates);
-  if (mode === "net" && t.type === "expense")
+  if (mode !== "net") return gross;
+  if (t.type === "expense")
     return Math.max(0, gross - (reimbursed.get(t.id) ?? 0));
+  if (t.type === "income") {
+    const links = reimbursementLinks(t);
+    if (links.length === 0) return gross;
+    const allocated = links.reduce((s, l) => s + l.amount, 0);
+    return amountInBase(Math.max(0, t.amount - allocated), t, base, rates);
+  }
   return gross;
 }
 
@@ -220,9 +235,11 @@ export function Analytics() {
     const scoped = txns.filter((t) => period.inScope(t.date));
     // Empty months carry no information — drop them from the per-month charts.
     const activeMonths = period.months.filter((mk) => dataMonthSet.has(mk));
-    const cf = cashflowForRange(scoped, base, rates, WIDE.from, WIDE.to, txnMode);
-    const expenseCats = breakdownByCategory(scoped, categories, base, rates, WIDE.from, WIDE.to, "expense", txnMode);
-    const incomeCats = breakdownByCategory(scoped, categories, base, rates, WIDE.from, WIDE.to, "income", txnMode);
+    // `scoped` is the period slice; `txns` is passed as the ledger so a
+    // repayment filed in another month still cancels its expense here.
+    const cf = cashflowForRange(scoped, base, rates, WIDE.from, WIDE.to, txnMode, txns);
+    const expenseCats = breakdownByCategory(scoped, categories, base, rates, WIDE.from, WIDE.to, "expense", txnMode, txns);
+    const incomeCats = breakdownByCategory(scoped, categories, base, rates, WIDE.from, WIDE.to, "income", txnMode, txns);
     const movers = categoryMovers(txns, categories, base, rates, undefined, txnMode, 5);
     const cumulative = cumulativeSpendSeries(scoped, base, rates, reimbursedMap, txnMode);
 
@@ -829,6 +846,9 @@ function CategoryDetail({
       scoped
         .filter((t) => t.type === kind && inCategory(t))
         .map((t) => ({ t, v: txnBaseValue(t, base, rates, reimbursed, mode) }))
+        // Fully repaid entries cost nothing — they don't belong in the list
+        // or its count.
+        .filter(({ v }) => !isNegligible(v))
         .sort((a, b) => b.v - a.v),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [scoped, slice.id, kind, base, rates, reimbursed, mode],
