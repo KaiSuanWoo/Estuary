@@ -27,16 +27,16 @@ export function Admin() {
       <header className="mb-5 flex items-center gap-2">
         <Link
           to="/settings"
-          className="flex size-8 items-center justify-center rounded-lg text-ink-400 hover:text-ink-200"
+          className="flex size-8 items-center justify-center rounded-lg text-quill-soft hover:text-quill"
           aria-label="Back to settings"
         >
           <ChevronLeft className="size-5" />
         </Link>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-quill">
             Approvals
           </h1>
-          <p className="text-sm text-ink-400">Review who can access the beta</p>
+          <p className="text-sm text-quill-soft">Review who can access the beta</p>
         </div>
       </header>
 
@@ -138,7 +138,7 @@ export function Admin() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">
+    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-quill-faint">
       {children}
     </h2>
   );
@@ -155,10 +155,10 @@ function Row({
     <li>
       <Card className={cn("flex items-center justify-between gap-3 p-3.5")}>
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-ink-100">
+          <p className="truncate text-sm font-medium text-quill">
             {profile.email ?? "—"}
           </p>
-          <p className="text-xs text-ink-500">
+          <p className="text-xs text-quill-faint">
             Joined{" "}
             {new Date(profile.created_at).toLocaleDateString(undefined, {
               day: "numeric",

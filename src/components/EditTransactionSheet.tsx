@@ -27,7 +27,7 @@ import type { Transaction, TransactionType } from "@/lib/types";
 import type { ReimbursementStatus } from "@/lib/database.types";
 
 const inputCls =
-  "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
+  "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
 
 type SheetType = Extract<
   TransactionType,
@@ -324,7 +324,7 @@ export function EditTransactionSheet({
                   "h-9 rounded-xl border text-xs font-medium transition-colors",
                   type === t
                     ? "border-teal-500 bg-teal-500/10 text-teal-300"
-                    : "border-ink-700 text-ink-400",
+                    : "border-rule text-quill-soft",
                 )}
               >
                 {TYPE_LABELS[t]}
@@ -333,7 +333,7 @@ export function EditTransactionSheet({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-400">
+            <label className="mb-1 block text-xs font-medium text-quill-soft">
               Amount {isTransfer ? "sent" : ""}
             </label>
             <div className="flex gap-2">
@@ -367,7 +367,7 @@ export function EditTransactionSheet({
                 </select>
               ) : (
                 from && (
-                  <span className="flex h-9 shrink-0 items-center rounded-xl border border-ink-800 bg-ink-950/40 px-3 text-sm text-ink-500">
+                  <span className="flex h-9 shrink-0 items-center rounded-xl border border-rule bg-ink-950/40 px-3 text-sm text-quill-faint">
                     {from.currency}
                   </span>
                 )
@@ -425,15 +425,15 @@ export function EditTransactionSheet({
               )}
 
               {showRate ? (
-                <div className="space-y-3 rounded-xl border border-ink-700/70 bg-ink-950/40 p-3">
-                  <div className="flex items-center gap-2 text-xs text-ink-400">
+                <div className="space-y-3 rounded-xl border border-rule/70 bg-ink-950/40 p-3">
+                  <div className="flex items-center gap-2 text-xs text-quill-soft">
                     {fromCurrency}
                     <ArrowRight className="size-3.5" />
                     {to?.currency}
                     {crossCurrency && " · cross-currency transfer"}
                   </div>
 
-                  <label className="block text-xs font-medium text-ink-400">
+                  <label className="block text-xs font-medium text-quill-soft">
                     Exchange rate (1 {fromCurrency} → {to?.currency})
                     <input
                       type="number"
@@ -447,7 +447,7 @@ export function EditTransactionSheet({
                     />
                   </label>
 
-                  <label className="block text-xs font-medium text-ink-400">
+                  <label className="block text-xs font-medium text-quill-soft">
                     Amount received ({to?.currency})
                     <input
                       type="number"
@@ -462,7 +462,7 @@ export function EditTransactionSheet({
                   </label>
 
                   {Number(amount) > 0 && Number(destAmount) > 0 && (
-                    <p className="text-xs text-ink-500">
+                    <p className="text-xs text-quill-faint">
                       {Number(amount).toFixed(2)} {fromCurrency}
                       {Number(fee) > 0 && ` − ${Number(fee).toFixed(2)} fee`} ={" "}
                       {Number(destAmount).toFixed(2)} {to?.currency}
@@ -473,7 +473,7 @@ export function EditTransactionSheet({
                 to &&
                 Number(fee) > 0 &&
                 Number(amount) > 0 && (
-                  <p className="text-xs text-ink-500">
+                  <p className="text-xs text-quill-faint">
                     {Number(amount).toFixed(2)} {fromCurrency} −{" "}
                     {Number(fee).toFixed(2)} fee ={" "}
                     {Math.max(0, Number(amount) - Number(fee)).toFixed(2)}{" "}
@@ -567,7 +567,7 @@ export function EditTransactionSheet({
                         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                         on
                           ? "border-teal-500 bg-teal-500/15 text-teal-300"
-                          : "border-ink-700 text-ink-400 hover:border-ink-600",
+                          : "border-rule text-quill-soft hover:border-rule",
                       )}
                     >
                       {on && <Check className="size-3" strokeWidth={3} />}
@@ -581,13 +581,13 @@ export function EditTransactionSheet({
 
           {/* ── Split / reimbursable (expenses only) ── */}
           {type === "expense" && (
-            <div className="rounded-xl border border-ink-700/60 bg-ink-950/30 p-3">
+            <div className="rounded-xl border border-rule/60 bg-ink-950/30 p-3">
               <label className="flex cursor-pointer items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-ink-200">
+                  <p className="text-sm font-medium text-quill">
                     Reimbursable
                   </p>
-                  <p className="text-xs text-ink-500">
+                  <p className="text-xs text-quill-faint">
                     I'll be paid back — excluded from net cashflow
                   </p>
                 </div>
@@ -628,8 +628,8 @@ export function EditTransactionSheet({
                         reimbStatus === s
                           ? s === "settled"
                             ? "border-teal-500 bg-teal-500/10 text-teal-300"
-                            : "border-ink-500 bg-ink-800 text-ink-200"
-                          : "border-ink-700 text-ink-500",
+                            : "border-rule bg-ink-800 text-quill"
+                          : "border-rule text-quill-faint",
                       )}
                     >
                       {s}
@@ -642,9 +642,9 @@ export function EditTransactionSheet({
 
           {/* ── Reimbursement allocations (income only) ── */}
           {type === "income" && (
-            <div className="rounded-xl border border-ink-700/60 bg-ink-950/30 p-3">
+            <div className="rounded-xl border border-rule/60 bg-ink-950/30 p-3">
               <div className="mb-2 flex items-baseline justify-between gap-2">
-                <p className="text-sm font-medium text-ink-200">
+                <p className="text-sm font-medium text-quill">
                   Reimburses…
                 </p>
                 {links.length > 0 && (
@@ -653,7 +653,7 @@ export function EditTransactionSheet({
                       "tnum text-xs",
                       allocatedTotal > Number(amount)
                         ? "text-amber-400"
-                        : "text-ink-500",
+                        : "text-quill-faint",
                     )}
                   >
                     {formatMoney(allocatedTotal, entryCurrency)} of{" "}
@@ -663,13 +663,13 @@ export function EditTransactionSheet({
               </div>
 
               {expenseChoices.length === 0 ? (
-                <p className="text-xs text-ink-500">
+                <p className="text-xs text-quill-faint">
                   No open reimbursable expenses found. Mark an expense as
                   "Reimbursable" first.
                 </p>
               ) : (
                 <div className="space-y-1.5">
-                  <p className="text-xs text-ink-500">
+                  <p className="text-xs text-quill-faint">
                     Pick one or more expenses this repayment covers.
                   </p>
                   {expenseChoices.map((e) => {
@@ -685,16 +685,16 @@ export function EditTransactionSheet({
                             "flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors",
                             selected
                               ? "border-teal-500 bg-teal-500 text-ink-950"
-                              : "border-ink-600 text-transparent hover:border-ink-500",
+                              : "border-rule text-transparent hover:border-rule",
                           )}
                         >
                           <Check className="size-3.5" strokeWidth={3} />
                         </button>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm text-ink-100">
+                          <p className="truncate text-sm text-quill">
                             {e.merchant ?? "Expense"}
                           </p>
-                          <p className="truncate text-xs text-ink-500">
+                          <p className="truncate text-xs text-quill-faint">
                             {formatMoney(e.amount, e.currency)}
                             {accountMap.get(e.account_id)
                               ? ` · ${accountMap.get(e.account_id)}`
@@ -713,7 +713,7 @@ export function EditTransactionSheet({
                               setAllocAmount(e.id, ev.target.value)
                             }
                             aria-label={`Amount allocated to ${e.merchant ?? "expense"}`}
-                            className="tnum h-8 w-20 shrink-0 rounded-lg border border-ink-700 bg-ink-950/60 px-2 text-right text-sm text-ink-50 focus:border-teal-500 focus:outline-none"
+                            className="tnum h-8 w-20 shrink-0 rounded-lg border border-rule bg-ink-950/60 px-2 text-right text-sm text-quill focus:border-teal-500 focus:outline-none"
                           />
                         )}
                       </div>
@@ -725,19 +725,19 @@ export function EditTransactionSheet({
           )}
 
           {/* ── Flag for review ── */}
-          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-ink-700/60 bg-ink-950/30 p-3">
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-rule/60 bg-ink-950/30 p-3">
             <div className="flex items-center gap-2">
               <Flag
                 className={cn(
                   "size-4 shrink-0",
-                  flagged ? "text-amber-400" : "text-ink-500",
+                  flagged ? "text-amber-400" : "text-quill-faint",
                 )}
               />
               <div>
-                <p className="text-sm font-medium text-ink-200">
+                <p className="text-sm font-medium text-quill">
                   Flag for review
                 </p>
-                <p className="text-xs text-ink-500">
+                <p className="text-xs text-quill-faint">
                   Mark to come back to it later
                 </p>
               </div>
@@ -787,15 +787,15 @@ export function EditTransactionSheet({
         </form>
 
         {/* Delete zone */}
-        <div className="mt-3 border-t border-ink-800 pt-3">
+        <div className="mt-3 border-t border-rule pt-3">
           {confirmDelete ? (
             <div className="flex items-center gap-3">
-              <p className="flex-1 text-xs text-ink-400">
+              <p className="flex-1 text-xs text-quill-soft">
                 Delete this transaction?
               </p>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="text-xs text-ink-400 hover:text-ink-200"
+                className="text-xs text-quill-soft hover:text-quill"
               >
                 Cancel
               </button>
@@ -812,7 +812,7 @@ export function EditTransactionSheet({
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}
-              className="flex w-full items-center justify-center gap-2 text-xs text-ink-500 transition-colors hover:text-red-400"
+              className="flex w-full items-center justify-center gap-2 text-xs text-quill-faint transition-colors hover:text-red-400"
             >
               <Trash2 className="size-3.5" />
               Delete transaction
@@ -826,7 +826,7 @@ export function EditTransactionSheet({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-ink-400">
+      <span className="mb-1 block text-xs font-medium text-quill-soft">
         {label}
       </span>
       {children}

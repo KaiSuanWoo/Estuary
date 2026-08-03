@@ -148,16 +148,16 @@ export function Budgets() {
       <header className="mb-4 flex items-center gap-2">
         <Link
           to="/settings"
-          className="flex size-8 items-center justify-center rounded-lg text-ink-400 hover:text-ink-200"
+          className="flex size-8 items-center justify-center rounded-lg text-quill-soft hover:text-quill"
           aria-label="Back to settings"
         >
           <ChevronLeft className="size-5" />
         </Link>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-quill">
             Budgets
           </h1>
-          <p className="text-sm text-ink-400">
+          <p className="text-sm text-quill-soft">
             Recurring limits and one-time goals
           </p>
         </div>
@@ -166,7 +166,7 @@ export function Budgets() {
       {/* Prominent add button */}
       <button
         onClick={() => setSheet("new")}
-        className="mb-5 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-ink-700 py-3 text-sm font-medium text-ink-300 transition-colors hover:border-teal-500/60 hover:text-teal-300"
+        className="mb-5 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-rule py-3 text-sm font-medium text-quill-soft transition-colors hover:border-teal-500/60 hover:text-teal-300"
       >
         <Plus className="size-4" /> New budget
       </button>
@@ -248,7 +248,7 @@ export function Budgets() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">
+    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-quill-faint">
       {children}
     </h2>
   );
@@ -340,13 +340,13 @@ function BudgetTotals({
     <Card className="p-4">
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-ink-400">
+          <p className="text-xs font-medium text-quill-soft">
             Spending this period{" "}
-            <span className="text-ink-600">· {count} budget{count === 1 ? "" : "s"}</span>
+            <span className="text-quill-faint">· {count} budget{count === 1 ? "" : "s"}</span>
           </p>
-          <p className="tnum mt-0.5 text-xl font-semibold tracking-tight text-ink-50">
+          <p className="tnum mt-0.5 text-xl font-semibold tracking-tight text-quill">
             {formatMoney(spent, base)}
-            <span className="text-sm font-normal text-ink-500">
+            <span className="text-sm font-normal text-quill-faint">
               {" "}
               / {formatMoney(budget, base)}
             </span>
@@ -433,7 +433,7 @@ function BudgetRow({
     if (remaining > 0 && pacing.perDayLeft != null)
       hint = {
         text: `Save ~${formatMoney(pacing.perDayLeft, base)}/day to reach target`,
-        tone: "text-ink-500",
+        tone: "text-quill-faint",
       };
   } else if (ratio > 1) {
     // Over budget: contrast the actual daily burn with the budgeted daily allowance.
@@ -453,7 +453,7 @@ function BudgetRow({
     else if (pacing.perDayLeft != null)
       hint = {
         text: `~${formatMoney(pacing.perDayLeft, base)}/day left for ${pacing.daysLeft}d`,
-        tone: "text-ink-500",
+        tone: "text-quill-faint",
       };
   }
 
@@ -466,16 +466,16 @@ function BudgetRow({
             style={{ backgroundColor: b.color ?? "#4d6175" }}
           />
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-ink-100">{b.name}</p>
-            <p className="truncate text-xs text-ink-500">
-              <span className="text-ink-400">{periodLabel(b)}</span> · {cats}
+            <p className="truncate text-sm font-medium text-quill">{b.name}</p>
+            <p className="truncate text-xs text-quill-faint">
+              <span className="text-quill-soft">{periodLabel(b)}</span> · {cats}
             </p>
           </div>
         </div>
         <div className="shrink-0 text-right">
           <span className={cn("tnum text-sm font-medium", tone.text)}>
             {formatMoney(spent, base)}
-            <span className="text-ink-600"> / {formatMoney(b.amount, base)}</span>
+            <span className="text-quill-faint"> / {formatMoney(b.amount, base)}</span>
           </span>
           <p className={cn("tnum text-[11px] font-medium", tone.text)}>
             {Math.round(ratio * 100)}% {saving ? "saved" : "used"}
@@ -486,7 +486,7 @@ function BudgetRow({
       <div className="mt-2 flex items-center justify-between gap-2 text-xs">
         <span className={cn("tnum font-medium", tone.text)}>{remainingLabel}</span>
         {pacing.daysLeft != null && (
-          <span className="tnum text-ink-500">
+          <span className="tnum text-quill-faint">
             {pacing.daysLeft === 0 ? "Ends today" : `${pacing.daysLeft}d left`}
           </span>
         )}
@@ -533,8 +533,8 @@ function GoalRow({
             style={{ backgroundColor: b.color ?? "#4d6175" }}
           />
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-ink-100">{b.name}</p>
-            <p className="truncate text-xs text-ink-500">
+            <p className="truncate text-sm font-medium text-quill">{b.name}</p>
+            <p className="truncate text-xs text-quill-faint">
               {goalDateLabel(b, daysLeft)}
             </p>
           </div>
@@ -542,7 +542,7 @@ function GoalRow({
         <div className="shrink-0 text-right">
           <span className="tnum text-sm font-medium text-emerald-400">
             {formatMoney(funded, base)}
-            <span className="text-ink-600"> / {formatMoney(b.amount, base)}</span>
+            <span className="text-quill-faint"> / {formatMoney(b.amount, base)}</span>
           </span>
           <p className="tnum text-[11px] font-medium text-emerald-400/80">
             {Math.round(funding.ratio * 100)}% funded
@@ -553,7 +553,7 @@ function GoalRow({
       <StackedBar spent={spent} saved={saved} target={b.amount} />
 
       <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
-        <span className="tnum text-ink-500">
+        <span className="tnum text-quill-faint">
           {count === 0 ? (
             "No transactions yet"
           ) : (
@@ -564,7 +564,7 @@ function GoalRow({
             </>
           )}
         </span>
-        <span className="tnum font-medium text-ink-300">
+        <span className="tnum font-medium text-quill-soft">
           {remaining > 0
             ? `${formatMoney(remaining, base)} to save`
             : over
@@ -574,14 +574,14 @@ function GoalRow({
       </div>
 
       {perWeek != null && (
-        <p className="mt-1 text-right text-xs text-ink-500">
+        <p className="mt-1 text-right text-xs text-quill-faint">
           ~{formatMoney(perWeek, base)}/wk to stay on track
         </p>
       )}
       </button>
       <button
         onClick={onContribute}
-        className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-ink-700/60 py-1.5 text-xs font-medium text-teal-300 transition-colors hover:border-teal-500/50 hover:bg-teal-500/5"
+        className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-rule/60 py-1.5 text-xs font-medium text-teal-300 transition-colors hover:border-teal-500/50 hover:bg-teal-500/5"
       >
         <Plus className="size-3.5" /> Contribute
       </button>
@@ -642,7 +642,7 @@ function BudgetSheet({
   const pending =
     create.isPending || update.isPending || setCats.isPending || setTxns.isPending;
   const field =
-    "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
+    "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
 
   // Live funding preview for goals
   const preview = useMemo(
@@ -721,7 +721,7 @@ function BudgetSheet({
       <form onSubmit={onSubmit} className="space-y-3">
         {/* Budget type: recurring vs one-time goal */}
         <div>
-          <span className="mb-1 block text-xs font-medium text-ink-400">
+          <span className="mb-1 block text-xs font-medium text-quill-soft">
             Budget type
           </span>
           <div className="grid grid-cols-2 gap-2">
@@ -739,25 +739,25 @@ function BudgetSheet({
                   "rounded-xl border px-3 py-2 text-left transition-colors",
                   btype === t.value
                     ? "border-teal-500 bg-teal-500/10"
-                    : "border-ink-700 hover:border-ink-600",
+                    : "border-rule hover:border-rule",
                 )}
               >
                 <span
                   className={cn(
                     "block text-sm font-medium",
-                    btype === t.value ? "text-teal-300" : "text-ink-200",
+                    btype === t.value ? "text-teal-300" : "text-quill",
                   )}
                 >
                   {t.label}
                 </span>
-                <span className="block text-xs text-ink-500">{t.hint}</span>
+                <span className="block text-xs text-quill-faint">{t.hint}</span>
               </button>
             ))}
           </div>
         </div>
 
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-ink-400">Name</span>
+          <span className="mb-1 block text-xs font-medium text-quill-soft">Name</span>
           <input
             required
             value={name}
@@ -769,7 +769,7 @@ function BudgetSheet({
 
         {/* Colour */}
         <div>
-          <span className="mb-1 block text-xs font-medium text-ink-400">Colour</span>
+          <span className="mb-1 block text-xs font-medium text-quill-soft">Colour</span>
           <div className="flex gap-2">
             {SWATCHES.map((c) => (
               <button
@@ -790,7 +790,7 @@ function BudgetSheet({
         </div>
 
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-ink-400">
+          <span className="mb-1 block text-xs font-medium text-quill-soft">
             {isGoal ? "Target amount" : saving ? "Target amount" : "Budget amount"}
           </span>
           <input
@@ -809,8 +809,8 @@ function BudgetSheet({
         {isGoal ? (
           <>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
-                Fund by <span className="text-ink-600">(optional)</span>
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
+                Fund by <span className="text-quill-faint">(optional)</span>
               </span>
               <input
                 type="date"
@@ -823,10 +823,10 @@ function BudgetSheet({
             {/* Transaction assignment */}
             <div>
               <div className="mb-1.5 flex items-baseline justify-between">
-                <span className="text-xs font-medium text-ink-400">
+                <span className="text-xs font-medium text-quill-soft">
                   Transactions ({pickedTxns.size})
                 </span>
-                <span className="tnum text-xs text-ink-500">
+                <span className="tnum text-xs text-quill-faint">
                   <span className="text-indigo-300">
                     {formatMoney(preview.spent, base)} spent
                   </span>
@@ -842,7 +842,7 @@ function BudgetSheet({
                 onToggle={toggleTxn}
                 base={base}
               />
-              <p className="mt-1 text-xs text-ink-600">
+              <p className="mt-1 text-xs text-quill-faint">
                 Expenses count as spent; transfers &amp; income count as saved.
               </p>
             </div>
@@ -851,7 +851,7 @@ function BudgetSheet({
           <>
             {/* Direction: expense (down) vs saving (up) */}
             <div>
-              <span className="mb-1 block text-xs font-medium text-ink-400">
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
                 Direction
               </span>
               <div className="grid grid-cols-2 gap-2">
@@ -869,18 +869,18 @@ function BudgetSheet({
                       "rounded-xl border px-3 py-2 text-left transition-colors",
                       direction === d.value
                         ? "border-teal-500 bg-teal-500/10"
-                        : "border-ink-700 hover:border-ink-600",
+                        : "border-rule hover:border-rule",
                     )}
                   >
                     <span
                       className={cn(
                         "block text-sm font-medium",
-                        direction === d.value ? "text-teal-300" : "text-ink-200",
+                        direction === d.value ? "text-teal-300" : "text-quill",
                       )}
                     >
                       {d.label}
                     </span>
-                    <span className="block text-xs text-ink-500">{d.hint}</span>
+                    <span className="block text-xs text-quill-faint">{d.hint}</span>
                   </button>
                 ))}
               </div>
@@ -888,7 +888,7 @@ function BudgetSheet({
 
             {/* Time frame */}
             <div>
-              <span className="mb-1 block text-xs font-medium text-ink-400">
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
                 Time frame
               </span>
               <div className="grid grid-cols-4 gap-1.5">
@@ -901,7 +901,7 @@ function BudgetSheet({
                       "h-9 rounded-xl border text-xs font-medium transition-colors",
                       period === p.value
                         ? "border-teal-500 bg-teal-500/10 text-teal-300"
-                        : "border-ink-700 text-ink-400 hover:border-ink-600",
+                        : "border-rule text-quill-soft hover:border-rule",
                     )}
                   >
                     {p.label}
@@ -914,7 +914,7 @@ function BudgetSheet({
               <div>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-ink-400">
+                    <span className="mb-1 block text-xs font-medium text-quill-soft">
                       Start
                     </span>
                     <input
@@ -929,7 +929,7 @@ function BudgetSheet({
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-ink-400">
+                    <span className="mb-1 block text-xs font-medium text-quill-soft">
                       End
                     </span>
                     <input
@@ -944,7 +944,7 @@ function BudgetSheet({
                     />
                   </label>
                 </div>
-                <p className="mt-1 text-xs text-ink-600">
+                <p className="mt-1 text-xs text-quill-faint">
                   Leave a date empty for an open-ended range.
                 </p>
               </div>
@@ -952,11 +952,11 @@ function BudgetSheet({
 
             {/* Category assignment */}
             <div>
-              <span className="mb-1.5 block text-xs font-medium text-ink-400">
+              <span className="mb-1.5 block text-xs font-medium text-quill-soft">
                 Categories ({pickedCats.size} selected)
               </span>
               {expenseCats.length === 0 ? (
-                <p className="text-xs text-ink-500">
+                <p className="text-xs text-quill-faint">
                   Add some expense categories first.
                 </p>
               ) : (
@@ -972,7 +972,7 @@ function BudgetSheet({
                           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                           on
                             ? "border-teal-500 bg-teal-500/15 text-teal-300"
-                            : "border-ink-700 text-ink-400 hover:border-ink-600",
+                            : "border-rule text-quill-soft hover:border-rule",
                         )}
                       >
                         <span
@@ -1005,13 +1005,13 @@ function BudgetSheet({
       </form>
 
       {!isNew && (
-        <div className="mt-3 border-t border-ink-800 pt-3">
+        <div className="mt-3 border-t border-rule pt-3">
           {confirmDelete ? (
             <div className="flex items-center gap-3">
-              <p className="flex-1 text-xs text-ink-400">Delete this budget?</p>
+              <p className="flex-1 text-xs text-quill-soft">Delete this budget?</p>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="text-xs text-ink-400 hover:text-ink-200"
+                className="text-xs text-quill-soft hover:text-quill"
               >
                 Cancel
               </button>
@@ -1023,7 +1023,7 @@ function BudgetSheet({
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}
-              className="flex w-full items-center justify-center gap-2 text-xs text-ink-500 transition-colors hover:text-red-400"
+              className="flex w-full items-center justify-center gap-2 text-xs text-quill-faint transition-colors hover:text-red-400"
             >
               <Trash2 className="size-3.5" /> Delete budget
             </button>
@@ -1060,19 +1060,19 @@ function TransactionPicker({
   }, [txns, q, picked]);
 
   return (
-    <div className="rounded-xl border border-ink-700/60 bg-ink-950/30">
-      <div className="flex items-center gap-2 border-b border-ink-800 px-3 py-2">
-        <Search className="size-3.5 shrink-0 text-ink-500" />
+    <div className="rounded-xl border border-rule/60 bg-ink-950/30">
+      <div className="flex items-center gap-2 border-b border-rule px-3 py-2">
+        <Search className="size-3.5 shrink-0 text-quill-faint" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search transactions…"
-          className="w-full bg-transparent text-sm text-ink-50 placeholder:text-ink-600 focus:outline-none"
+          className="w-full bg-transparent text-sm text-quill placeholder:text-quill-faint focus:outline-none"
         />
       </div>
       <div className="max-h-60 overflow-y-auto">
         {filtered.length === 0 ? (
-          <p className="px-3 py-6 text-center text-xs text-ink-500">
+          <p className="px-3 py-6 text-center text-xs text-quill-faint">
             {txns.length === 0 ? "No transactions yet." : "No matches."}
           </p>
         ) : (
@@ -1092,16 +1092,16 @@ function TransactionPicker({
                         "flex size-4 shrink-0 items-center justify-center rounded border",
                         on
                           ? "border-teal-500 bg-teal-500 text-ink-950"
-                          : "border-ink-600",
+                          : "border-rule",
                       )}
                     >
                       {on && <Check className="size-3" strokeWidth={3} />}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-ink-200">
+                      <span className="block truncate text-sm text-quill">
                         {t.merchant || (isExpense ? "Expense" : "Transaction")}
                       </span>
-                      <span className="block text-xs text-ink-500">
+                      <span className="block text-xs text-quill-faint">
                         {format(parseISO(t.date), "d MMM yyyy")} ·{" "}
                         {isExpense ? "spent" : "saved"}
                       </span>
@@ -1109,12 +1109,12 @@ function TransactionPicker({
                     <span
                       className={cn(
                         "tnum shrink-0 text-xs font-medium",
-                        isExpense ? "text-ink-300" : "text-emerald-400",
+                        isExpense ? "text-quill-soft" : "text-emerald-400",
                       )}
                     >
                       {formatSignedMoney(t.amount, t.currency, t.type)}
                       {t.currency !== base && (
-                        <span className="ml-1 text-ink-600">{t.currency}</span>
+                        <span className="ml-1 text-quill-faint">{t.currency}</span>
                       )}
                     </span>
                   </button>
@@ -1163,7 +1163,7 @@ function ContributeSheet({
   const multi = accounts.length >= 2;
   const pending = create.isPending || setGoals.isPending;
   const field =
-    "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 focus:border-teal-500 focus:outline-none";
+    "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill focus:border-teal-500 focus:outline-none";
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -1205,13 +1205,13 @@ function ContributeSheet({
   return (
     <Sheet title={`Contribute to ${goal.name}`} onClose={onClose}>
       {accounts.length === 0 ? (
-        <p className="py-4 text-center text-sm text-ink-400">
+        <p className="py-4 text-center text-sm text-quill-soft">
           Add an account first, then you can contribute.
         </p>
       ) : (
         <form onSubmit={submit} className="space-y-3">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">Amount</span>
+            <span className="mb-1 block text-xs font-medium text-quill-soft">Amount</span>
             <input
               type="number"
               inputMode="decimal"
@@ -1227,7 +1227,7 @@ function ContributeSheet({
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">
+            <span className="mb-1 block text-xs font-medium text-quill-soft">
               {multi ? "From account" : "Account"}
             </span>
             <select value={fromId} onChange={(e) => setFromId(e.target.value)} className={field}>
@@ -1241,7 +1241,7 @@ function ContributeSheet({
 
           {multi && (
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">Into account</span>
+              <span className="mb-1 block text-xs font-medium text-quill-soft">Into account</span>
               <select value={toId} onChange={(e) => setToId(e.target.value)} className={field}>
                 {accounts
                   .filter((a) => a.id !== fromId)
@@ -1255,11 +1255,11 @@ function ContributeSheet({
           )}
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">Date</span>
+            <span className="mb-1 block text-xs font-medium text-quill-soft">Date</span>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
           </label>
 
-          <p className="text-xs text-ink-600">
+          <p className="text-xs text-quill-faint">
             {multi
               ? "Moves money between your accounts and counts toward this goal — neutral to income."
               : "Recorded as a set-aside on this account, counted toward this goal."}

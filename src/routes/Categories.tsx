@@ -34,7 +34,7 @@ import { CATEGORY_ICONS, CATEGORY_ICON_NAMES } from "@/lib/category-icons";
 import type { Category, CategoryKind } from "@/lib/types";
 
 const inputCls =
-  "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
+  "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
 
 // Default colours used when seeding categories.
 const SWATCHES = ["#7FD1B9", "#3F72AF", "#4F8A6D", "#8AA6C4", "#E0A458", "#C46D6D"];
@@ -49,10 +49,10 @@ function ColorPicker({
 }) {
   return (
     <div>
-      <span className="mb-1.5 block text-xs font-medium text-ink-400">Colour</span>
+      <span className="mb-1.5 block text-xs font-medium text-quill-soft">Colour</span>
       <label className="flex w-fit cursor-pointer items-center gap-3">
         <span
-          className="relative block size-9 shrink-0 rounded-lg border border-ink-700"
+          className="relative block size-9 shrink-0 rounded-lg border border-rule"
           style={{ backgroundColor: value }}
         >
           <input
@@ -63,7 +63,7 @@ function ColorPicker({
             className="absolute inset-0 cursor-pointer opacity-0"
           />
         </span>
-        <span className="tnum text-sm uppercase text-ink-400">{value}</span>
+        <span className="tnum text-sm uppercase text-quill-soft">{value}</span>
       </label>
     </div>
   );
@@ -81,7 +81,7 @@ function IconPicker({
 }) {
   return (
     <div>
-      <span className="mb-1.5 block text-xs font-medium text-ink-400">Icon</span>
+      <span className="mb-1.5 block text-xs font-medium text-quill-soft">Icon</span>
       <div className="grid grid-cols-6 gap-1.5">
         {CATEGORY_ICON_NAMES.map((name) => {
           const Icon = CATEGORY_ICONS[name];
@@ -97,7 +97,7 @@ function IconPicker({
                 "flex aspect-square items-center justify-center rounded-xl border transition-colors",
                 active
                   ? "border-transparent"
-                  : "border-ink-700 text-ink-400 hover:border-ink-600 hover:text-ink-200",
+                  : "border-rule text-quill-soft hover:border-rule hover:text-quill",
               )}
               style={active ? { backgroundColor: `${color}26`, color } : undefined}
             >
@@ -148,11 +148,11 @@ export function Categories() {
         <div className="flex items-center gap-2">
           <Link
             to="/settings"
-            className="flex size-8 items-center justify-center rounded-lg text-ink-400 hover:text-ink-200"
+            className="flex size-8 items-center justify-center rounded-lg text-quill-soft hover:text-quill"
           >
             <ChevronLeft className="size-5" />
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-quill">
             Categories
           </h1>
         </div>
@@ -166,7 +166,7 @@ export function Categories() {
               <button
                 onClick={() => setReordering(true)}
                 aria-label="Reorder categories"
-                className="flex size-9 items-center justify-center rounded-xl bg-ink-800/60 text-ink-200 transition-colors hover:bg-ink-700/60"
+                className="flex size-9 items-center justify-center rounded-xl bg-ink-800/60 text-quill transition-colors hover:bg-ink-700/60"
               >
                 <ArrowUpDown className="size-4" />
               </button>
@@ -174,7 +174,7 @@ export function Categories() {
             <Link
               to="/rules"
               aria-label="Auto-categorise rules"
-              className="flex size-9 items-center justify-center rounded-xl bg-ink-800/60 text-ink-200 transition-colors hover:bg-ink-700/60"
+              className="flex size-9 items-center justify-center rounded-xl bg-ink-800/60 text-quill transition-colors hover:bg-ink-700/60"
             >
               <Wand2 className="size-4" />
             </Link>
@@ -200,12 +200,12 @@ export function Categories() {
           ))}
         </div>
       ) : data.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-ink-700/70 px-6 py-12 text-center">
-          <div className="mb-3 text-ink-500">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-rule/70 px-6 py-12 text-center">
+          <div className="mb-3 text-quill-faint">
             <Tag className="size-6" />
           </div>
-          <p className="font-medium text-ink-200">No categories yet</p>
-          <p className="mt-1 max-w-xs text-sm text-ink-500">
+          <p className="font-medium text-quill">No categories yet</p>
+          <p className="mt-1 max-w-xs text-sm text-quill-faint">
             Create categories to organise spending and set monthly budgets.
           </p>
           <Button
@@ -297,7 +297,7 @@ function Group({
 
   return (
     <section>
-      <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
+      <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-quill-faint">
         {title}
       </h2>
       <Card className="divide-y divide-ink-800/70 py-0">
@@ -307,7 +307,7 @@ function Group({
             <div key={c.id} className="py-3">
               <div className="flex items-center gap-3">
                 <CategoryIcon icon={c.icon} color={c.color} />
-                <span className="flex-1 truncate font-medium text-ink-100">
+                <span className="flex-1 truncate font-medium text-quill">
                   {c.name}
                 </span>
 
@@ -317,7 +317,7 @@ function Group({
                       onClick={() => move(i, -1)}
                       disabled={i === 0}
                       aria-label={`Move ${c.name} up`}
-                      className="flex size-8 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-ink-800 hover:text-ink-100 disabled:opacity-25"
+                      className="flex size-8 items-center justify-center rounded-lg text-quill-soft transition-colors hover:bg-ink-800 hover:text-quill disabled:opacity-25"
                     >
                       <ChevronUp className="size-4" />
                     </button>
@@ -325,7 +325,7 @@ function Group({
                       onClick={() => move(i, 1)}
                       disabled={i === items.length - 1}
                       aria-label={`Move ${c.name} down`}
-                      className="flex size-8 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-ink-800 hover:text-ink-100 disabled:opacity-25"
+                      className="flex size-8 items-center justify-center rounded-lg text-quill-soft transition-colors hover:bg-ink-800 hover:text-quill disabled:opacity-25"
                     >
                       <ChevronDown className="size-4" />
                     </button>
@@ -333,21 +333,21 @@ function Group({
                 ) : (
                   <>
                     {spent > 0 && (
-                      <span className="tnum text-sm text-ink-400">
+                      <span className="tnum text-sm text-quill-soft">
                         {formatMoney(spent, baseCurrency)}
                       </span>
                     )}
                     <button
                       onClick={() => onEdit(c)}
                       aria-label={`Edit ${c.name}`}
-                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-600 hover:bg-ink-800 hover:text-ink-200 transition-colors"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-quill-faint hover:bg-ink-800 hover:text-quill transition-colors"
                     >
                       <Pencil className="size-3.5" />
                     </button>
                     <button
                       onClick={() => onArchive(c.id)}
                       aria-label={`Archive ${c.name}`}
-                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-600 hover:text-red-400 transition-colors"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-quill-faint hover:text-red-400 transition-colors"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -400,7 +400,7 @@ function EditCategorySheet({
     <Sheet title="Edit category" onClose={onClose}>
         <form onSubmit={onSubmit} className="space-y-3">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">
+            <span className="mb-1 block text-xs font-medium text-quill-soft">
               Name
             </span>
             <input
@@ -416,10 +416,10 @@ function EditCategorySheet({
           <IconPicker value={icon} color={color} onChange={setIcon} />
 
           {category.kind === "expense" && (
-            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-ink-700/60 bg-ink-950/30 p-3">
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-rule/60 bg-ink-950/30 p-3">
               <div>
-                <p className="text-sm font-medium text-ink-200">Fixed cost</p>
-                <p className="text-xs text-ink-500">
+                <p className="text-sm font-medium text-quill">Fixed cost</p>
+                <p className="text-xs text-quill-faint">
                   Contractual/unavoidable (rent, utilities) — split out from
                   discretionary spend in Analytics
                 </p>
@@ -460,13 +460,13 @@ function EditCategorySheet({
           </Button>
         </form>
 
-        <div className="mt-3 border-t border-ink-800 pt-3">
+        <div className="mt-3 border-t border-rule pt-3">
           {confirmArchive ? (
             <div className="flex items-center gap-3">
-              <p className="flex-1 text-xs text-ink-400">Archive this category?</p>
+              <p className="flex-1 text-xs text-quill-soft">Archive this category?</p>
               <button
                 onClick={() => setConfirmArchive(false)}
-                className="text-xs text-ink-400 hover:text-ink-200"
+                className="text-xs text-quill-soft hover:text-quill"
               >
                 Cancel
               </button>
@@ -478,7 +478,7 @@ function EditCategorySheet({
             <button
               type="button"
               onClick={() => setConfirmArchive(true)}
-              className="flex w-full items-center justify-center gap-2 text-xs text-ink-500 transition-colors hover:text-red-400"
+              className="flex w-full items-center justify-center gap-2 text-xs text-quill-faint transition-colors hover:text-red-400"
             >
               Archive category
             </button>
@@ -519,7 +519,7 @@ function AddCategorySheet({ onClose }: { onClose: () => void }) {
                   "h-9 rounded-xl border text-xs font-medium capitalize transition-colors",
                   kind === k
                     ? "border-teal-500 bg-teal-500/10 text-teal-300"
-                    : "border-ink-700 text-ink-400",
+                    : "border-rule text-quill-soft",
                 )}
               >
                 {k}
@@ -528,7 +528,7 @@ function AddCategorySheet({ onClose }: { onClose: () => void }) {
           </div>
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">
+            <span className="mb-1 block text-xs font-medium text-quill-soft">
               Name
             </span>
             <input

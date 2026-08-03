@@ -9,7 +9,7 @@ import { Logo } from "@/components/Logo";
 type Mode = "signin" | "signup" | "reset";
 
 const inputCls =
-  "mt-1.5 h-11 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
+  "mt-1.5 h-11 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
 
 export function Login() {
   const {
@@ -76,11 +76,11 @@ export function Login() {
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-1 flex items-end justify-center">
             <Logo className="h-16 w-auto" />
-            <h1 className="-ml-1.5 font-serif text-5xl font-medium leading-none tracking-tight text-ink-50">
+            <h1 className="-ml-1.5 font-serif text-5xl font-medium leading-none tracking-tight text-quill">
               stuary
             </h1>
           </div>
-          <p className="mt-1 text-sm text-ink-400">From many streams, one flow.</p>
+          <p className="mt-1 text-sm text-quill-soft">From many streams, one flow.</p>
         </div>
 
         {sent ? (
@@ -89,26 +89,26 @@ export function Login() {
               <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-teal-500/12 text-teal-300">
                 <MailCheck className="size-6" />
               </div>
-              <p className="font-medium text-ink-100">
+              <p className="font-medium text-quill">
                 {sent.kind === "signup" ? "Confirm your email" : "Check your inbox"}
               </p>
-              <p className="mt-1 text-sm text-ink-400">
+              <p className="mt-1 text-sm text-quill-soft">
                 {sent.kind === "signup" ? (
                   <>
                     We sent a verification link to{" "}
-                    <span className="text-ink-200">{sent.to}</span>. Click it to
+                    <span className="text-quill">{sent.to}</span>. Click it to
                     finish creating your account.
                   </>
                 ) : (
                   <>
                     If an account exists for{" "}
-                    <span className="text-ink-200">{sent.to}</span>, we've sent a
+                    <span className="text-quill">{sent.to}</span>, we've sent a
                     link to set a new password.
                   </>
                 )}
               </p>
               {sent.kind === "signup" && (
-                <p className="mt-3 text-xs text-ink-500">
+                <p className="mt-3 text-xs text-quill-faint">
                   After verifying, your access is reviewed before you can sign in.
                 </p>
               )}
@@ -116,12 +116,12 @@ export function Login() {
           </Card>
         ) : mode === "reset" ? (
           <Card>
-            <h2 className="text-base font-semibold text-ink-50">Reset password</h2>
-            <p className="mt-1 text-sm text-ink-400">
+            <h2 className="text-base font-semibold text-quill">Reset password</h2>
+            <p className="mt-1 text-sm text-quill-soft">
               Enter your email and we'll send a link to set a new password.
             </p>
             <form onSubmit={onSubmit} className="mt-4 space-y-3">
-              <label className="block text-sm font-medium text-ink-300">
+              <label className="block text-sm font-medium text-quill-soft">
                 Email
                 <input
                   type="email"
@@ -143,7 +143,7 @@ export function Login() {
         ) : (
           <Card>
             {/* Mode toggle */}
-            <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl border border-ink-700/60 bg-ink-950/40 p-1">
+            <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl border border-rule/60 bg-ink-950/40 p-1">
               {(["signin", "signup"] as Mode[]).map((m) => (
                 <button
                   key={m}
@@ -152,8 +152,8 @@ export function Login() {
                   className={cn(
                     "h-9 rounded-lg text-sm font-medium transition-colors",
                     mode === m
-                      ? "bg-ink-700 text-ink-50"
-                      : "text-ink-400 hover:text-ink-200",
+                      ? "bg-ink-700 text-quill"
+                      : "text-quill-soft hover:text-quill",
                   )}
                 >
                   {m === "signin" ? "Sign in" : "Create account"}
@@ -165,24 +165,24 @@ export function Login() {
               type="button"
               onClick={onGoogle}
               disabled={busy !== null}
-              className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-ink-700 bg-ink-50 text-sm font-medium text-ink-950 transition-colors hover:bg-white disabled:opacity-60"
+              className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-rule bg-ink-50 text-sm font-medium text-ink-950 transition-colors hover:bg-white disabled:opacity-60"
             >
               {busy === "google" ? (
-                <Spinner className="size-4 border-ink-400 border-t-ink-900" />
+                <Spinner className="size-4 border-rule border-t-ink-900" />
               ) : (
                 <GoogleGlyph />
               )}
               Continue with Google
             </button>
 
-            <div className="my-4 flex items-center gap-3 text-xs text-ink-600">
+            <div className="my-4 flex items-center gap-3 text-xs text-quill-faint">
               <span className="h-px flex-1 bg-ink-800" />
               or
               <span className="h-px flex-1 bg-ink-800" />
             </div>
 
             <form onSubmit={onSubmit} className="space-y-3">
-              <label className="block text-sm font-medium text-ink-300">
+              <label className="block text-sm font-medium text-quill-soft">
                 Email
                 <input
                   type="email"
@@ -197,7 +197,7 @@ export function Login() {
               </label>
               <div>
                 <div className="flex items-center justify-between">
-                  <label htmlFor="login-password" className="text-sm font-medium text-ink-300">
+                  <label htmlFor="login-password" className="text-sm font-medium text-quill-soft">
                     Password
                   </label>
                   {mode === "signin" && (
@@ -236,7 +236,7 @@ export function Login() {
           </Card>
         )}
 
-        <p className="mt-4 text-center text-xs text-ink-600">
+        <p className="mt-4 text-center text-xs text-quill-faint">
           {sent ? (
             "Didn't get it? Check spam, or try again in a minute."
           ) : mode === "reset" ? (

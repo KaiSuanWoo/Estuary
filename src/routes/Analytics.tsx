@@ -358,28 +358,28 @@ export function Analytics() {
       {/* ── Period controls ─────────────────────────────────────────────── */}
       <Card className="mb-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1 rounded-xl border border-ink-700/60 bg-ink-950/50 p-1">
+          <div className="flex items-center gap-1 rounded-xl border border-rule/60 bg-ink-950/50 p-1">
             {(["range", "months"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
                 className={cn(
                   "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-colors",
-                  mode === m ? "bg-ink-700 text-ink-100" : "text-ink-500 hover:text-ink-300",
+                  mode === m ? "bg-ink-700 text-quill" : "text-quill-faint hover:text-quill-soft",
                 )}
               >
                 {m === "range" ? "Range" : "Pick months"}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1 rounded-xl border border-ink-700/60 bg-ink-950/50 p-1">
+          <div className="flex items-center gap-1 rounded-xl border border-rule/60 bg-ink-950/50 p-1">
             {(["gross", "net"] as CashflowMode[]).map((mo) => (
               <button
                 key={mo}
                 onClick={() => setTxnMode(mo)}
                 className={cn(
                   "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-colors",
-                  txnMode === mo ? "bg-ink-700 text-ink-100" : "text-ink-500 hover:text-ink-300",
+                  txnMode === mo ? "bg-ink-700 text-quill" : "text-quill-faint hover:text-quill-soft",
                 )}
               >
                 {mo}
@@ -399,7 +399,7 @@ export function Analytics() {
                     "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                     preset === p.id
                       ? "border-teal-500 bg-teal-500/10 text-teal-300"
-                      : "border-ink-700 text-ink-400 hover:border-ink-600",
+                      : "border-rule text-quill-soft hover:border-rule",
                   )}
                 >
                   {p.label}
@@ -409,30 +409,30 @@ export function Analytics() {
             {preset === "custom" && (
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-ink-400">From</span>
+                  <span className="mb-1 block text-xs font-medium text-quill-soft">From</span>
                   <input
                     type="date"
                     value={customFrom}
                     max={customTo}
                     onChange={(e) => setCustomFrom(e.target.value)}
-                    className="h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 focus:border-teal-500 focus:outline-none"
+                    className="h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill focus:border-teal-500 focus:outline-none"
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-ink-400">To</span>
+                  <span className="mb-1 block text-xs font-medium text-quill-soft">To</span>
                   <input
                     type="date"
                     value={customTo}
                     min={customFrom}
                     onChange={(e) => setCustomTo(e.target.value)}
-                    className="h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 focus:border-teal-500 focus:outline-none"
+                    className="h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill focus:border-teal-500 focus:outline-none"
                   />
                 </label>
               </div>
             )}
           </div>
         ) : monthsWithData.length === 0 ? (
-          <p className="text-xs text-ink-500">No months with entries yet.</p>
+          <p className="text-xs text-quill-faint">No months with entries yet.</p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {monthsWithData.map((m) => {
@@ -445,7 +445,7 @@ export function Analytics() {
                     "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                     on
                       ? "border-teal-500 bg-teal-500/15 text-teal-300"
-                      : "border-ink-700 text-ink-400 hover:border-ink-600",
+                      : "border-rule text-quill-soft hover:border-rule",
                   )}
                 >
                   {m.label}
@@ -454,8 +454,8 @@ export function Analytics() {
             })}
           </div>
         )}
-        <p className="text-xs text-ink-500">
-          Showing <span className="text-ink-300">{period.label}</span>
+        <p className="text-xs text-quill-faint">
+          Showing <span className="text-quill-soft">{period.label}</span>
         </p>
       </Card>
 
@@ -536,7 +536,7 @@ export function Analytics() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Widget title="Savings rate" hint="Net ÷ income, per month">
               {view.savingsTrend.filter((p) => p.rate != null).length < 2 ? (
-                <p className="py-6 text-center text-sm text-ink-500">
+                <p className="py-6 text-center text-sm text-quill-faint">
                   Needs at least two months with income.
                 </p>
               ) : (
@@ -573,7 +573,7 @@ export function Analytics() {
 
             <Widget title="Fixed vs discretionary" hint="Committed bills vs controllable spend">
               {view.fixedTotal + view.discTotal <= 0 ? (
-                <p className="py-6 text-center text-sm text-ink-500">No spending in range.</p>
+                <p className="py-6 text-center text-sm text-quill-faint">No spending in range.</p>
               ) : (
                 <FixedVsDiscretionary
                   fixedTotal={view.fixedTotal}
@@ -632,7 +632,7 @@ export function Analytics() {
             }
           >
             {view.recurring.length === 0 ? (
-              <p className="py-6 text-center text-sm text-ink-500">
+              <p className="py-6 text-center text-sm text-quill-faint">
                 No recurring charges detected yet — needs ≥3 charges to the same
                 merchant at a steady interval.
               </p>
@@ -640,10 +640,10 @@ export function Analytics() {
               <ul className="divide-y divide-ink-800/60">
                 {view.recurring.slice(0, 8).map((r) => (
                   <li key={r.merchant} className="flex items-center gap-3 py-2 text-sm">
-                    <RefreshCcw className="size-3.5 shrink-0 text-ink-500" />
+                    <RefreshCcw className="size-3.5 shrink-0 text-quill-faint" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-ink-200">{r.merchant}</p>
-                      <p className="text-xs text-ink-500">
+                      <p className="truncate text-quill">{r.merchant}</p>
+                      <p className="text-xs text-quill-faint">
                         {r.cadence} · ×{r.count} ·{" "}
                         {r.maybeStopped ? (
                           <span className="text-amber-400">
@@ -655,8 +655,8 @@ export function Analytics() {
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="tnum text-ink-200">{formatMoney(r.typicalAmount, base)}</p>
-                      <p className="tnum text-xs text-ink-600">
+                      <p className="tnum text-quill">{formatMoney(r.typicalAmount, base)}</p>
+                      <p className="tnum text-xs text-quill-faint">
                         {formatMoney(r.monthlyEquivalent, base)}/mo
                       </p>
                     </div>
@@ -676,11 +676,11 @@ export function Analytics() {
             }
           >
             {period.months.length !== 1 ? (
-              <p className="py-6 text-center text-sm text-ink-500">
+              <p className="py-6 text-center text-sm text-quill-faint">
                 Budgets are monthly — pick one month to see them.
               </p>
             ) : view.budgetRows.length === 0 ? (
-              <p className="py-6 text-center text-sm text-ink-500">No spending budgets set.</p>
+              <p className="py-6 text-center text-sm text-quill-faint">No spending budgets set.</p>
             ) : (
               <BudgetsDetail
                 rows={view.budgetRows}
@@ -697,14 +697,14 @@ export function Analytics() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Widget title="Month-on-month movers" hint="This month vs last">
               {view.movers.length === 0 ? (
-                <p className="py-6 text-center text-sm text-ink-500">No change to report.</p>
+                <p className="py-6 text-center text-sm text-quill-faint">No change to report.</p>
               ) : (
                 <ul className="space-y-2">
                   {view.movers.map((m) => (
                     <li key={m.name} className="flex items-center justify-between gap-3 text-sm">
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
-                        <span className="truncate text-ink-200">{m.name}</span>
+                        <span className="truncate text-quill">{m.name}</span>
                       </span>
                       <span className={cn("tnum flex shrink-0 items-center gap-1 font-medium", m.delta > 0 ? "text-rose-400" : "text-teal-400")}>
                         {m.delta > 0 ? <ArrowUpRight className="size-3.5" /> : <ArrowDownRight className="size-3.5" />}
@@ -718,16 +718,16 @@ export function Analytics() {
 
             <Widget title="Currency exposure" hint="Across all accounts">
               {view.exposure.length === 0 ? (
-                <p className="py-6 text-center text-sm text-ink-500">No balances to show.</p>
+                <p className="py-6 text-center text-sm text-quill-faint">No balances to show.</p>
               ) : (
                 <ul className="space-y-2.5">
                   {view.exposure.map((e) => (
                     <li key={e.currency}>
                       <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                        <span className="text-ink-200">{e.currency}</span>
-                        <span className="tnum text-ink-400">
+                        <span className="text-quill">{e.currency}</span>
+                        <span className="tnum text-quill-soft">
                           {formatMoney(e.base, base)}
-                          <span className="ml-1 text-ink-600">
+                          <span className="ml-1 text-quill-faint">
                             {view.exposureTotal > 0 ? `${Math.round((e.base / view.exposureTotal) * 100)}%` : ""}
                           </span>
                         </span>
@@ -785,14 +785,14 @@ function CategoryBreakdown({
               <div className="mb-1.5 flex items-center justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
                   <ChevronDown
-                    className={cn("size-3.5 shrink-0 text-ink-500 transition-transform", !isOpen && "-rotate-90")}
+                    className={cn("size-3.5 shrink-0 text-quill-faint transition-transform", !isOpen && "-rotate-90")}
                   />
                   <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
-                  <span className="truncate text-ink-200">{s.name}</span>
+                  <span className="truncate text-quill">{s.name}</span>
                 </span>
-                <span className="tnum shrink-0 text-ink-300">
+                <span className="tnum shrink-0 text-quill-soft">
                   {formatMoney(s.value, base)}
-                  <span className="ml-1.5 text-xs text-ink-600">{Math.round(pct)}%</span>
+                  <span className="ml-1.5 text-xs text-quill-faint">{Math.round(pct)}%</span>
                 </span>
               </div>
               <div className="ml-6 h-2 overflow-hidden rounded-full bg-ink-800">
@@ -870,7 +870,7 @@ function CategoryDetail({
   return (
     <div className="space-y-3 px-2 pb-3 pl-8">
       {avg != null && (
-        <p className="tnum text-xs text-ink-500">
+        <p className="tnum text-xs text-quill-faint">
           ~{formatMoney(avg, base)}/month average over {months.length} months
         </p>
       )}
@@ -894,19 +894,19 @@ function CategoryDetail({
 
       {/* Largest entries */}
       <div>
-        <p className="mb-1 text-xs font-medium text-ink-500">
+        <p className="mb-1 text-xs font-medium text-quill-faint">
           Largest {kind === "expense" ? "expenses" : "income"} · {catTxns.length} entr{catTxns.length === 1 ? "y" : "ies"}
         </p>
         <ul className="divide-y divide-ink-800/60">
           {catTxns.slice(0, 6).map(({ t, v }) => (
             <li key={t.id} className="flex items-center gap-3 py-1.5 text-sm">
-              <span className="tnum w-14 shrink-0 text-xs text-ink-500">
+              <span className="tnum w-14 shrink-0 text-xs text-quill-faint">
                 {format(parseISO(t.date), "d MMM")}
               </span>
-              <span className="min-w-0 flex-1 truncate text-ink-300">
+              <span className="min-w-0 flex-1 truncate text-quill-soft">
                 {t.merchant || "—"}
               </span>
-              <span className="tnum shrink-0 text-ink-200">{formatMoney(v, base)}</span>
+              <span className="tnum shrink-0 text-quill">{formatMoney(v, base)}</span>
             </li>
           ))}
         </ul>
@@ -953,14 +953,14 @@ function BudgetsDetail({
               <div className="mb-1 flex items-center justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
                   <ChevronDown
-                    className={cn("size-3.5 shrink-0 text-ink-500 transition-transform", !isOpen && "-rotate-90")}
+                    className={cn("size-3.5 shrink-0 text-quill-faint transition-transform", !isOpen && "-rotate-90")}
                   />
                   <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
-                  <span className="truncate text-ink-200">{b.name}</span>
+                  <span className="truncate text-quill">{b.name}</span>
                 </span>
-                <span className={cn("tnum shrink-0", over ? "text-rose-400" : "text-ink-400")}>
+                <span className={cn("tnum shrink-0", over ? "text-rose-400" : "text-quill-soft")}>
                   {formatMoney(b.spent, base)}
-                  <span className="text-ink-600"> / {formatMoney(b.amount, base)}</span>
+                  <span className="text-quill-faint"> / {formatMoney(b.amount, base)}</span>
                 </span>
               </div>
               <div className="ml-6 flex h-2 overflow-hidden rounded-full bg-ink-800">
@@ -976,7 +976,7 @@ function BudgetsDetail({
                   />
                 )}
               </div>
-              <p className={cn("tnum ml-6 mt-1 text-xs", over ? "text-rose-400" : "text-ink-500")}>
+              <p className={cn("tnum ml-6 mt-1 text-xs", over ? "text-rose-400" : "text-quill-faint")}>
                 {over
                   ? `Over by ${formatMoney(b.spent - b.amount, base)}${crossed ? ` · crossed the limit on ${crossed.label}` : ""}`
                   : `${formatMoney(b.amount - b.spent, base)} left · ${Math.round(ratio * 100)}% used`}
@@ -986,7 +986,7 @@ function BudgetsDetail({
             {isOpen && (
               <div className="px-2 pb-3 pl-8">
                 {series.length === 0 ? (
-                  <p className="py-2 text-xs text-ink-500">No entries this month.</p>
+                  <p className="py-2 text-xs text-quill-faint">No entries this month.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={150}>
                     <AreaChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
@@ -1037,12 +1037,12 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: "up"
   const size = value.length > 11 ? "text-lg lg:text-xl" : "text-xl lg:text-2xl";
   return (
     <Card className="min-w-0 p-3.5">
-      <p className="truncate text-xs font-medium text-ink-400">{label}</p>
+      <p className="truncate text-xs font-medium text-quill-soft">{label}</p>
       <p
         className={cn(
           "tnum mt-1 break-words font-semibold leading-tight tracking-tight",
           size,
-          tone === "up" ? "text-teal-400" : tone === "down" ? "text-rose-400" : "text-ink-100",
+          tone === "up" ? "text-teal-400" : tone === "down" ? "text-rose-400" : "text-quill",
         )}
       >
         {value}
@@ -1118,8 +1118,8 @@ function Insights({ view, base }: { view: AnalyticsView; base: string }) {
   );
   return (
     <Card className="space-y-1.5">
-      <p className="text-sm font-semibold text-ink-200">Insights</p>
-      <ul className="space-y-1 text-sm text-ink-400">
+      <p className="text-sm font-semibold text-quill">Insights</p>
+      <ul className="space-y-1 text-sm text-quill-soft">
         {items.map((t, i) => (
           <li key={i} className="flex gap-2">
             <span className="text-teal-400">•</span>
@@ -1189,8 +1189,8 @@ function FixedVsDiscretionary({
           <p className="text-xs font-medium text-sky-300">
             Fixed · {Math.round(fixedPct)}%
           </p>
-          <p className="tnum font-semibold text-ink-100">{formatMoney(fixedTotal, base)}</p>
-          <p className="mt-1 truncate text-xs text-ink-500">
+          <p className="tnum font-semibold text-quill">{formatMoney(fixedTotal, base)}</p>
+          <p className="mt-1 truncate text-xs text-quill-faint">
             {fixedCats.length === 0
               ? "No categories marked fixed yet — set them in Categories."
               : fixedCats.map((c) => c.name).join(" · ")}
@@ -1200,13 +1200,13 @@ function FixedVsDiscretionary({
           <p className="text-xs font-medium text-amber-300">
             Discretionary · {Math.round(100 - fixedPct)}%
           </p>
-          <p className="tnum font-semibold text-ink-100">{formatMoney(discTotal, base)}</p>
-          <p className="mt-1 truncate text-xs text-ink-500">
+          <p className="tnum font-semibold text-quill">{formatMoney(discTotal, base)}</p>
+          <p className="mt-1 truncate text-xs text-quill-faint">
             {discCats.map((c) => c.name).join(" · ") || "—"}
           </p>
         </div>
       </div>
-      <p className="text-xs text-ink-600">
+      <p className="text-xs text-quill-faint">
         Discretionary is the lever — fixed costs only move by renegotiating or
         cancelling.
       </p>
@@ -1216,7 +1216,7 @@ function FixedVsDiscretionary({
 
 function ChartEmpty({ label }: { label: string }) {
   return (
-    <div className="flex h-[180px] items-center justify-center rounded-xl border border-dashed border-ink-800 text-center text-sm text-ink-500">
+    <div className="flex h-[180px] items-center justify-center rounded-xl border border-dashed border-rule text-center text-sm text-quill-faint">
       {label}
     </div>
   );
@@ -1226,8 +1226,8 @@ function Widget({ title, hint, children }: { title: string; hint?: string; child
   return (
     <Card className="flex min-w-0 flex-col">
       <div className="mb-3">
-        <h2 className="text-sm font-semibold text-ink-200">{title}</h2>
-        {hint && <p className="text-xs text-ink-500">{hint}</p>}
+        <h2 className="text-sm font-semibold text-quill">{title}</h2>
+        {hint && <p className="text-xs text-quill-faint">{hint}</p>}
       </div>
       <div className="flex-1">{children}</div>
     </Card>

@@ -80,6 +80,11 @@
   --color-brass:        #b08d4f;
   --color-brass-lo:     #6e5526;
 
+  /* The desk the book lies on. Always in shadow — the light is on the book,
+     not the room — so it does not change with the lamp. */
+  --color-desk-a:       #23180f;
+  --color-desk-b:       #14100c;
+
   --font-ledger: "Hoefler Text", "Iowan Old Style", Baskerville, ui-serif, Georgia,
     "Times New Roman", serif;
 
@@ -177,7 +182,7 @@
 @layer base {
   :root {
     color-scheme: dark;
-    background-color: var(--color-ink-950);
+    background-color: var(--color-desk-b);
   }
   html,
   body,
@@ -186,7 +191,9 @@
   }
   body {
     margin: 0;
-    background-color: var(--color-ink-950);
+    /* The desk shows through the safe-area inset, so the notch band matches
+       the surface the book lies on rather than flashing a different colour. */
+    background-color: var(--color-desk-b);
     color: var(--color-ink-100);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -227,7 +234,7 @@
   .skeleton {
     position: relative;
     overflow: hidden;
-    background-color: var(--color-ink-800);
+    background-color: color-mix(in oklab, var(--color-quill) 9%, transparent);
   }
   .skeleton::after {
     content: "";
@@ -259,7 +266,7 @@
     height: 8px;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--color-ink-700);
+    background: color-mix(in oklab, var(--color-quill) 22%, transparent);
     border-radius: 9999px;
   }
 }
@@ -365,6 +372,14 @@
     pointer-events: none;
     border: 1px dashed rgb(255 225 180 / 0.22);
     border-radius: 3px;
+  }
+
+  /* A block of entries on the leaf. Tinted with the page's own ink rather than
+     a fixed colour, so one rule works in both lights. */
+  .leaf-panel {
+    border: 1px solid var(--color-rule);
+    border-radius: 2px;
+    background: color-mix(in oklab, var(--color-quill) 3%, transparent);
   }
 
   /* The typographic heart of the app: hairline rules between entries, a

@@ -20,7 +20,7 @@ import { CURRENCIES, PAY_CYCLES } from "@/lib/constants";
 import { Button, Card, PageHeader, Spinner } from "@/components/ui";
 
 const controlCls =
-  "h-11 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-ink-50 focus:border-teal-500 focus:outline-none";
+  "h-11 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-quill focus:border-teal-500 focus:outline-none";
 
 export function Settings() {
   const { user, signOut } = useAuth();
@@ -40,7 +40,7 @@ export function Settings() {
         <div className="space-y-4">
           <Card className="space-y-4">
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink-300">
+              <span className="mb-1.5 block text-sm font-medium text-quill-soft">
                 Base currency
               </span>
               <select
@@ -57,7 +57,7 @@ export function Settings() {
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-ink-300">
+              <span className="mb-1.5 block text-sm font-medium text-quill-soft">
                 Pay cycle
               </span>
               <select
@@ -77,60 +77,60 @@ export function Settings() {
           <Link to="/import">
             <Card className="flex items-center justify-between transition-colors hover:bg-ink-900">
               <div className="flex items-center gap-3">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-ink-800 text-ink-300">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-ink-800 text-quill-soft">
                   <Download className="size-4" />
                 </span>
                 <div>
-                  <p className="font-medium text-ink-100">Import transactions</p>
-                  <p className="text-xs text-ink-500">CommBank · CIMB · Wise · Nationwide</p>
+                  <p className="font-medium text-quill">Import transactions</p>
+                  <p className="text-xs text-quill-faint">CommBank · CIMB · Wise · Nationwide</p>
                 </div>
               </div>
-              <ChevronRight className="size-5 text-ink-500" />
+              <ChevronRight className="size-5 text-quill-faint" />
             </Card>
           </Link>
 
           <Link to="/categories">
             <Card className="flex items-center justify-between transition-colors hover:bg-ink-900">
               <div className="flex items-center gap-3">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-ink-800 text-ink-300">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-ink-800 text-quill-soft">
                   <Tag className="size-4" />
                 </span>
                 <div>
-                  <p className="font-medium text-ink-100">Categories</p>
-                  <p className="text-xs text-ink-500">Organise spending & budgets</p>
+                  <p className="font-medium text-quill">Categories</p>
+                  <p className="text-xs text-quill-faint">Organise spending & budgets</p>
                 </div>
               </div>
-              <ChevronRight className="size-5 text-ink-500" />
+              <ChevronRight className="size-5 text-quill-faint" />
             </Card>
           </Link>
 
           <Link to="/budgets">
             <Card className="flex items-center justify-between transition-colors hover:bg-ink-900">
               <div className="flex items-center gap-3">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-ink-800 text-ink-300">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-ink-800 text-quill-soft">
                   <Target className="size-4" />
                 </span>
                 <div>
-                  <p className="font-medium text-ink-100">Budgets</p>
-                  <p className="text-xs text-ink-500">Monthly limits per category</p>
+                  <p className="font-medium text-quill">Budgets</p>
+                  <p className="text-xs text-quill-faint">Monthly limits per category</p>
                 </div>
               </div>
-              <ChevronRight className="size-5 text-ink-500" />
+              <ChevronRight className="size-5 text-quill-faint" />
             </Card>
           </Link>
 
           <Link to="/merchants">
             <Card className="flex items-center justify-between transition-colors hover:bg-ink-900">
               <div className="flex items-center gap-3">
-                <span className="flex size-9 items-center justify-center rounded-lg bg-ink-800 text-ink-300">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-ink-800 text-quill-soft">
                   <Store className="size-4" />
                 </span>
                 <div>
-                  <p className="font-medium text-ink-100">Merchants</p>
-                  <p className="text-xs text-ink-500">Group & rename bank descriptors</p>
+                  <p className="font-medium text-quill">Merchants</p>
+                  <p className="text-xs text-quill-faint">Group & rename bank descriptors</p>
                 </div>
               </div>
-              <ChevronRight className="size-5 text-ink-500" />
+              <ChevronRight className="size-5 text-quill-faint" />
             </Card>
           </Link>
 
@@ -142,11 +142,11 @@ export function Settings() {
                     <ShieldCheck className="size-4" />
                   </span>
                   <div>
-                    <p className="font-medium text-ink-100">Approvals</p>
-                    <p className="text-xs text-ink-500">Review beta sign-ups</p>
+                    <p className="font-medium text-quill">Approvals</p>
+                    <p className="text-xs text-quill-faint">Review beta sign-ups</p>
                   </div>
                 </div>
-                <ChevronRight className="size-5 text-ink-500" />
+                <ChevronRight className="size-5 text-quill-faint" />
               </Card>
             </Link>
           )}
@@ -157,15 +157,15 @@ export function Settings() {
 
           <Card className="flex items-center justify-between">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-ink-200">Signed in as</p>
-              <p className="truncate text-sm text-ink-500">{user?.email}</p>
+              <p className="text-sm font-medium text-quill">Signed in as</p>
+              <p className="truncate text-sm text-quill-faint">{user?.email}</p>
             </div>
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="size-4" /> Sign out
             </Button>
           </Card>
 
-          <p className="px-1 text-center text-xs text-ink-600">
+          <p className="px-1 text-center text-xs text-quill-faint">
             Estuary · dual-currency cash-flow tracker
           </p>
         </div>
@@ -227,8 +227,8 @@ function ZenithSync({ baseCurrency }: { baseCurrency: string }) {
             <TrendingUp className="size-4" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold text-ink-200">Investments · Zenith</h2>
-            <p className="mt-0.5 text-xs text-ink-500">
+            <h2 className="text-sm font-semibold text-quill">Investments · Zenith</h2>
+            <p className="mt-0.5 text-xs text-quill-faint">
               {snapshot
                 ? `${formatMoney(totalBase, baseCurrency)} · ${n} account${n === 1 ? "" : "s"}${
                     snapshot.as_of
@@ -242,7 +242,7 @@ function ZenithSync({ baseCurrency }: { baseCurrency: string }) {
         {snapshot && (
           <button
             onClick={() => clear.mutate("zenith")}
-            className="shrink-0 text-xs text-ink-500 transition-colors hover:text-rose-400"
+            className="shrink-0 text-xs text-quill-faint transition-colors hover:text-rose-400"
           >
             Disconnect
           </button>
@@ -265,11 +265,11 @@ function ZenithSync({ baseCurrency }: { baseCurrency: string }) {
             placeholder={
               '{ "base_currency": "AUD", "total": 42150,\n  "accounts": [ { "name": "IBKR", "currency": "USD", "value": 21000 } ] }'
             }
-            className="w-full rounded-xl border border-ink-700 bg-ink-950/60 p-3 font-mono text-xs text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none"
+            className="w-full rounded-xl border border-rule bg-ink-950/60 p-3 font-mono text-xs text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none"
           />
           {error && <p className="text-xs text-rose-400">{error}</p>}
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-ink-600">
+            <p className="text-xs text-quill-faint">
               Zenith writes this live; paste an export to sync manually.
             </p>
             <Button
@@ -302,8 +302,8 @@ function ExchangeRates({ baseCurrency }: { baseCurrency: string }) {
     <Card className="space-y-3">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-ink-200">Exchange rates</h2>
-          <p className="mt-0.5 text-xs text-ink-500">
+          <h2 className="text-sm font-semibold text-quill">Exchange rates</h2>
+          <p className="mt-0.5 text-xs text-quill-faint">
             {isFetching
               ? "Fetching live rates…"
               : isError
@@ -317,7 +317,7 @@ function ExchangeRates({ baseCurrency }: { baseCurrency: string }) {
           onClick={() => void refetch()}
           disabled={isFetching}
           aria-label="Refresh rates"
-          className="flex size-8 items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200 disabled:opacity-40"
+          className="flex size-8 items-center justify-center rounded-lg text-quill-faint transition-colors hover:bg-ink-800 hover:text-quill disabled:opacity-40"
         >
           <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
         </button>
@@ -386,7 +386,7 @@ function RateRow({
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
-        <span className="w-24 text-sm text-ink-300">1 {from} =</span>
+        <span className="w-24 text-sm text-quill-soft">1 {from} =</span>
         <input
           type="number"
           inputMode="decimal"
@@ -396,9 +396,9 @@ function RateRow({
           onChange={(e) => setValue(e.target.value)}
           onBlur={save}
           placeholder={liveStr ?? "0.0000"}
-          className="tnum h-10 flex-1 rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-ink-50 focus:border-teal-500 focus:outline-none"
+          className="tnum h-10 flex-1 rounded-xl border border-rule bg-ink-950/60 px-3 text-quill focus:border-teal-500 focus:outline-none"
         />
-        <span className="w-10 text-sm text-ink-400">{to}</span>
+        <span className="w-10 text-sm text-quill-soft">{to}</span>
         {!hasOverride && live != null && (
           <span className="shrink-0 rounded-full bg-teal-500/15 px-1.5 py-0.5 text-[10px] font-medium text-teal-400">
             Live
@@ -407,7 +407,7 @@ function RateRow({
       </div>
       {showLiveHint && (
         <div className="flex items-center gap-1.5 pl-[6.5rem]">
-          <span className="text-xs text-ink-600">live: {liveStr}</span>
+          <span className="text-xs text-quill-faint">live: {liveStr}</span>
           <button
             onClick={resetToLive}
             className="text-xs text-teal-500 transition-colors hover:text-teal-300"

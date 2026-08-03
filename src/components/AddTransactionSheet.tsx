@@ -15,7 +15,7 @@ import { convert } from "@/lib/fx";
 import type { TransactionType } from "@/lib/types";
 
 const inputCls =
-  "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
+  "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
 
 type SheetType = Extract<
   TransactionType,
@@ -202,7 +202,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet title="New transaction" onClose={onClose}>
         {accounts.length === 0 ? (
-          <p className="py-4 text-center text-sm text-ink-400">
+          <p className="py-4 text-center text-sm text-quill-soft">
             Add an account first, then you can record transactions.
           </p>
         ) : (
@@ -217,7 +217,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                     "h-9 rounded-xl border text-xs font-medium transition-colors",
                     type === t
                       ? "border-teal-500 bg-teal-500/10 text-teal-300"
-                      : "border-ink-700 text-ink-400",
+                      : "border-rule text-quill-soft",
                   )}
                 >
                   {TYPE_LABELS[t]}
@@ -226,13 +226,13 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
             </div>
 
             {notEnoughAccounts ? (
-              <p className="py-4 text-center text-sm text-ink-400">
+              <p className="py-4 text-center text-sm text-quill-soft">
                 You need at least two accounts to make a transfer.
               </p>
             ) : (
               <>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-ink-400">
+                  <label className="mb-1 block text-xs font-medium text-quill-soft">
                     Amount {isTransfer ? "sent" : ""}
                   </label>
                   <div className={cn("flex gap-2", showCurrency && "items-stretch")}>
@@ -267,7 +267,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                       </select>
                     ) : (
                       from && (
-                        <span className="flex h-9 shrink-0 items-center rounded-xl border border-ink-800 bg-ink-950/40 px-3 text-sm text-ink-500">
+                        <span className="flex h-9 shrink-0 items-center rounded-xl border border-rule bg-ink-950/40 px-3 text-sm text-quill-faint">
                           {from.currency}
                         </span>
                       )
@@ -325,15 +325,15 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                     )}
 
                     {showRate ? (
-                      <div className="space-y-3 rounded-xl border border-ink-700/70 bg-ink-950/40 p-3">
-                        <div className="flex items-center gap-2 text-xs text-ink-400">
+                      <div className="space-y-3 rounded-xl border border-rule/70 bg-ink-950/40 p-3">
+                        <div className="flex items-center gap-2 text-xs text-quill-soft">
                           {fromCurrency}
                           <ArrowRight className="size-3.5" />
                           {to?.currency}
                           {crossCurrency && " · cross-currency transfer"}
                         </div>
 
-                        <label className="block text-xs font-medium text-ink-400">
+                        <label className="block text-xs font-medium text-quill-soft">
                           Exchange rate (1 {fromCurrency} → {to?.currency})
                           <input
                             type="number"
@@ -347,7 +347,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                           />
                         </label>
 
-                        <label className="block text-xs font-medium text-ink-400">
+                        <label className="block text-xs font-medium text-quill-soft">
                           Amount received ({to?.currency})
                           <input
                             type="number"
@@ -362,7 +362,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                         </label>
 
                         {Number(amount) > 0 && Number(destAmount) > 0 && (
-                          <p className="text-xs text-ink-500">
+                          <p className="text-xs text-quill-faint">
                             {Number(amount).toFixed(2)} {fromCurrency}
                             {Number(fee) > 0 &&
                               ` − ${Number(fee).toFixed(2)} fee`}{" "}
@@ -374,7 +374,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                       to &&
                       Number(fee) > 0 &&
                       Number(amount) > 0 && (
-                        <p className="text-xs text-ink-500">
+                        <p className="text-xs text-quill-faint">
                           {Number(amount).toFixed(2)} {fromCurrency} −{" "}
                           {Number(fee).toFixed(2)} fee ={" "}
                           {Math.max(0, Number(amount) - Number(fee)).toFixed(2)}{" "}
@@ -449,12 +449,12 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
 
                 {/* Reimbursable toggle — only for expenses */}
                 {type === "expense" && (
-                  <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-ink-700/60 bg-ink-950/30 p-3">
+                  <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-rule/60 bg-ink-950/30 p-3">
                     <div>
-                      <p className="text-sm font-medium text-ink-200">
+                      <p className="text-sm font-medium text-quill">
                         Reimbursable
                       </p>
-                      <p className="text-xs text-ink-500">
+                      <p className="text-xs text-quill-faint">
                         I'll be paid back — excluded from net cashflow
                       </p>
                     </div>
@@ -517,7 +517,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-ink-400">
+      <span className="mb-1 block text-xs font-medium text-quill-soft">
         {label}
       </span>
       {children}

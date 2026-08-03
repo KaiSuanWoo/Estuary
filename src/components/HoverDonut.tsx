@@ -48,10 +48,10 @@ export function HoverDonut({
         <p className="text-[11px] font-medium" style={{ color: cur?.color }}>
           {cur?.name ?? ""}
         </p>
-        <p className="tnum text-sm font-semibold text-ink-50">
+        <p className="tnum text-sm font-semibold text-quill">
           {cur ? formatMoney(cur.value, base) : ""}
           {cur && (
-            <span className="ml-1 text-xs font-normal text-ink-500">
+            <span className="ml-1 text-xs font-normal text-quill-faint">
               {Math.round((cur.value / total) * 100)}%
             </span>
           )}
@@ -85,7 +85,7 @@ export function HoverDonut({
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[11px] text-ink-500">{cur ? cur.name : centerLabel}</span>
+            <span className="text-[11px] text-quill-faint">{cur ? cur.name : centerLabel}</span>
             <span
               className="tnum text-sm font-semibold"
               style={{ color: cur ? cur.color : undefined }}
@@ -111,8 +111,8 @@ export function HoverDonut({
                   className="size-2.5 shrink-0 rounded-full"
                   style={{ backgroundColor: s.color }}
                 />
-                <span className="flex-1 truncate text-ink-300">{s.name}</span>
-                <span className="tnum shrink-0 text-ink-400">
+                <span className="flex-1 truncate text-quill-soft">{s.name}</span>
+                <span className="tnum shrink-0 text-quill-soft">
                   {formatMoney(s.value, base)}
                 </span>
               </li>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { format, subMonths } from "date-fns";
 import { ChevronDown, ChevronLeft, ChevronRight, Plane, Plus, Target } from "lucide-react";
@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useLeafScroll } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useCategories } from "@/hooks/useCategories";
@@ -211,24 +212,24 @@ export function Dashboard() {
     <div>
       <header className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-quill">
             Overview
           </h1>
           <div className="mt-0.5 flex items-center gap-0.5">
             <button
               onClick={() => setMonthBack((m) => m + 1)}
-              className="flex size-6 items-center justify-center rounded-md text-ink-500 hover:bg-ink-800 hover:text-ink-200 transition-colors"
+              className="flex size-6 items-center justify-center rounded-md text-quill-faint hover:bg-ink-800 hover:text-quill transition-colors"
               aria-label="Previous month"
             >
               <ChevronLeft className="size-4" />
             </button>
-            <span className="min-w-[7rem] text-center text-sm text-ink-400">
+            <span className="min-w-[7rem] text-center text-sm text-quill-soft">
               {monthLabel(refDate)}
             </span>
             <button
               onClick={() => setMonthBack((m) => Math.max(m - 1, 0))}
               disabled={monthBack === 0}
-              className="flex size-6 items-center justify-center rounded-md text-ink-500 hover:bg-ink-800 hover:text-ink-200 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+              className="flex size-6 items-center justify-center rounded-md text-quill-faint hover:bg-ink-800 hover:text-quill transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
               aria-label="Next month"
             >
               <ChevronRight className="size-4" />
@@ -237,7 +238,7 @@ export function Dashboard() {
         </div>
 
         {/* Cashflow mode toggle */}
-        <div className="flex items-center gap-1 rounded-xl border border-ink-700/60 bg-ink-900/60 p-1">
+        <div className="flex items-center gap-1 rounded-xl border border-rule/60 bg-ink-900/60 p-1">
           {(["gross", "net"] as CashflowMode[]).map((m) => (
             <button
               key={m}
@@ -245,8 +246,8 @@ export function Dashboard() {
               className={cn(
                 "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-colors",
                 cashflowMode === m
-                  ? "bg-ink-700 text-ink-100"
-                  : "text-ink-500 hover:text-ink-300",
+                  ? "bg-ink-700 text-quill"
+                  : "text-quill-faint hover:text-quill-soft",
               )}
             >
               {m}
@@ -280,7 +281,7 @@ export function Dashboard() {
               value={accountFilter}
               onChange={(e) => setAccountFilter(e.target.value)}
               className={cn(
-                "h-9 w-full appearance-none rounded-xl border border-ink-700 bg-ink-900/60 pr-9 text-sm font-medium text-ink-100 focus:border-teal-500 focus:outline-none",
+                "h-9 w-full appearance-none rounded-xl border border-rule bg-ink-900/60 pr-9 text-sm font-medium text-quill focus:border-teal-500 focus:outline-none",
                 accountFilter ? "pl-8" : "pl-3",
               )}
             >
@@ -291,7 +292,7 @@ export function Dashboard() {
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-ink-500" />
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-quill-faint" />
           </div>
         </div>
       )}
@@ -331,9 +332,9 @@ export function Dashboard() {
 
       {showInvest && (
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-ink-800/70 px-2.5 py-1 text-ink-300">
+          <span className="rounded-full bg-ink-800/70 px-2.5 py-1 text-quill-soft">
             Cash{" "}
-            <span className="tnum text-ink-100">
+            <span className="tnum text-quill">
               {formatMoney(combinedNetWorth - investBase, baseCurrency)}
             </span>
           </span>
@@ -349,9 +350,9 @@ export function Dashboard() {
           {Object.entries(byCurrency).map(([c, v]) => (
             <span
               key={c}
-              className="tnum rounded-full bg-ink-800/70 px-2.5 py-1 text-xs text-ink-300"
+              className="tnum rounded-full bg-ink-800/70 px-2.5 py-1 text-xs text-quill-soft"
             >
-              {formatMoney(v, c)} <span className="text-ink-500">{c}</span>
+              {formatMoney(v, c)} <span className="text-quill-faint">{c}</span>
             </span>
           ))}
           {missing.length > 0 && (
@@ -453,10 +454,10 @@ export function Dashboard() {
                     <li key={b.id}>
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-ink-100">
+                          <p className="truncate text-sm font-medium text-quill">
                             {b.name}
                           </p>
-                          <p className="text-xs text-ink-500">
+                          <p className="text-xs text-quill-faint">
                             {periodLabel(b)}
                             {pacing.daysLeft != null &&
                               ` · ${pacing.daysLeft === 0 ? "ends today" : `${pacing.daysLeft}d left`}`}
@@ -466,13 +467,13 @@ export function Dashboard() {
                           <span
                             className={cn(
                               "tnum text-sm font-medium",
-                              left < 0 ? "text-rose-400" : "text-ink-200",
+                              left < 0 ? "text-rose-400" : "text-quill",
                             )}
                           >
                             {formatMoney(Math.abs(left), baseCurrency)}{" "}
                             {left < 0 ? "over" : "left"}
                           </span>
-                          <p className="tnum text-[11px] text-ink-500">
+                          <p className="tnum text-[11px] text-quill-faint">
                             {Math.round(ratio * 100)}% used
                           </p>
                         </div>
@@ -492,7 +493,7 @@ export function Dashboard() {
                   <li>
                     <Link
                       to="/budgets"
-                      className="block pt-1 text-xs text-ink-500 hover:text-teal-300"
+                      className="block pt-1 text-xs text-quill-faint hover:text-teal-300"
                     >
                       +{expenseRows.length - 4} more
                     </Link>
@@ -525,10 +526,10 @@ export function Dashboard() {
                 <li key={b.id}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink-100">
+                      <p className="truncate text-sm font-medium text-quill">
                         {b.name}
                       </p>
-                      <p className="text-xs text-ink-500">
+                      <p className="text-xs text-quill-faint">
                         {funding.daysLeft == null
                           ? "Goal"
                           : funding.daysLeft < 0
@@ -538,7 +539,7 @@ export function Dashboard() {
                     </div>
                     <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
                       {formatMoney(funding.funded, baseCurrency)}
-                      <span className="text-ink-600">
+                      <span className="text-quill-faint">
                         {" "}
                         / {formatMoney(b.amount, baseCurrency)}
                       </span>
@@ -561,14 +562,14 @@ export function Dashboard() {
                     <li key={b.id}>
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-ink-100">
+                          <p className="truncate text-sm font-medium text-quill">
                             {b.name}
                           </p>
-                          <p className="text-xs text-ink-500">{periodLabel(b)}</p>
+                          <p className="text-xs text-quill-faint">{periodLabel(b)}</p>
                         </div>
                         <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
                           {formatMoney(spent, baseCurrency)}
-                          <span className="text-ink-600">
+                          <span className="text-quill-faint">
                             {" "}
                             / {formatMoney(b.amount, baseCurrency)}
                           </span>
@@ -583,7 +584,7 @@ export function Dashboard() {
                 <li>
                   <Link
                     to="/budgets"
-                    className="block pt-1 text-xs text-ink-500 hover:text-teal-300"
+                    className="block pt-1 text-xs text-quill-faint hover:text-teal-300"
                   >
                     +{goalRows.length + savingRows.length - 4} more
                   </Link>
@@ -626,20 +627,20 @@ function Stat({
 
   return (
     <Card className="min-w-0 p-3.5 lg:p-4">
-      <p className="truncate text-xs font-medium text-ink-400">
-        {label} {sub && <span className="text-ink-600">· {sub}</span>}
+      <p className="truncate text-xs font-medium text-quill-soft">
+        {label} {sub && <span className="text-quill-faint">· {sub}</span>}
       </p>
       <p
         className={cn(
           "tnum mt-1 break-words font-semibold leading-tight tracking-tight",
           size,
           accent
-            ? "text-ink-50"
+            ? "text-quill"
             : tone === "up"
               ? "text-teal-400"
               : tone === "down"
                 ? "text-rose-400"
-                : "text-ink-100",
+                : "text-quill",
         )}
       >
         {value}
@@ -665,8 +666,8 @@ function Widget({
     <Card className={cn("flex min-w-0 flex-col", className)}>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-ink-200">{title}</h2>
-          {hint && <p className="text-xs text-ink-500">{hint}</p>}
+          <h2 className="text-sm font-semibold text-quill">{title}</h2>
+          {hint && <p className="text-xs text-quill-faint">{hint}</p>}
         </div>
         {action}
       </div>
@@ -754,7 +755,7 @@ function InvestmentsList({
   return (
     <div>
       <div className="mb-3 flex items-end justify-between">
-        <span className="text-xs text-ink-500">Portfolio value</span>
+        <span className="text-xs text-quill-faint">Portfolio value</span>
         <span className="tnum text-lg font-semibold text-violet-300">
           {formatMoney(investBase, base)}
         </span>
@@ -768,19 +769,19 @@ function InvestmentsList({
             >
               <span className="flex min-w-0 items-center gap-2">
                 <span className="size-2 shrink-0 rounded-full bg-violet-400" />
-                <span className="truncate text-ink-200">{a.name}</span>
+                <span className="truncate text-quill">{a.name}</span>
               </span>
-              <span className="tnum shrink-0 text-ink-300">
+              <span className="tnum shrink-0 text-quill-soft">
                 {formatMoney(a.value, a.currency)}
                 {a.currency !== base && (
-                  <span className="ml-1 text-ink-600">{a.currency}</span>
+                  <span className="ml-1 text-quill-faint">{a.currency}</span>
                 )}
               </span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-ink-500">
+        <p className="text-sm text-quill-faint">
           Portfolio total only — no per-account breakdown provided.
         </p>
       )}
@@ -801,13 +802,13 @@ function BudgetSummaryRow({
   const ratio = budget > 0 ? spent / budget : 0;
   const remaining = budget - spent;
   const tone =
-    ratio > 1 ? "text-rose-400" : ratio > 0.85 ? "text-amber-400" : "text-ink-200";
+    ratio > 1 ? "text-rose-400" : ratio > 0.85 ? "text-amber-400" : "text-quill";
   return (
-    <div className="rounded-xl border border-ink-800 bg-ink-950/40 p-3">
+    <div className="rounded-xl border border-rule bg-ink-950/40 p-3">
       <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="font-medium text-ink-400">
+        <span className="font-medium text-quill-soft">
           All budgets{" "}
-          <span className="tnum text-ink-600">
+          <span className="tnum text-quill-faint">
             · {formatMoney(spent, base)} / {formatMoney(budget, base)}
           </span>
         </span>
@@ -902,7 +903,7 @@ function CashflowBars({
 
 function ChartEmpty({ label }: { label: string }) {
   return (
-    <div className="flex h-[180px] items-center justify-center rounded-xl border border-dashed border-ink-800 text-center text-sm text-ink-500">
+    <div className="flex h-[180px] items-center justify-center rounded-xl border border-dashed border-rule text-center text-sm text-quill-faint">
       {label}
     </div>
   );
@@ -921,19 +922,14 @@ export function FloatingAdd({
   // `className` lets pages with their own floating stacks (Activity) slot it
   // higher so nothing overlaps.
   const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 300);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  useLeafScroll((y) => setScrolled(y > 300));
 
   return (
     <button
       onClick={onClick}
       aria-label="Add transaction"
       className={cn(
-        "fixed bottom-24 right-5 z-20 flex size-14 items-center justify-center rounded-full bg-teal-500 text-ink-950 shadow-lg shadow-teal-500/20 transition-all hover:bg-teal-400 active:scale-95 lg:bottom-8 lg:right-8",
+        "brass-face fixed bottom-6 right-16 z-20 flex size-14 items-center justify-center rounded-full shadow-[0_6px_18px_rgb(0_0_0/0.45)] transition-all active:scale-95 lg:right-24",
         !scrolled && "lg:pointer-events-none lg:translate-y-2 lg:opacity-0",
         className,
       )}

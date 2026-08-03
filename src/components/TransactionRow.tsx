@@ -130,7 +130,7 @@ export function TransactionRow({
         <div
           className={cn(
             "flex size-10 shrink-0 items-center justify-center rounded-full",
-            reimb ? "bg-ink-800 text-ink-400" : style.icon,
+            reimb ? "bg-ink-800 text-quill-soft" : style.icon,
           )}
         >
           <Icon className="size-5" />
@@ -146,18 +146,18 @@ export function TransactionRow({
               aria-label="Flagged for review"
             />
           )}
-          <p className="truncate font-medium text-ink-100">{title}</p>
+          <p className="truncate font-medium text-quill">{title}</p>
         </div>
         {(detail || accountName) && (
-          <p className="truncate text-sm text-ink-500">
+          <p className="truncate text-sm text-quill-faint">
             {detail && (
               <>
                 {detail}
-                {accountName && <span className="text-ink-700"> · </span>}
+                {accountName && <span className="text-quill-faint"> · </span>}
               </>
             )}
             {accountName && (
-              <span className="text-ink-400">{accountName}</span>
+              <span className="text-quill-soft">{accountName}</span>
             )}
           </p>
         )}
@@ -167,39 +167,39 @@ export function TransactionRow({
         {isExcluded ? (
           // Excluded — amount shown struck through with cancel icon
           <>
-            <span className="tnum font-medium text-ink-500 line-through">
+            <span className="tnum font-medium text-quill-faint line-through">
               {formatSignedMoney(tx.amount, tx.currency, tx.type)}
             </span>
-            <span className="flex items-center gap-1 text-[10px] text-ink-600">
+            <span className="flex items-center gap-1 text-[10px] text-quill-faint">
               <Ban className="size-3" /> excluded
             </span>
           </>
         ) : netAmt !== null ? (
           // Reimbursable expense with some money back — gross struck through + net
           <>
-            <span className="tnum text-xs font-medium text-ink-600 line-through">
+            <span className="tnum text-xs font-medium text-quill-faint line-through">
               {formatSignedMoney(tx.amount, tx.currency, tx.type)}
             </span>
-            <span className="tnum font-medium text-ink-100">
+            <span className="tnum font-medium text-quill">
               {formatSignedMoney(netAmt, tx.currency, tx.type)}
             </span>
-            <span className="text-[10px] text-ink-500">net</span>
+            <span className="text-[10px] text-quill-faint">net</span>
           </>
         ) : reimb ? (
           // Repayment — gross struck through, net (unallocated) income below
           <>
-            <span className="tnum text-xs font-medium text-ink-600 line-through">
+            <span className="tnum text-xs font-medium text-quill-faint line-through">
               {formatSignedMoney(tx.amount, tx.currency, tx.type)}
             </span>
             <span
               className={cn(
                 "tnum font-medium",
-                reimbNet > 0 ? "text-teal-400" : "text-ink-400",
+                reimbNet > 0 ? "text-teal-400" : "text-quill-soft",
               )}
             >
               {formatSignedMoney(reimbNet, tx.currency, tx.type)}
             </span>
-            <span className="text-[10px] text-ink-500">net</span>
+            <span className="text-[10px] text-quill-faint">net</span>
           </>
         ) : (
           // Normal display

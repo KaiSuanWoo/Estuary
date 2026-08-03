@@ -34,11 +34,11 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       return (
         <div className="flex min-h-full flex-col items-center justify-center px-6 text-center">
-          <div className="w-full max-w-sm rounded-2xl border border-ink-800/80 bg-ink-900/60 p-6">
-            <h1 className="text-lg font-semibold text-ink-50">
+          <div className="w-full max-w-sm rounded-2xl border border-rule/80 bg-ink-900/60 p-6">
+            <h1 className="text-lg font-semibold text-quill">
               Something went wrong
             </h1>
-            <p className="mt-2 text-sm text-ink-400">
+            <p className="mt-2 text-sm text-quill-soft">
               The app hit an unexpected error. Reloading usually fixes it — your
               data is safe.
             </p>

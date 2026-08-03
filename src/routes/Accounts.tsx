@@ -25,7 +25,7 @@ import type { Account, AccountType } from "@/lib/types";
 import type { Transaction } from "@/lib/types";
 
 const inputCls =
-  "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
+  "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
 
 const ACCOUNT_TYPES: AccountType[] = [
   "checking",
@@ -75,7 +75,7 @@ export function Accounts() {
       ) : (
         <>
           {accounts.length > 1 && (
-            <p className="mb-3 text-xs text-ink-500">
+            <p className="mb-3 text-xs text-quill-faint">
               Drag to reorder — the top account is your default for new
               transactions.
             </p>
@@ -195,7 +195,7 @@ function AccountRow({
           type="button"
           aria-label={`Reorder ${a.name}`}
           onPointerDown={(e) => controls.start(e)}
-          className="-ml-1 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-ink-600 transition-colors hover:text-ink-300 active:cursor-grabbing"
+          className="-ml-1 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-quill-faint transition-colors hover:text-quill-soft active:cursor-grabbing"
         >
           <GripVertical className="size-4" />
         </button>
@@ -204,7 +204,7 @@ function AccountRow({
         <span className={cn("size-2.5 shrink-0 rounded-full", col.dot)} />
 
         <Link to={`/transactions?account=${a.id}`} className="group min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 font-medium text-ink-100 transition-colors group-hover:text-teal-300">
+          <p className="flex items-center gap-1.5 font-medium text-quill transition-colors group-hover:text-teal-300">
             <span className="truncate">{a.name}</span>
             {isDefault && (
               <span className="shrink-0 rounded-full bg-teal-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-teal-300">
@@ -217,7 +217,7 @@ function AccountRow({
               </span>
             )}
           </p>
-          <p className="text-sm text-ink-500">
+          <p className="text-sm text-quill-faint">
             <span className={col.text}>{ACCOUNT_TYPE_LABELS[a.type]}</span>
             {" · "}
             {available != null
@@ -240,12 +240,12 @@ function AccountRow({
                 i === 0
                   ? isCredit
                     ? "text-lg text-rose-300"
-                    : "text-lg text-ink-50"
-                  : "text-xs text-ink-400",
+                    : "text-lg text-quill"
+                  : "text-xs text-quill-soft",
               )}
             >
               {formatMoney(balances[c] ?? 0, c)}
-              {multi && <span className="ml-1 text-ink-600">{c}</span>}
+              {multi && <span className="ml-1 text-quill-faint">{c}</span>}
             </span>
           ))}
         </Link>
@@ -253,7 +253,7 @@ function AccountRow({
         <button
           onClick={() => onEdit(a)}
           aria-label={`Edit ${a.name}`}
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-quill-faint transition-colors hover:bg-ink-800 hover:text-quill"
         >
           <MoreHorizontal className="size-4" />
         </button>
@@ -273,7 +273,7 @@ function TypePicker({
 }) {
   return (
     <div>
-      <span className="mb-1 block text-xs font-medium text-ink-400">Type</span>
+      <span className="mb-1 block text-xs font-medium text-quill-soft">Type</span>
       <div className="grid grid-cols-3 gap-1.5">
         {ACCOUNT_TYPES.map((t) => {
           const col = ACCOUNT_TYPE_COLORS[t];
@@ -287,7 +287,7 @@ function TypePicker({
                 "h-9 rounded-xl border text-xs font-medium transition-colors",
                 active
                   ? cn(col.border, col.bg, col.text)
-                  : "border-ink-700 text-ink-400 hover:border-ink-600",
+                  : "border-rule text-quill-soft hover:border-rule",
               )}
             >
               {t === "investmentCash"
@@ -313,10 +313,10 @@ function MultiCurrencyToggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-ink-700/60 bg-ink-950/30 p-3">
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-rule/60 bg-ink-950/30 p-3">
       <div>
-        <p className="text-sm font-medium text-ink-200">Multi-currency account</p>
-        <p className="text-xs text-ink-500">
+        <p className="text-sm font-medium text-quill">Multi-currency account</p>
+        <p className="text-xs text-quill-faint">
           Holds balances in more than one currency (e.g. Wise)
         </p>
       </div>
@@ -364,7 +364,7 @@ function EditAccountSheet({
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   const smInput =
-    "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
+    "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -401,7 +401,7 @@ function EditAccountSheet({
         <form onSubmit={onSubmit} className="space-y-3">
           <div className="grid grid-cols-[1fr_5rem] gap-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">Name</span>
+              <span className="mb-1 block text-xs font-medium text-quill-soft">Name</span>
               <input
                 required
                 value={name}
@@ -410,7 +410,7 @@ function EditAccountSheet({
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
                 {isMulti ? "Primary" : "Currency"}
               </span>
               <input
@@ -427,7 +427,7 @@ function EditAccountSheet({
 
           {type === "credit" ? (
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
                 Credit limit (optional)
               </span>
               <input
@@ -446,7 +446,7 @@ function EditAccountSheet({
           )}
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">
+            <span className="mb-1 block text-xs font-medium text-quill-soft">
               {type === "credit"
                 ? "Current balance (negative = owing)"
                 : isMulti
@@ -483,13 +483,13 @@ function EditAccountSheet({
         {/* Linked accounts are valued by Zenith — nothing local to reconcile. */}
         {!isLinked && <ReconcileSection account={account} />}
 
-        <div className="mt-3 border-t border-ink-800 pt-3">
+        <div className="mt-3 border-t border-rule pt-3">
           {confirmArchive ? (
             <div className="flex items-center gap-3">
-              <p className="flex-1 text-xs text-ink-400">Archive this account?</p>
+              <p className="flex-1 text-xs text-quill-soft">Archive this account?</p>
               <button
                 onClick={() => setConfirmArchive(false)}
-                className="text-xs text-ink-400 hover:text-ink-200"
+                className="text-xs text-quill-soft hover:text-quill"
               >
                 Cancel
               </button>
@@ -501,7 +501,7 @@ function EditAccountSheet({
             <button
               type="button"
               onClick={() => setConfirmArchive(true)}
-              className="flex w-full items-center justify-center gap-2 text-xs text-ink-500 transition-colors hover:text-red-400"
+              className="flex w-full items-center justify-center gap-2 text-xs text-quill-faint transition-colors hover:text-red-400"
             >
               Archive account
             </button>
@@ -546,9 +546,9 @@ function ReconcileSection({ account }: { account: Account }) {
   }
 
   return (
-    <div className="mt-3 border-t border-ink-800 pt-3">
+    <div className="mt-3 border-t border-rule pt-3">
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <p className="text-xs font-medium text-ink-400">Reconcile with your bank</p>
+        <p className="text-xs font-medium text-quill-soft">Reconcile with your bank</p>
         {shown && (
           <p
             className={cn(
@@ -571,7 +571,7 @@ function ReconcileSection({ account }: { account: Account }) {
           value={stated}
           onChange={(e) => setStated(e.target.value)}
           placeholder={`Bank shows… (${account.currency})`}
-          className="tnum h-9 flex-1 rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none"
+          className="tnum h-9 flex-1 rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none"
         />
         <Button
           size="sm"
@@ -583,7 +583,7 @@ function ReconcileSection({ account }: { account: Account }) {
           {create.isPending ? "Checking…" : "Check"}
         </Button>
       </div>
-      <p className="tnum mt-1.5 text-xs text-ink-600">
+      <p className="tnum mt-1.5 text-xs text-quill-faint">
         Estuary computes {formatMoney(computed, account.currency)}
         {stated.trim() !== "" && Number.isFinite(Number(stated)) && (
           <>
@@ -625,7 +625,7 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
         <form onSubmit={onSubmit} className="space-y-3">
           <div className="grid grid-cols-[1fr_5rem] gap-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">Name</span>
+              <span className="mb-1 block text-xs font-medium text-quill-soft">Name</span>
               <input
                 required
                 value={name}
@@ -635,7 +635,7 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
                 {isMulti ? "Primary" : "Currency"}
               </span>
               <input
@@ -652,7 +652,7 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
 
           {type === "credit" ? (
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
                 Credit limit (optional)
               </span>
               <input
@@ -671,7 +671,7 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
           )}
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">
+            <span className="mb-1 block text-xs font-medium text-quill-soft">
               {type === "credit"
                 ? "Current balance (negative = owing)"
                 : isMulti
