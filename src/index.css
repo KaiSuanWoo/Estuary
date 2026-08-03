@@ -39,6 +39,139 @@
   /* --- Elevation for premium frosted surfaces (nav dock, sheets) -------- */
   --shadow-float: 0 8px 30px -6px rgba(2, 10, 22, 0.55), 0 2px 8px -2px rgba(2, 10, 22, 0.4);
   --shadow-sheet: 0 -8px 40px -8px rgba(2, 10, 22, 0.7), 0 24px 48px -12px rgba(2, 10, 22, 0.6);
+
+  /* ══ The ledger ════════════════════════════════════════════════════════
+     Estuary is a leather-bound ledger. These tokens describe that object;
+     the palette above is the outgoing one and is removed screen by screen.
+
+     Values here are DAY. The lamp (below, in @layer base) redefines them for
+     night — same book, less light on it, never a second theme. Naming follows
+     bookkeeping rather than UI convention: quill is what you write with, a
+     head is a category, credit comes in and debit goes out.               */
+
+  /* The page you write on */
+  --color-page:         #efe5d2;
+  --color-page-edge:    #e2d5bc;
+  --color-quill:        #1a1512;
+  --color-quill-soft:   #6b5b48;
+  --color-quill-faint:  #a0906f;
+  --color-rule:         #c9b99a;
+  --color-rule-strong:  #8b7a5c;
+
+  /* Direction. Reserved — no head, chart or accent may borrow these. */
+  --color-credit:       #2f6b4a;
+  --color-debit:        #a32b22;
+
+  /* Heads. One ink per category, held constant across every chart, drawn
+     from ink and earth so it can never be confused with credit or debit. */
+  --color-head-1:       #33507a;  /* iron gall blue */
+  --color-head-2:       #8a5a2b;  /* sepia          */
+  --color-head-3:       #a8802f;  /* ochre          */
+  --color-head-4:       #5b6e8c;  /* slate          */
+  --color-head-5:       #6b4a5e;  /* plum           */
+  --color-head-other:   #7a6a54;  /* beyond the five */
+
+  /* The binding. Oxblood by default; four more in @layer base. */
+  --color-hide-a:       #5a1826;
+  --color-hide-b:       #330d16;
+
+  /* Hardware */
+  --color-brass-hi:     #e3c77e;
+  --color-brass:        #b08d4f;
+  --color-brass-lo:     #6e5526;
+
+  --font-ledger: "Hoefler Text", "Iowan Old Style", Baskerville, ui-serif, Georgia,
+    "Times New Roman", serif;
+
+  --shadow-book: 0 26px 50px -18px rgb(0 0 0 / 0.75), 0 4px 10px rgb(0 0 0 / 0.5);
+  --shadow-leaf: 0 2px 5px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(0 0 0 / 0.25);
+}
+
+/* ══ The lamp ════════════════════════════════════════════════════════════
+   One book under two lights. Night follows the system by default; a stored
+   preference stamps data-lamp on <html> and must win over the OS in both
+   directions, so it is declared last.                                      */
+@layer base {
+  :root {
+    --grain-page: 0.2;
+    --grain-hide: 0.5;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-page:        #2a211a;
+      --color-page-edge:   #221a14;
+      --color-quill:       #e8dcc8;
+      --color-quill-soft:  #b4a288;
+      --color-quill-faint: #7a6a54;
+      --color-rule:        #4a3b2c;
+      --color-rule-strong: #6e5a42;
+      --color-credit:      #6fae86;
+      --color-debit:       #d9705f;
+      --color-head-1:      #7fa0cc;
+      --color-head-2:      #c09468;
+      --color-head-3:      #d9b06a;
+      --color-head-4:      #94a6c0;
+      --color-head-5:      #b08ca0;
+      --color-head-other:  #8a7a62;
+      --color-brass-hi:    #c9a961;
+      --color-brass:       #8e7038;
+      --color-brass-lo:    #4e3a18;
+      --grain-page: 0.3;
+    }
+  }
+
+  :root[data-lamp="day"] {
+    --color-page:        #efe5d2;
+    --color-page-edge:   #e2d5bc;
+    --color-quill:       #1a1512;
+    --color-quill-soft:  #6b5b48;
+    --color-quill-faint: #a0906f;
+    --color-rule:        #c9b99a;
+    --color-rule-strong: #8b7a5c;
+    --color-credit:      #2f6b4a;
+    --color-debit:       #a32b22;
+    --color-head-1:      #33507a;
+    --color-head-2:      #8a5a2b;
+    --color-head-3:      #a8802f;
+    --color-head-4:      #5b6e8c;
+    --color-head-5:      #6b4a5e;
+    --color-head-other:  #7a6a54;
+    --color-brass-hi:    #e3c77e;
+    --color-brass:       #b08d4f;
+    --color-brass-lo:    #6e5526;
+    --grain-page: 0.2;
+  }
+
+  :root[data-lamp="night"] {
+    --color-page:        #2a211a;
+    --color-page-edge:   #221a14;
+    --color-quill:       #e8dcc8;
+    --color-quill-soft:  #b4a288;
+    --color-quill-faint: #7a6a54;
+    --color-rule:        #4a3b2c;
+    --color-rule-strong: #6e5a42;
+    --color-credit:      #6fae86;
+    --color-debit:       #d9705f;
+    --color-head-1:      #7fa0cc;
+    --color-head-2:      #c09468;
+    --color-head-3:      #d9b06a;
+    --color-head-4:      #94a6c0;
+    --color-head-5:      #b08ca0;
+    --color-head-other:  #8a7a62;
+    --color-brass-hi:    #c9a961;
+    --color-brass:       #8e7038;
+    --color-brass-lo:    #4e3a18;
+    --grain-page: 0.3;
+  }
+
+  /* ══ The bindings ══════════════════════════════════════════════════════
+     Oxblood is the default and needs no attribute. Only the hide changes —
+     page, ink and brass are fixed — so re-binding can't break legibility.  */
+  :root[data-hide="navy"]   { --color-hide-a: #243c5c; --color-hide-b: #101e31; }
+  :root[data-hide="forest"] { --color-hide-a: #254032; --color-hide-b: #122018; }
+  :root[data-hide="tan"]    { --color-hide-a: #9a6538; --color-hide-b: #5e3b1e; }
+  :root[data-hide="black"]  { --color-hide-a: #2a2320; --color-hide-b: #100d0b; }
 }
 
 @layer base {
@@ -128,5 +261,148 @@
   ::-webkit-scrollbar-thumb {
     background: var(--color-ink-700);
     border-radius: 9999px;
+  }
+}
+
+/* ══ Materials ═══════════════════════════════════════════════════════════
+   Leather and paper are procedural noise, never photographs — the whole
+   material layer costs a few hundred bytes and scales to any size. Both
+   surfaces lay their grain in a ::before, so their children are lifted onto
+   z-index 1; that is why the guardrail holds and texture never sits under a
+   figure.                                                                  */
+@layer components {
+  .surface-hide {
+    position: relative;
+    isolation: isolate;
+    background: linear-gradient(145deg, var(--color-hide-a), var(--color-hide-b));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.09),
+      inset 0 -18px 30px -22px rgb(0 0 0 / 0.9),
+      var(--shadow-book);
+  }
+  .surface-hide::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+    opacity: var(--grain-hide);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' seed='9'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)'/%3E%3C/svg%3E");
+  }
+
+  /* A leaf is one sheet of the book — where every figure lives. */
+  .surface-leaf {
+    position: relative;
+    isolation: isolate;
+    background: linear-gradient(180deg, var(--color-page), var(--color-page-edge));
+    color: var(--color-quill);
+    font-family: var(--font-ledger);
+    box-shadow: var(--shadow-leaf);
+  }
+  .surface-leaf::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+    opacity: var(--grain-page);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='3' seed='4'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23p)'/%3E%3C/svg%3E");
+  }
+  /* Light falls from the gutter, so the bound edge sits in shadow. */
+  .surface-leaf::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      rgb(0 0 0 / 0.16),
+      transparent 14%,
+      transparent 92%,
+      rgb(0 0 0 / 0.06)
+    );
+  }
+  .surface-hide > *,
+  .surface-leaf > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Hardware. `brass-face` fills a shape; `brass-rule` is the hairline. */
+  .brass-face {
+    background: linear-gradient(
+      135deg,
+      var(--color-brass-hi),
+      var(--color-brass) 45%,
+      var(--color-brass-lo)
+    );
+    color: #24170a;
+  }
+  .brass-rule {
+    height: 2px;
+    border: 0;
+    background: linear-gradient(
+      90deg,
+      var(--color-brass-lo),
+      var(--color-brass) 18%,
+      var(--color-brass-hi) 34%,
+      var(--color-brass) 56%,
+      transparent
+    );
+  }
+  /* The seam that runs inside the cover. */
+  .stitched::after {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    z-index: 1;
+    pointer-events: none;
+    border: 1px dashed rgb(255 225 180 / 0.22);
+    border-radius: 3px;
+  }
+
+  /* The typographic heart of the app: hairline rules between entries, a
+     double rule closing every total, and figures that align on the decimal
+     without hand-tuning. */
+  .ledger-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  .ledger-table th {
+    font-weight: 400;
+    font-variant: small-caps;
+    letter-spacing: 0.12em;
+    color: var(--color-quill-soft);
+    text-align: left;
+    padding: 0.5rem 0 0.3rem;
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .ledger-table td {
+    padding: 0.42rem 0;
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .ledger-table th.num,
+  .ledger-table td.num {
+    text-align: right;
+  }
+  .ledger-table tr:last-child td {
+    border-bottom: 0;
+  }
+  /* `tr.total` not `.total` — the total is usually also the last row, and
+     `tr:last-child td` above would otherwise strip the double rule that closes
+     an account. Matched specificity, declared later, so this wins. */
+  .ledger-table tr.total td {
+    border-top: 1px solid var(--color-rule-strong);
+    border-bottom: 3px double var(--color-rule-strong);
+    padding-top: 0.55rem;
+    font-variant: small-caps;
+    letter-spacing: 0.06em;
   }
 }
