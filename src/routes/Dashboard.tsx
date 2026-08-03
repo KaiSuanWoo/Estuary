@@ -1,7 +1,7 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { format, subMonths } from "date-fns";
-import { ChevronDown, ChevronLeft, ChevronRight, Plane, Plus, Target } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -35,8 +35,7 @@ import {
   useInvestmentSnapshot,
 } from "@/hooks/useInvestmentSnapshot";
 import { investmentTotalInBase } from "@/lib/investments";
-import { balancesByCurrency } from "@/lib/balances";
-import { ACCOUNT_TYPE_COLORS } from "@/lib/account-colors";
+import { accountBalancesByCurrency, balancesByCurrency } from "@/lib/balances";
 import { totalInBase } from "@/lib/fx";
 import {
   cashflowForRange,
@@ -49,18 +48,20 @@ import {
 } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { Button, Card, EmptyState, Spinner } from "@/components/ui";
+import { Spinner } from "@/components/ui";
+import {
+  headInk,
+  MarginLink,
+  PageHead,
+  Plate,
+  Register,
+  Spread,
+  Statement,
+  useLedgerInk,
+} from "@/components/ledger";
 import { HoverDonut } from "@/components/HoverDonut";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
 import type { Budget, InvestmentSnapshot } from "@/lib/types";
-
-const TOOLTIP_STYLE = {
-  background: "#111a24",
-  border: "1px solid #2b3947",
-  borderRadius: 12,
-  fontSize: 12,
-  color: "#e9eef4",
-} as const;
 
 export function Dashboard() {
   const [adding, setAdding] = useState(false);
@@ -82,6 +83,10 @@ export function Dashboard() {
   const { data: budgetTxnLinks = [] } = useBudgetTransactionLinks();
   const reimbursedMap = useReimbursedAmountMap();
   const { data: investSnapshot } = useInvestmentSnapshot();
+
+  // Must sit with the other hooks: an early return below would otherwise make
+  // the hook count differ between the loading and loaded renders.
+  const ink = useLedgerInk();
 
   const accounts = accountsQ.data ?? [];
   const txns = allTxnsQ.data ?? [];
@@ -208,82 +213,30 @@ export function Dashboard() {
     );
   }
 
-  return (
-    <div>
-      <header className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-quill">
-            Overview
-          </h1>
-          <div className="mt-0.5 flex items-center gap-0.5">
-            <button
-              onClick={() => setMonthBack((m) => m + 1)}
-              className="flex size-6 items-center justify-center rounded-md text-quill-faint hover:bg-ink-800 hover:text-quill transition-colors"
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <span className="min-w-[7rem] text-center text-sm text-quill-soft">
-              {monthLabel(refDate)}
-            </span>
-            <button
-              onClick={() => setMonthBack((m) => Math.max(m - 1, 0))}
-              disabled={monthBack === 0}
-              className="flex size-6 items-center justify-center rounded-md text-quill-faint hover:bg-ink-800 hover:text-quill transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
-              aria-label="Next month"
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
-        </div>
+  const asAt = format(new Date(), "d MMMM yyyy");
+  const periodNote = monthBack === 0 ? "this month" : monthLabel(refDate);
 
-        {/* Cashflow mode toggle */}
-        <div className="flex items-center gap-1 rounded-xl border border-rule/60 bg-ink-900/60 p-1">
-          {(["gross", "net"] as CashflowMode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => setCashflowMode(m)}
-              className={cn(
-                "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-colors",
-                cashflowMode === m
-                  ? "bg-ink-700 text-quill"
-                  : "text-quill-faint hover:text-quill-soft",
-              )}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-        <Button
-          className="hidden lg:inline-flex"
-          onClick={() => setAdding(true)}
-        >
-          <Plus className="size-4" /> New transaction
-        </Button>
-      </header>
+  // ── Verso: the position ───────────────────────────────────────────────────
+  const positionRows = scopedAccounts.map((a) => {
+    const balances = accountBalancesByCurrency(a, txns, overrides);
+    return {
+      label: a.name,
+      value: formatMoney(balances[a.currency] ?? 0, a.currency),
+    };
+  });
 
-      {/* Account scope filter — a compact dropdown (mobile-friendly) */}
-      {accounts.length > 1 && (
-        <div className="mb-4">
-          <div className="relative w-full sm:max-w-xs">
-            {accountFilter && (
-              <span
-                className={cn(
-                  "pointer-events-none absolute left-3 top-1/2 size-2.5 -translate-y-1/2 rounded-full",
-                  ACCOUNT_TYPE_COLORS[
-                    accounts.find((a) => a.id === accountFilter)?.type ?? "checking"
-                  ].dot,
-                )}
-              />
-            )}
+  const verso = (
+    <>
+      <PageHead
+        title="The position"
+        note={`As at ${asAt}`}
+        action={
+          accounts.length > 1 ? (
             <select
-              aria-label="Filter overview by account"
+              aria-label="Scope the book to one account"
               value={accountFilter}
               onChange={(e) => setAccountFilter(e.target.value)}
-              className={cn(
-                "h-9 w-full appearance-none rounded-xl border border-rule bg-ink-900/60 pr-9 text-sm font-medium text-quill focus:border-teal-500 focus:outline-none",
-                accountFilter ? "pl-8" : "pl-3",
-              )}
+              className="max-w-[7.5rem] truncate border-0 border-b border-rule bg-transparent pb-0.5 text-xs text-quill-soft focus:border-brass focus:outline-none"
             >
               <option value="">All accounts</option>
               {accounts.map((a) => (
@@ -292,389 +245,316 @@ export function Dashboard() {
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-quill-faint" />
-          </div>
-        </div>
-      )}
+          ) : undefined
+        }
+      />
 
-      {/* Stat row */}
-      {(() => {
-        const subLabel = monthBack === 0 ? "this month" : monthLabel(refDate);
-        return (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat
-              label={accountFilter ? "Balance" : "Net worth"}
-              sub={showInvest ? "cash + invest" : undefined}
-              value={formatMoney(combinedNetWorth, baseCurrency)}
-              accent
-            />
-            <Stat
-              label="Income"
-              sub={subLabel}
-              value={formatMoney(month.income, baseCurrency)}
-              tone="up"
-            />
-            <Stat
-              label="Expenses"
-              sub={subLabel}
-              value={formatMoney(month.expense, baseCurrency)}
-              tone="down"
-            />
-            <Stat
-              label="Net"
-              sub={subLabel}
-              value={formatMoney(month.net, baseCurrency)}
-              tone={month.net >= 0 ? "up" : "down"}
-            />
-          </div>
-        );
-      })()}
+      <Statement
+        rows={positionRows}
+        total={{
+          label: accountFilter ? "Balance" : "Net worth",
+          value: formatMoney(combinedNetWorth, baseCurrency),
+        }}
+      />
 
       {showInvest && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-ink-800/70 px-2.5 py-1 text-quill-soft">
-            Cash{" "}
-            <span className="tnum text-quill">
-              {formatMoney(combinedNetWorth - investBase, baseCurrency)}
-            </span>
-          </span>
-          <span className="rounded-full bg-violet-500/12 px-2.5 py-1 text-violet-300">
-            Investments{" "}
-            <span className="tnum">{formatMoney(investBase, baseCurrency)}</span>
-          </span>
+        <div className="mt-3">
+          <Statement
+            rows={[
+              {
+                label: "Held in cash",
+                value: formatMoney(combinedNetWorth - investBase, baseCurrency),
+              },
+              { label: "Held in investments", value: formatMoney(investBase, baseCurrency) },
+            ]}
+          />
         </div>
       )}
 
-      {(byCurrency && Object.keys(byCurrency).length > 1) || missing.length > 0 ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {Object.entries(byCurrency).map(([c, v]) => (
-            <span
-              key={c}
-              className="tnum rounded-full bg-ink-800/70 px-2.5 py-1 text-xs text-quill-soft"
-            >
-              {formatMoney(v, c)} <span className="text-quill-faint">{c}</span>
-            </span>
-          ))}
+      {Object.keys(byCurrency).length > 1 && (
+        <Register title="By currency">
+          <Statement
+            rows={Object.entries(byCurrency).map(([c, v]) => ({
+              label: c,
+              value: formatMoney(v, c),
+            }))}
+          />
           {missing.length > 0 && (
-            <span className="text-xs text-amber-400/80">
+            <p className="mt-2 text-xs italic text-debit">
               {missing.join(", ")} not converted —{" "}
               <Link to="/settings" className="underline">
                 set a rate
               </Link>
-            </span>
+            </p>
           )}
-        </div>
-      ) : null}
-
-      {/* Charts */}
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Widget title="Cashflow" hint="Last 6 months · tap a month for detail" className="lg:col-span-2">
-          <CashflowBars
-            data={trend}
-            base={baseCurrency}
-            onMonthClick={(mk) => navigate(`/analytics?month=${mk}`)}
-          />
-        </Widget>
-        <Widget
-          title="Spending"
-          hint={`By category, ${monthBack === 0 ? "this month" : monthLabel(refDate)}`}
-          action={
-            <Link
-              to={`/analytics?month=${format(refDate, "yyyy-MM")}`}
-              className="text-sm text-teal-400"
-            >
-              More details
-            </Link>
-          }
-        >
-          {categorySlices.length === 0 ? (
-            <ChartEmpty label="No spending recorded this month" />
-          ) : (
-            <HoverDonut slices={categorySlices} base={baseCurrency} centerLabel="Spent" legendCount={5} />
-          )}
-        </Widget>
-      </div>
-
-      {/* Investments — pulled live from Zenith */}
-      {showInvest && investSnapshot && (
-        <div className="mt-4">
-          <Widget
-            title="Investments"
-            hint={
-              investSnapshot.as_of
-                ? `Zenith · as of ${new Date(investSnapshot.as_of).toLocaleDateString()}`
-                : "Zenith"
-            }
-            action={
-              <Link to="/settings" className="text-sm text-teal-400">
-                Manage
-              </Link>
-            }
-          >
-            <InvestmentsList
-              snapshot={investSnapshot}
-              base={baseCurrency}
-              investBase={investBase}
-            />
-          </Widget>
-        </div>
+        </Register>
       )}
 
-      {/* Budgets — expense (counts down) & savings (count up) */}
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Widget
-          title="Budget"
-          hint="Spending budgets"
+      {showInvest && investSnapshot && (
+        <Register
+          title="Investments"
+          note={
+            investSnapshot.as_of
+              ? `Zenith · as of ${new Date(investSnapshot.as_of).toLocaleDateString()}`
+              : "Zenith"
+          }
           action={
-            <Link to="/budgets" className="text-sm text-teal-400">
-              Manage
+            <Link to="/settings">
+              <MarginLink>manage</MarginLink>
             </Link>
           }
         >
-          {expenseRows.length === 0 ? (
-            <EmptyState
-              icon={<Target className="size-6" />}
-              title="No budgets yet"
-              hint="Create a budget to track spending."
-            />
-          ) : (
-            <div className="space-y-3">
-              {expenseRows.length > 1 && (
-                <BudgetSummaryRow
-                  spent={expenseTotals.spent}
-                  budget={expenseTotals.budget}
-                  base={baseCurrency}
-                />
-              )}
-              <ul className="space-y-3">
-                {expenseRows.slice(0, 4).map(({ b, spent, pacing }) => {
-                  const left = b.amount - spent;
-                  const ratio = b.amount > 0 ? spent / b.amount : 0;
-                  return (
-                    <li key={b.id}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-quill">
-                            {b.name}
-                          </p>
-                          <p className="text-xs text-quill-faint">
-                            {periodLabel(b)}
-                            {pacing.daysLeft != null &&
-                              ` · ${pacing.daysLeft === 0 ? "ends today" : `${pacing.daysLeft}d left`}`}
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <span
-                            className={cn(
-                              "tnum text-sm font-medium",
-                              left < 0 ? "text-rose-400" : "text-quill",
-                            )}
-                          >
-                            {formatMoney(Math.abs(left), baseCurrency)}{" "}
-                            {left < 0 ? "over" : "left"}
-                          </span>
-                          <p className="tnum text-[11px] text-quill-faint">
-                            {Math.round(ratio * 100)}% used
-                          </p>
-                        </div>
-                      </div>
-                      <MiniBar ratio={ratio} elapsed={pacing.elapsedRatio} />
-                      {left < 0 && (
-                        <p className="tnum mt-1 text-[11px] text-rose-400/80">
-                          {formatMoney(spent, baseCurrency)} of{" "}
-                          {formatMoney(b.amount, baseCurrency)} ·{" "}
-                          {formatMoney(-left, baseCurrency)} over
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-                {expenseRows.length > 4 && (
-                  <li>
-                    <Link
-                      to="/budgets"
-                      className="block pt-1 text-xs text-quill-faint hover:text-teal-300"
-                    >
-                      +{expenseRows.length - 4} more
-                    </Link>
-                  </li>
-                )}
-              </ul>
-            </div>
-          )}
-        </Widget>
+          <InvestmentsList
+            snapshot={investSnapshot}
+            base={baseCurrency}
+            investBase={investBase}
+          />
+        </Register>
+      )}
+    </>
+  );
 
-        <Widget
-          title="Goals & savings"
-          hint="Progress toward targets"
-          action={
-            <Link to="/budgets" className="text-sm text-teal-400">
-              Manage
-            </Link>
-          }
-        >
-          {goalRows.length === 0 && savingRows.length === 0 ? (
-            <EmptyState
-              icon={<Plane className="size-6" />}
-              title="No goals yet"
-              hint="Create a one-time goal or a savings budget to track progress."
-            />
-          ) : (
+  // ── Recto: the movement ───────────────────────────────────────────────────
+  const recto = (
+    <>
+      <PageHead
+        title={monthLabel(refDate)}
+        note={
+          <span className="inline-flex items-center gap-2">
+            {(["gross", "net"] as CashflowMode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setCashflowMode(m)}
+                className={cn(
+                  "capitalize transition-colors",
+                  cashflowMode === m
+                    ? "text-quill underline decoration-brass underline-offset-4"
+                    : "text-quill-faint hover:text-quill-soft",
+                )}
+              >
+                {m}
+              </button>
+            ))}
+          </span>
+        }
+        action={
+          <span className="flex items-center gap-1">
+            <button
+              onClick={() => setMonthBack((m) => m + 1)}
+              className="flex size-6 items-center justify-center text-quill-faint transition-colors hover:text-quill"
+              aria-label="Previous month"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <button
+              onClick={() => setMonthBack((m) => Math.max(m - 1, 0))}
+              disabled={monthBack === 0}
+              className="flex size-6 items-center justify-center text-quill-faint transition-colors hover:text-quill disabled:cursor-not-allowed disabled:opacity-25"
+              aria-label="Next month"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </span>
+        }
+      />
+
+      <Statement
+        rows={[
+          { label: "Received", value: formatMoney(month.income, baseCurrency), tone: "credit" },
+          { label: "Expended", value: formatMoney(month.expense, baseCurrency), tone: "debit" },
+        ]}
+        total={{
+          label: "Net",
+          value: formatMoney(month.net, baseCurrency),
+          tone: month.net >= 0 ? "credit" : "debit",
+        }}
+      />
+
+      <Plate caption="Cashflow" note="Last 6 months · tap a month for detail">
+        <CashflowBars
+          data={trend}
+          base={baseCurrency}
+          onMonthClick={(mk) => navigate(`/analytics?month=${mk}`)}
+        />
+      </Plate>
+
+      <Plate
+        caption="Expenditure, by head"
+        note={periodNote}
+        action={
+          <Link to={`/analytics?month=${format(refDate, "yyyy-MM")}`}>
+            <MarginLink>more detail</MarginLink>
+          </Link>
+        }
+      >
+        {categorySlices.length === 0 ? (
+          <ChartEmpty label="Nothing expended this month" />
+        ) : (
+          <HoverDonut
+            slices={categorySlices.map((s, i) => ({ ...s, color: headInk(i, ink) }))}
+            base={baseCurrency}
+            centerLabel="Spent"
+            legendCount={5}
+          />
+        )}
+      </Plate>
+
+      <Register
+        title="Budgets"
+        action={
+          <Link to="/budgets">
+            <MarginLink>manage</MarginLink>
+          </Link>
+        }
+      >
+        {expenseRows.length === 0 ? (
+          <p className="text-sm italic text-quill-faint">
+            No budgets set. Create one to track spending against a limit.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {expenseRows.length > 1 && (
+              <BudgetSummaryRow
+                spent={expenseTotals.spent}
+                budget={expenseTotals.budget}
+                base={baseCurrency}
+              />
+            )}
             <ul className="space-y-3">
-              {/* Goals first (transaction-funded, stacked bar) */}
-              {goalRows.slice(0, 4).map(({ b, funding }) => (
-                <li key={b.id}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-quill">
-                        {b.name}
-                      </p>
-                      <p className="text-xs text-quill-faint">
-                        {funding.daysLeft == null
-                          ? "Goal"
-                          : funding.daysLeft < 0
-                            ? "Overdue"
-                            : `${funding.daysLeft}d left`}
-                      </p>
+              {expenseRows.slice(0, 4).map(({ b, spent, pacing }) => {
+                const left = b.amount - spent;
+                const ratio = b.amount > 0 ? spent / b.amount : 0;
+                return (
+                  <li key={b.id}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-quill">{b.name}</p>
+                        <p className="text-xs italic text-quill-faint">
+                          {periodLabel(b)}
+                          {pacing.daysLeft != null &&
+                            ` · ${pacing.daysLeft === 0 ? "ends today" : `${pacing.daysLeft}d left`}`}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <span
+                          className={cn(
+                            "tnum text-sm",
+                            left < 0 ? "text-debit" : "text-quill",
+                          )}
+                        >
+                          {formatMoney(Math.abs(left), baseCurrency)}{" "}
+                          {left < 0 ? "over" : "left"}
+                        </span>
+                        <p className="tnum text-[11px] text-quill-faint">
+                          {Math.round(ratio * 100)}% used
+                        </p>
+                      </div>
                     </div>
-                    <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
-                      {formatMoney(funding.funded, baseCurrency)}
+                    <MiniBar ratio={ratio} elapsed={pacing.elapsedRatio} />
+                  </li>
+                );
+              })}
+              {expenseRows.length > 4 && (
+                <li>
+                  <Link to="/budgets">
+                    <MarginLink>+{expenseRows.length - 4} more</MarginLink>
+                  </Link>
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+      </Register>
+
+      <Register
+        title="Goals & savings"
+        action={
+          <Link to="/budgets">
+            <MarginLink>manage</MarginLink>
+          </Link>
+        }
+      >
+        {goalRows.length === 0 && savingRows.length === 0 ? (
+          <p className="text-sm italic text-quill-faint">
+            No goals set. Create a one-time goal or a savings budget.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {goalRows.slice(0, 4).map(({ b, funding }) => (
+              <li key={b.id}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-quill">{b.name}</p>
+                    <p className="text-xs italic text-quill-faint">
+                      {funding.daysLeft == null
+                        ? "Goal"
+                        : funding.daysLeft < 0
+                          ? "Overdue"
+                          : `${funding.daysLeft}d left`}
+                    </p>
+                  </div>
+                  <span className="tnum shrink-0 text-sm text-credit">
+                    {formatMoney(funding.funded, baseCurrency)}
+                    <span className="text-quill-faint">
+                      {" "}
+                      / {formatMoney(b.amount, baseCurrency)}
+                    </span>
+                  </span>
+                </div>
+                <MiniStackedBar
+                  spent={funding.spent}
+                  saved={funding.saved}
+                  target={b.amount}
+                />
+              </li>
+            ))}
+            {savingRows.slice(0, Math.max(0, 4 - goalRows.length)).map(({ b, spent }) => {
+              const ratio = b.amount > 0 ? spent / b.amount : 0;
+              return (
+                <li key={b.id}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-quill">{b.name}</p>
+                      <p className="text-xs italic text-quill-faint">{periodLabel(b)}</p>
+                    </div>
+                    <span className="tnum shrink-0 text-sm text-credit">
+                      {formatMoney(spent, baseCurrency)}
                       <span className="text-quill-faint">
                         {" "}
                         / {formatMoney(b.amount, baseCurrency)}
                       </span>
                     </span>
                   </div>
-                  <MiniStackedBar
-                    spent={funding.spent}
-                    saved={funding.saved}
-                    target={b.amount}
-                  />
+                  <MiniBar ratio={ratio} savings />
                 </li>
-              ))}
-
-              {/* Recurring savings fill any remaining slots */}
-              {savingRows
-                .slice(0, Math.max(0, 4 - goalRows.length))
-                .map(({ b, spent }) => {
-                  const ratio = b.amount > 0 ? spent / b.amount : 0;
-                  return (
-                    <li key={b.id}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-quill">
-                            {b.name}
-                          </p>
-                          <p className="text-xs text-quill-faint">{periodLabel(b)}</p>
-                        </div>
-                        <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
-                          {formatMoney(spent, baseCurrency)}
-                          <span className="text-quill-faint">
-                            {" "}
-                            / {formatMoney(b.amount, baseCurrency)}
-                          </span>
-                        </span>
-                      </div>
-                      <MiniBar ratio={ratio} savings />
-                    </li>
-                  );
-                })}
-
-              {goalRows.length + savingRows.length > 4 && (
-                <li>
-                  <Link
-                    to="/budgets"
-                    className="block pt-1 text-xs text-quill-faint hover:text-teal-300"
-                  >
+              );
+            })}
+            {goalRows.length + savingRows.length > 4 && (
+              <li>
+                <Link to="/budgets">
+                  <MarginLink>
                     +{goalRows.length + savingRows.length - 4} more
-                  </Link>
-                </li>
-              )}
-            </ul>
-          )}
-        </Widget>
-      </div>
+                  </MarginLink>
+                </Link>
+              </li>
+            )}
+          </ul>
+        )}
+      </Register>
+    </>
+  );
 
+  return (
+    <div>
+      <Spread verso={verso} recto={recto} />
       <FloatingAdd onClick={() => setAdding(true)} />
       {adding && <AddTransactionSheet onClose={() => setAdding(false)} />}
     </div>
   );
 }
 
+
 // --- building blocks -------------------------------------------------------
-
-function Stat({
-  label,
-  sub,
-  value,
-  tone,
-  accent,
-}: {
-  label: string;
-  sub?: string;
-  value: string;
-  tone?: "up" | "down";
-  accent?: boolean;
-}) {
-  // Adaptive size so big values (e.g. $12,345,678) don't overflow the card,
-  // including on 375px phones where the grid is two columns.
-  const size =
-    value.length > 14
-      ? "text-base lg:text-lg"
-      : value.length > 11
-        ? "text-lg lg:text-xl"
-        : "text-xl lg:text-2xl";
-
-  return (
-    <Card className="min-w-0 p-3.5 lg:p-4">
-      <p className="truncate text-xs font-medium text-quill-soft">
-        {label} {sub && <span className="text-quill-faint">· {sub}</span>}
-      </p>
-      <p
-        className={cn(
-          "tnum mt-1 break-words font-semibold leading-tight tracking-tight",
-          size,
-          accent
-            ? "text-quill"
-            : tone === "up"
-              ? "text-teal-400"
-              : tone === "down"
-                ? "text-rose-400"
-                : "text-quill",
-        )}
-      >
-        {value}
-      </p>
-    </Card>
-  );
-}
-
-function Widget({
-  title,
-  hint,
-  action,
-  className,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  action?: ReactNode;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Card className={cn("flex min-w-0 flex-col", className)}>
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-semibold text-quill">{title}</h2>
-          {hint && <p className="text-xs text-quill-faint">{hint}</p>}
-        </div>
-        {action}
-      </div>
-      <div className="flex-1">{children}</div>
-    </Card>
-  );
-}
 
 /**
  * Slim progress bar for the Budget/Goals widgets. Colour signals within vs over
@@ -699,11 +579,11 @@ function MiniBar({
         aria-valuemax={100}
         aria-valuenow={100}
         aria-label={`${Math.round(ratio * 100)}% of budget — over by ${Math.round((ratio - 1) * 100)}%`}
-        className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-ink-800"
+        className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]"
       >
-        <div className="h-full bg-amber-500" style={{ width: `${budgetFrac}%` }} />
+        <div className="h-full bg-head-3" style={{ width: `${budgetFrac}%` }} />
         <div
-          className="h-full bg-rose-500 ring-1 ring-inset ring-rose-300/30"
+          className="h-full bg-debit"
           style={{ width: `${100 - budgetFrac}%` }}
         />
       </div>
@@ -712,10 +592,10 @@ function MiniBar({
 
   const pct = Math.min(100, Math.max(0, ratio * 100));
   const color = savings
-    ? "bg-emerald-500"
+    ? "bg-credit"
     : ratio > 0.85
-      ? "bg-amber-500"
-      : "bg-teal-500";
+      ? "bg-head-3"
+      : "bg-head-1";
   const showMarker =
     !savings && elapsed != null && elapsed > 0.02 && elapsed < 0.98;
   return (
@@ -725,7 +605,7 @@ function MiniBar({
       aria-valuemax={100}
       aria-valuenow={Math.round(pct)}
       aria-label={`${Math.round(ratio * 100)}% of ${savings ? "target" : "budget"}`}
-      className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800"
+      className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]"
     >
       <div
         className={cn("h-full rounded-full transition-all", color)}
@@ -734,7 +614,7 @@ function MiniBar({
       {showMarker && (
         <span
           aria-hidden
-          className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-ink-50/70 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
+          className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-quill/70 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
           style={{ left: `${elapsed * 100}%` }}
         />
       )}
@@ -756,7 +636,7 @@ function InvestmentsList({
     <div>
       <div className="mb-3 flex items-end justify-between">
         <span className="text-xs text-quill-faint">Portfolio value</span>
-        <span className="tnum text-lg font-semibold text-violet-300">
+        <span className="tnum text-lg font-semibold text-head-5">
           {formatMoney(investBase, base)}
         </span>
       </div>
@@ -768,7 +648,7 @@ function InvestmentsList({
               className="flex items-center justify-between gap-3 text-sm"
             >
               <span className="flex min-w-0 items-center gap-2">
-                <span className="size-2 shrink-0 rounded-full bg-violet-400" />
+                <span className="size-2 shrink-0 rounded-full bg-head-5" />
                 <span className="truncate text-quill">{a.name}</span>
               </span>
               <span className="tnum shrink-0 text-quill-soft">
@@ -802,9 +682,9 @@ function BudgetSummaryRow({
   const ratio = budget > 0 ? spent / budget : 0;
   const remaining = budget - spent;
   const tone =
-    ratio > 1 ? "text-rose-400" : ratio > 0.85 ? "text-amber-400" : "text-quill";
+    ratio > 1 ? "text-debit" : ratio > 0.85 ? "text-head-3" : "text-quill";
   return (
-    <div className="rounded-xl border border-rule bg-ink-950/40 p-3">
+    <div className="leaf-panel p-3">
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="font-medium text-quill-soft">
           All budgets{" "}
@@ -843,10 +723,10 @@ function MiniStackedBar({
       aria-valuemax={100}
       aria-valuenow={Math.round(spentPct + savedPct)}
       aria-label={`${Math.round(((spent + saved) / t) * 100)}% funded`}
-      className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-ink-800"
+      className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]"
     >
-      <div className="h-full bg-indigo-400 transition-all" style={{ width: `${spentPct}%` }} />
-      <div className="h-full bg-emerald-400 transition-all" style={{ width: `${savedPct}%` }} />
+      <div className="h-full bg-head-4 transition-all" style={{ width: `${spentPct}%` }} />
+      <div className="h-full bg-credit transition-all" style={{ width: `${savedPct}%` }} />
     </div>
   );
 }
@@ -860,6 +740,7 @@ function CashflowBars({
   base: string;
   onMonthClick?: (monthKey: string) => void;
 }) {
+  const ink = useLedgerInk();
   const hasData = data.some((d) => d.income > 0 || d.expense > 0);
   if (!hasData) return <ChartEmpty label="No activity in the last 6 months" />;
 
@@ -879,23 +760,29 @@ function CashflowBars({
         }}
         className={onMonthClick ? "cursor-pointer" : undefined}
       >
-        <CartesianGrid vertical={false} stroke="#1c2632" />
+        <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
         <XAxis
           dataKey="label"
           tickLine={false}
           axisLine={false}
-          tick={{ fill: "#6f8499", fontSize: 12 }}
+          tick={{ fill: ink["--color-quill-faint"], fontSize: 12 }}
         />
         <YAxis hide />
         <Tooltip
-          cursor={{ fill: "rgba(255,255,255,0.03)" }}
-          contentStyle={TOOLTIP_STYLE}
-          itemStyle={{ color: "#eef4fa" }}
-          labelStyle={{ color: "#eef4fa" }}
+          cursor={{ fill: "rgb(0 0 0 / 0.04)" }}
+          contentStyle={{
+            background: ink["--color-page"],
+            border: `1px solid ${ink["--color-rule-strong"]}`,
+            borderRadius: 2,
+            fontSize: 12,
+            color: ink["--color-quill"],
+          }}
+          itemStyle={{ color: ink["--color-quill"] }}
+          labelStyle={{ color: ink["--color-quill-soft"] }}
           formatter={(value) => formatMoney(Number(value), base)}
         />
-        <Bar dataKey="income" name="Income" fill="#7fd1b9" radius={[4, 4, 0, 0]} />
-        <Bar dataKey="expense" name="Expense" fill="#fb7185" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="income" name="Received" fill={ink["--color-credit"]} radius={[2, 2, 0, 0]} />
+        <Bar dataKey="expense" name="Expended" fill={ink["--color-debit"]} radius={[2, 2, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -903,7 +790,7 @@ function CashflowBars({
 
 function ChartEmpty({ label }: { label: string }) {
   return (
-    <div className="flex h-[180px] items-center justify-center rounded-xl border border-dashed border-rule text-center text-sm text-quill-faint">
+    <div className="flex h-[180px] items-center justify-center border border-dashed border-rule text-center text-sm text-quill-faint">
       {label}
     </div>
   );
