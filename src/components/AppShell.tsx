@@ -81,7 +81,7 @@ export function AppShell() {
             {/* max-w-5xl on a spread: two pages need the width one didn't.
                 The deep bottom padding is clearance for the dock and the add
                 button, which would otherwise sit on top of the last entry. */}
-            <div className="mx-auto w-full max-w-md pb-32 pl-9 pr-4 pt-6 lg:max-w-5xl lg:py-7 lg:pl-16 lg:pr-10">
+            <div className="mx-auto w-full max-w-md pb-32 pl-9 pr-4 pt-6 lg:max-w-5xl lg:py-6 lg:pl-16 lg:pr-10">
               <Outlet />
             </div>
           </main>

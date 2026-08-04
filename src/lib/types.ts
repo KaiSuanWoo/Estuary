@@ -40,6 +40,7 @@ export type Profile = Tables["profiles"]["Row"];
 export type ProfileUpdate = Tables["profiles"]["Update"];
 
 export type InvestmentSnapshot = Tables["investment_snapshots"]["Row"];
+export type InvestmentHistoryPoint = Tables["investment_history"]["Row"];
 export type InvestmentSnapshotInsert = Tables["investment_snapshots"]["Insert"];
 
 export type MerchantAlias = Tables["merchant_aliases"]["Row"];

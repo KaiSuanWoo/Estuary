@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { format, subMonths } from "date-fns";
+import { format, parseISO, subMonths } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -11,7 +13,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useLeafScroll } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
@@ -31,12 +32,12 @@ import {
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import {
+  useInvestmentHistory,
   useInvestmentOverrides,
   useInvestmentSnapshot,
 } from "@/hooks/useInvestmentSnapshot";
 import { investmentTotalInBase } from "@/lib/investments";
-import { accountBalancesByCurrency, balancesByCurrency } from "@/lib/balances";
-import type { BalanceOverride } from "@/lib/investments";
+import { balancesByCurrency } from "@/lib/balances";
 import { readShowHomeBudgets } from "@/lib/ledger";
 import { convert, totalInBase, type RateMap } from "@/lib/fx";
 import {
@@ -65,7 +66,7 @@ import {
 } from "@/components/ledger";
 import { HoverDonut } from "@/components/HoverDonut";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
-import type { Account, Budget, Transaction } from "@/lib/types";
+import type { Budget, InvestmentHistoryPoint } from "@/lib/types";
 
 export function Dashboard() {
   const [adding, setAdding] = useState(false);
@@ -87,14 +88,12 @@ export function Dashboard() {
   const { data: budgetTxnLinks = [] } = useBudgetTransactionLinks();
   const reimbursedMap = useReimbursedAmountMap();
   const { data: investSnapshot } = useInvestmentSnapshot();
+  const { data: investHistory = [] } = useInvestmentHistory();
 
   // Must sit with the other hooks: an early return below would otherwise make
   // the hook count differ between the loading and loaded renders.
   const ink = useLedgerInk();
   const showBudgets = readShowHomeBudgets();
-  // The spread only exists at lg; below it the recto is the whole page, so the
-  // cashflow plate has to travel there or a phone would never see it.
-  const wide = useMediaQuery("(min-width: 1024px)");
 
   const accounts = accountsQ.data ?? [];
   const txns = allTxnsQ.data ?? [];
@@ -291,14 +290,10 @@ export function Dashboard() {
         </div>
       )}
 
-      {wide && cashflowPlate}
-
-      {investAccounts.length > 0 && (
-        <Plate caption="Investments" note="By account">
+      {showInvest && (
+        <Plate caption="Investments" note="Value over time">
           <InvestmentsPlate
-            accounts={investAccounts}
-            txns={txns}
-            overrides={overrides}
+            history={investHistory}
             base={baseCurrency}
             rates={rates}
             ink={ink}
@@ -383,11 +378,12 @@ export function Dashboard() {
             base={baseCurrency}
             centerLabel="Spent"
             legendCount={5}
+            size={124}
           />
         )}
       </Plate>
 
-      {!wide && cashflowPlate}
+      {cashflowPlate}
 
       {showBudgets && (
       <Register
@@ -542,7 +538,7 @@ function CashflowBars({
   if (!hasData) return <ChartEmpty label="No activity in the last 6 months" />;
 
   return (
-    <ResponsiveContainer width="100%" height={220}>
+    <ResponsiveContainer width="100%" height={132}>
       <BarChart
         data={data}
         barGap={4}
@@ -599,57 +595,95 @@ function CashflowBars({
 
 
 
-/** Investment accounts as a proportional bar apiece, largest first. */
+/**
+ * Portfolio value over time. One ink, a hairline baseline, the last point
+ * marked and labelled — an engraved plate, not a dashboard sparkline.
+ */
 function InvestmentsPlate({
-  accounts,
-  txns,
-  overrides,
+  history,
   base,
   rates,
   ink,
 }: {
-  accounts: Account[];
-  txns: Transaction[];
-  overrides: Map<string, BalanceOverride>;
+  history: InvestmentHistoryPoint[];
   base: string;
   rates: RateMap;
   ink: Ink;
 }) {
-  const rows = accounts
-    .map((a) => {
-      const balances = accountBalancesByCurrency(a, txns, overrides);
-      const native = balances[a.currency] ?? 0;
-      return {
-        id: a.id,
-        name: a.name,
-        currency: a.currency,
-        native,
-        inBase: convert(native, a.currency, base, rates) ?? native,
-      };
-    })
-    .sort((x, y) => y.inBase - x.inBase);
+  const series = history.map((p) => ({
+    date: p.date,
+    label: format(parseISO(p.date), "d MMM"),
+    value: convert(p.total, p.base_currency, base, rates) ?? p.total,
+  }));
 
-  const max = Math.max(...rows.map((r) => r.inBase), 1);
+  if (series.length < 2) {
+    return (
+      <p className="text-sm italic text-quill-faint">
+        Not enough history yet — the line starts once Zenith has recorded a few
+        days.
+      </p>
+    );
+  }
+
+  const first = series[0]!.value;
+  const last = series[series.length - 1]!.value;
+  const change = last - first;
 
   return (
-    <ul className="space-y-2.5">
-      {rows.map((r, i) => (
-        <li key={r.id}>
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="truncate text-sm text-quill">{r.name}</span>
-            <span className="tnum shrink-0 text-sm text-quill-soft">
-              {formatMoney(r.native, r.currency)}
-            </span>
-          </div>
-          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${(r.inBase / max) * 100}%`, background: headInk(i, ink) }}
-            />
-          </div>
-        </li>
-      ))}
-    </ul>
+    <div>
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <span className="tnum text-lg text-quill">{formatMoney(last, base)}</span>
+        <span className={cn("tnum text-sm", change >= 0 ? "text-credit" : "text-debit")}>
+          {change >= 0 ? "+" : "−"}
+          {formatMoney(Math.abs(change), base)}
+          <span className="text-quill-faint">
+            {" "}
+            since {series[0]!.label}
+          </span>
+        </span>
+      </div>
+      <ResponsiveContainer width="100%" height={132}>
+        <AreaChart data={series} margin={{ top: 4, right: 10, bottom: 0, left: 2 }}>
+          <defs>
+            <linearGradient id="investFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={ink["--color-head-1"]} stopOpacity={0.28} />
+              <stop offset="100%" stopColor={ink["--color-head-1"]} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <XAxis
+            dataKey="label"
+            tickLine={false}
+            axisLine={{ stroke: ink["--color-rule"] }}
+            tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }}
+            interval="preserveStartEnd"
+            minTickGap={40}
+          />
+          <YAxis hide domain={["dataMin", "dataMax"]} />
+          <Tooltip
+            cursor={{ stroke: ink["--color-rule-strong"], strokeWidth: 1 }}
+            contentStyle={{
+              background: ink["--color-page"],
+              border: `1px solid ${ink["--color-rule-strong"]}`,
+              borderRadius: 2,
+              fontSize: 12,
+              color: ink["--color-quill"],
+            }}
+            labelStyle={{ color: ink["--color-quill-soft"] }}
+            formatter={(v: number) => [formatMoney(v, base), "Value"]}
+          />
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke={ink["--color-head-1"]}
+            strokeWidth={1.75}
+            fill="url(#investFill)"
+            dot={false}
+            activeDot={{ r: 3, fill: ink["--color-head-1"], stroke: ink["--color-page"] }}
+            isAnimationActive={false}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 

@@ -564,6 +564,33 @@ export interface Database {
         };
         Relationships: [];
       };
+      investment_history: {
+        Row: {
+          user_id: string;
+          source: string;
+          date: string;
+          total: number;
+          base_currency: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          source?: string;
+          date: string;
+          total: number;
+          base_currency: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          source?: string;
+          date?: string;
+          total?: number;
+          base_currency?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       merchant_aliases: {
         Row: {
           user_id: string;

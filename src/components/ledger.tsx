@@ -187,7 +187,7 @@ export function Register({
   className?: string;
 }) {
   return (
-    <section className={cn("mt-6", className)}>
+    <section className={cn("mt-5", className)}>
       <div className="flex items-baseline justify-between gap-3 border-b border-rule pb-1">
         <h3
           className="text-sm tracking-[0.14em] text-quill-soft"
@@ -220,7 +220,7 @@ export function Plate({
   children: ReactNode;
 }) {
   return (
-    <figure className="mt-6">
+    <figure className="mt-5">
       <figcaption className="flex items-baseline justify-between gap-3 border-b border-rule pb-1">
         <span
           className="text-sm tracking-[0.14em] text-quill-soft"
