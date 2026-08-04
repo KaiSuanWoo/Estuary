@@ -15,13 +15,15 @@ import { cn } from "@/lib/cn";
  * The recto (right) holds the **movement** — what happened. That division is a
  * real accounting one, not a convenient way to fill two columns.
  *
- * A phone can't show a spread, so the two pages stack and the fold becomes a
- * rule between them.
+ * A phone gets the recto alone. Stacking both pages buried the month you're
+ * living in under a screenful of balances, and those balances are one tap away
+ * under Accounts — so the verso is simply the page you gain when there's room
+ * for it, the way a second page appears only when a book is open flat.
  */
 export function Spread({ verso, recto }: { verso: ReactNode; recto: ReactNode }) {
   return (
     <div className="lg:grid lg:grid-cols-[1fr_3rem_1fr]">
-      <section className="min-w-0">{verso}</section>
+      <section className="hidden min-w-0 lg:block">{verso}</section>
 
       {/* The fold. Both pages curve down into the binding. */}
       <div aria-hidden className="relative hidden lg:block">
@@ -34,10 +36,41 @@ export function Spread({ verso, recto }: { verso: ReactNode; recto: ReactNode })
         />
       </div>
 
-      {/* On a phone the fold is just where one page ends and the next begins. */}
-      <hr className="my-9 border-0 border-t border-rule lg:hidden" />
-
       <section className="min-w-0">{recto}</section>
+    </div>
+  );
+}
+
+/**
+ * The figure a page is *about* — set large enough to lead everything under it.
+ * Without one, a page of evenly-sized statements has no first thing to read,
+ * which is what left the verso feeling empty rather than composed.
+ */
+export function LeadFigure({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "credit" | "debit";
+}) {
+  return (
+    <div className="pb-1">
+      <p
+        className="text-xs tracking-[0.16em] text-quill-soft"
+        style={{ fontVariant: "small-caps" }}
+      >
+        {label}
+      </p>
+      <p
+        className={cn(
+          "tnum mt-0.5 text-[2.6rem] leading-[1.05] tracking-[-0.01em] lg:text-[3.1rem]",
+          tone === "credit" ? "text-credit" : tone === "debit" ? "text-debit" : "text-quill",
+        )}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -56,7 +89,7 @@ export function PageHead({
   action?: ReactNode;
 }) {
   return (
-    <header className="mb-4">
+    <header className="mb-3.5">
       <div className="flex items-baseline justify-between gap-3">
         <h2
           className="min-w-0 whitespace-nowrap text-lg tracking-[0.08em] text-quill lg:text-xl"
@@ -154,7 +187,7 @@ export function Register({
   className?: string;
 }) {
   return (
-    <section className={cn("mt-7", className)}>
+    <section className={cn("mt-6", className)}>
       <div className="flex items-baseline justify-between gap-3 border-b border-rule pb-1">
         <h3
           className="text-sm tracking-[0.14em] text-quill-soft"
@@ -187,7 +220,7 @@ export function Plate({
   children: ReactNode;
 }) {
   return (
-    <figure className="mt-7">
+    <figure className="mt-6">
       <figcaption className="flex items-baseline justify-between gap-3 border-b border-rule pb-1">
         <span
           className="text-sm tracking-[0.14em] text-quill-soft"

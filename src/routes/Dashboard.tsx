@@ -1,16 +1,7 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { format, subMonths } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { useLeafScroll } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
@@ -41,16 +32,15 @@ import {
   cashflowForRange,
   monthBounds,
   monthLabel,
-  monthlyCashflow,
   spendingByCategory,
   type CashflowMode,
-  type MonthlyPoint,
 } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Spinner } from "@/components/ui";
 import {
   headInk,
+  LeadFigure,
   MarginLink,
   PageHead,
   Plate,
@@ -61,7 +51,7 @@ import {
 } from "@/components/ledger";
 import { HoverDonut } from "@/components/HoverDonut";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
-import type { Budget, InvestmentSnapshot } from "@/lib/types";
+import type { Budget } from "@/lib/types";
 
 export function Dashboard() {
   const [adding, setAdding] = useState(false);
@@ -133,19 +123,10 @@ export function Dashboard() {
     () => (monthBack === 0 ? new Date() : subMonths(new Date(), monthBack)),
     [monthBack],
   );
-  const navigate = useNavigate();
   const { from, to } = monthBounds(refDate);
   // Each of these sums a scoped slice but resolves reimbursements against the
   // full ledger (`txns`) — a repayment in another month or account still counts.
   const month = cashflowForRange(scopedTxns, baseCurrency, rates, from, to, cashflowMode, txns);
-  // Trend carries each bar's yyyy-MM so a click can deep-link into Analytics.
-  const trend = useMemo(
-    () =>
-      monthlyCashflow(scopedTxns, baseCurrency, rates, 6, undefined, cashflowMode, txns).map(
-        (p, i) => ({ ...p, monthKey: format(subMonths(new Date(), 5 - i), "yyyy-MM") }),
-      ),
-    [scopedTxns, txns, baseCurrency, rates, cashflowMode],
-  );
   const categorySlices = spendingByCategory(
     scopedTxns,
     categoriesQ.data ?? [],
@@ -158,7 +139,7 @@ export function Dashboard() {
   );
 
   // ── Budgets — recurring use a period window; goals are transaction-funded ────
-  const { expenseRows, savingRows, goalRows, expenseTotals } = useMemo(() => {
+  const { expenseRows, expenseTotals } = useMemo(() => {
     const links = groupLinks(budgetLinks);
     const txnLinks = groupTxnLinks(budgetTxnLinks);
     const recurring = budgets.filter((b) => b.type !== "goal");
@@ -249,13 +230,14 @@ export function Dashboard() {
         }
       />
 
-      <Statement
-        rows={positionRows}
-        total={{
-          label: accountFilter ? "Balance" : "Net worth",
-          value: formatMoney(combinedNetWorth, baseCurrency),
-        }}
+      <LeadFigure
+        label={accountFilter ? "Balance" : "Net worth"}
+        value={formatMoney(combinedNetWorth, baseCurrency)}
       />
+
+      <Register title="Held in">
+        <Statement rows={positionRows} />
+      </Register>
 
       {showInvest && (
         <div className="mt-3">
@@ -290,27 +272,6 @@ export function Dashboard() {
         </Register>
       )}
 
-      {showInvest && investSnapshot && (
-        <Register
-          title="Investments"
-          note={
-            investSnapshot.as_of
-              ? `Zenith · as of ${new Date(investSnapshot.as_of).toLocaleDateString()}`
-              : "Zenith"
-          }
-          action={
-            <Link to="/settings">
-              <MarginLink>manage</MarginLink>
-            </Link>
-          }
-        >
-          <InvestmentsList
-            snapshot={investSnapshot}
-            base={baseCurrency}
-            investBase={investBase}
-          />
-        </Register>
-      )}
     </>
   );
 
@@ -370,13 +331,6 @@ export function Dashboard() {
         }}
       />
 
-      <Plate caption="Cashflow" note="Last 6 months · tap a month for detail">
-        <CashflowBars
-          data={trend}
-          base={baseCurrency}
-          onMonthClick={(mk) => navigate(`/analytics?month=${mk}`)}
-        />
-      </Plate>
 
       <Plate
         caption="Expenditure, by head"
@@ -412,7 +366,7 @@ export function Dashboard() {
             No budgets set. Create one to track spending against a limit.
           </p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {expenseRows.length > 1 && (
               <BudgetSummaryRow
                 spent={expenseTotals.spent}
@@ -420,8 +374,8 @@ export function Dashboard() {
                 base={baseCurrency}
               />
             )}
-            <ul className="space-y-3">
-              {expenseRows.slice(0, 4).map(({ b, spent, pacing }) => {
+            <ul className="space-y-2.5">
+              {expenseRows.slice(0, 3).map(({ b, spent, pacing }) => {
                 const left = b.amount - spent;
                 const ratio = b.amount > 0 ? spent / b.amount : 0;
                 return (
@@ -454,10 +408,10 @@ export function Dashboard() {
                   </li>
                 );
               })}
-              {expenseRows.length > 4 && (
+              {expenseRows.length > 3 && (
                 <li>
                   <Link to="/budgets">
-                    <MarginLink>+{expenseRows.length - 4} more</MarginLink>
+                    <MarginLink>+{expenseRows.length - 3} more</MarginLink>
                   </Link>
                 </li>
               )}
@@ -466,81 +420,6 @@ export function Dashboard() {
         )}
       </Register>
 
-      <Register
-        title="Goals & savings"
-        action={
-          <Link to="/budgets">
-            <MarginLink>manage</MarginLink>
-          </Link>
-        }
-      >
-        {goalRows.length === 0 && savingRows.length === 0 ? (
-          <p className="text-sm italic text-quill-faint">
-            No goals set. Create a one-time goal or a savings budget.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {goalRows.slice(0, 4).map(({ b, funding }) => (
-              <li key={b.id}>
-                <div className="flex items-baseline justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-quill">{b.name}</p>
-                    <p className="text-xs italic text-quill-faint">
-                      {funding.daysLeft == null
-                        ? "Goal"
-                        : funding.daysLeft < 0
-                          ? "Overdue"
-                          : `${funding.daysLeft}d left`}
-                    </p>
-                  </div>
-                  <span className="tnum shrink-0 text-sm text-credit">
-                    {formatMoney(funding.funded, baseCurrency)}
-                    <span className="text-quill-faint">
-                      {" "}
-                      / {formatMoney(b.amount, baseCurrency)}
-                    </span>
-                  </span>
-                </div>
-                <MiniStackedBar
-                  spent={funding.spent}
-                  saved={funding.saved}
-                  target={b.amount}
-                />
-              </li>
-            ))}
-            {savingRows.slice(0, Math.max(0, 4 - goalRows.length)).map(({ b, spent }) => {
-              const ratio = b.amount > 0 ? spent / b.amount : 0;
-              return (
-                <li key={b.id}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm text-quill">{b.name}</p>
-                      <p className="text-xs italic text-quill-faint">{periodLabel(b)}</p>
-                    </div>
-                    <span className="tnum shrink-0 text-sm text-credit">
-                      {formatMoney(spent, baseCurrency)}
-                      <span className="text-quill-faint">
-                        {" "}
-                        / {formatMoney(b.amount, baseCurrency)}
-                      </span>
-                    </span>
-                  </div>
-                  <MiniBar ratio={ratio} savings />
-                </li>
-              );
-            })}
-            {goalRows.length + savingRows.length > 4 && (
-              <li>
-                <Link to="/budgets">
-                  <MarginLink>
-                    +{goalRows.length + savingRows.length - 4} more
-                  </MarginLink>
-                </Link>
-              </li>
-            )}
-          </ul>
-        )}
-      </Register>
     </>
   );
 
@@ -622,53 +501,6 @@ function MiniBar({
   );
 }
 
-/** Zenith portfolio breakdown — total in base + each external account. */
-function InvestmentsList({
-  snapshot,
-  base,
-  investBase,
-}: {
-  snapshot: InvestmentSnapshot;
-  base: string;
-  investBase: number;
-}) {
-  return (
-    <div>
-      <div className="mb-3 flex items-end justify-between">
-        <span className="text-xs text-quill-faint">Portfolio value</span>
-        <span className="tnum text-lg font-semibold text-head-5">
-          {formatMoney(investBase, base)}
-        </span>
-      </div>
-      {snapshot.accounts.length > 0 ? (
-        <ul className="space-y-2">
-          {snapshot.accounts.map((a, i) => (
-            <li
-              key={`${a.name}-${i}`}
-              className="flex items-center justify-between gap-3 text-sm"
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="size-2 shrink-0 rounded-full bg-head-5" />
-                <span className="truncate text-quill">{a.name}</span>
-              </span>
-              <span className="tnum shrink-0 text-quill-soft">
-                {formatMoney(a.value, a.currency)}
-                {a.currency !== base && (
-                  <span className="ml-1 text-quill-faint">{a.currency}</span>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-sm text-quill-faint">
-          Portfolio total only — no per-account breakdown provided.
-        </p>
-      )}
-    </div>
-  );
-}
-
 /** Compact aggregate strip atop the Budget widget — all spending budgets combined. */
 function BudgetSummaryRow({
   spent,
@@ -703,90 +535,7 @@ function BudgetSummaryRow({
   );
 }
 
-/** Two-segment slim bar for goals: spent then saved, toward the target. */
-function MiniStackedBar({
-  spent,
-  saved,
-  target,
-}: {
-  spent: number;
-  saved: number;
-  target: number;
-}) {
-  const t = target > 0 ? target : 1;
-  const spentPct = Math.min(100, (spent / t) * 100);
-  const savedPct = Math.min(100 - spentPct, (saved / t) * 100);
-  return (
-    <div
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(spentPct + savedPct)}
-      aria-label={`${Math.round(((spent + saved) / t) * 100)}% funded`}
-      className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]"
-    >
-      <div className="h-full bg-head-4 transition-all" style={{ width: `${spentPct}%` }} />
-      <div className="h-full bg-credit transition-all" style={{ width: `${savedPct}%` }} />
-    </div>
-  );
-}
 
-function CashflowBars({
-  data,
-  base,
-  onMonthClick,
-}: {
-  data: (MonthlyPoint & { monthKey: string })[];
-  base: string;
-  onMonthClick?: (monthKey: string) => void;
-}) {
-  const ink = useLedgerInk();
-  const hasData = data.some((d) => d.income > 0 || d.expense > 0);
-  if (!hasData) return <ChartEmpty label="No activity in the last 6 months" />;
-
-  return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart
-        data={data}
-        barGap={4}
-        margin={{ top: 8, right: 4, bottom: 0, left: 4 }}
-        onClick={(s) => {
-          const p = s?.activePayload?.[0]?.payload as
-            | { monthKey?: string; income?: number; expense?: number }
-            | undefined;
-          // Empty months have nothing to drill into — ignore the click.
-          if (p?.monthKey && ((p.income ?? 0) > 0 || (p.expense ?? 0) > 0))
-            onMonthClick?.(p.monthKey);
-        }}
-        className={onMonthClick ? "cursor-pointer" : undefined}
-      >
-        <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
-        <XAxis
-          dataKey="label"
-          tickLine={false}
-          axisLine={false}
-          tick={{ fill: ink["--color-quill-faint"], fontSize: 12 }}
-        />
-        <YAxis hide />
-        <Tooltip
-          cursor={{ fill: "rgb(0 0 0 / 0.04)" }}
-          contentStyle={{
-            background: ink["--color-page"],
-            border: `1px solid ${ink["--color-rule-strong"]}`,
-            borderRadius: 2,
-            fontSize: 12,
-            color: ink["--color-quill"],
-          }}
-          itemStyle={{ color: ink["--color-quill"] }}
-          labelStyle={{ color: ink["--color-quill-soft"] }}
-          formatter={(value) => formatMoney(Number(value), base)}
-        />
-        <Bar dataKey="income" name="Received" fill={ink["--color-credit"]} radius={[2, 2, 0, 0]} />
-        <Bar dataKey="expense" name="Expended" fill={ink["--color-debit"]} radius={[2, 2, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
 
 function ChartEmpty({ label }: { label: string }) {
   return (

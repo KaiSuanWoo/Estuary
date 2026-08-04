@@ -66,7 +66,12 @@ export function AppShell() {
             ref={leafRef}
             className="surface-leaf relative min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-[2px]"
           >
-            <div className="mx-auto w-full max-w-md py-6 pl-9 pr-4 lg:max-w-3xl lg:py-8 lg:pl-16 lg:pr-10">
+            {/* max-w-5xl on a spread: two pages need the width one didn't. */}
+            {/* max-w-5xl on a spread: two pages need the width one didn't.
+                The deep bottom padding is clearance for the add button, which
+                is always present on a phone and would otherwise sit on top of
+                the last entry. */}
+            <div className="mx-auto w-full max-w-md pb-24 pl-9 pr-4 pt-6 lg:max-w-5xl lg:py-7 lg:pl-16 lg:pr-10">
               <Outlet />
             </div>
           </main>

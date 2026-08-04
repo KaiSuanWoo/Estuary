@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { formatMoney } from "@/lib/format";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/cn";
 
 export interface DonutSlice {
@@ -31,6 +32,11 @@ export function HoverDonut({
   legendCount?: number;
   size?: number;
 }) {
+  // The ring gives up some diameter on a phone, where it shares the page with
+  // a full-width legend beneath it rather than sitting beside one.
+  const narrow = useMediaQuery("(max-width: 639px)");
+  const ringSize = narrow ? Math.round(size * 0.82) : size;
+
   const [active, setActive] = useState<number | null>(null);
   const total = slices.reduce((s, x) => s + x.value, 0) || 1;
   const cur = active != null ? slices[active] : null;
@@ -40,7 +46,7 @@ export function HoverDonut({
       {/* Fixed hover readout — top-right of the container, colour-coded. */}
       <div
         className={cn(
-          "pointer-events-none absolute right-0 top-0 z-10 rounded-xl border-l-2 bg-ink-950/90 px-3 py-1.5 shadow-lg backdrop-blur transition-opacity",
+          "pointer-events-none absolute right-0 top-0 z-10 rounded-[2px] border-l-2 bg-page px-3 py-1.5 shadow-[0_2px_8px_rgb(0_0_0/0.35)] transition-opacity",
           cur ? "opacity-100" : "opacity-0",
         )}
         style={{ borderColor: cur?.color }}
@@ -58,16 +64,24 @@ export function HoverDonut({
         </p>
       </div>
 
-      <div className={cn("flex items-center gap-4", !legend && "justify-center")}>
-        <div className="relative shrink-0" style={{ height: size, width: size }}>
+      {/* Side by side once there's width for it. On a phone the ring and a
+          legend can't share a row without crushing the names to initials, so
+          the legend drops underneath at full width. */}
+      <div
+        className={cn(
+          "flex flex-col items-center gap-4 sm:flex-row sm:items-center",
+          !legend && "justify-center",
+        )}
+      >
+        <div className="relative shrink-0" style={{ height: ringSize, width: ringSize }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={slices}
                 dataKey="value"
                 nameKey="name"
-                innerRadius={size * 0.33}
-                outerRadius={size * 0.47}
+                innerRadius={ringSize * 0.33}
+                outerRadius={ringSize * 0.47}
                 paddingAngle={2}
                 stroke="none"
                 onMouseEnter={(_, i) => setActive(i)}
@@ -96,7 +110,7 @@ export function HoverDonut({
         </div>
 
         {legend && (
-          <ul className="min-w-0 flex-1 space-y-1.5">
+          <ul className="w-full min-w-0 flex-1 space-y-1.5">
             {slices.slice(0, legendCount).map((s, i) => (
               <li
                 key={s.id}
@@ -104,7 +118,7 @@ export function HoverDonut({
                 onMouseLeave={() => setActive(null)}
                 className={cn(
                   "flex cursor-default items-center gap-2 rounded-md px-1 py-0.5 text-sm transition-colors",
-                  active === i && "bg-ink-800/60",
+                  active === i && "bg-[color-mix(in_oklab,var(--color-quill)_8%,transparent)]",
                 )}
               >
                 <span
