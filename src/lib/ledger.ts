@@ -39,6 +39,7 @@ export type Lamp = (typeof LAMPS)[number];
 
 const HIDE_KEY = "estuary.hide";
 const LAMP_KEY = "estuary.lamp";
+const HOME_BUDGETS_KEY = "estuary.home.budgets";
 
 function isHide(v: unknown): v is Hide {
   return typeof v === "string" && (HIDES as readonly string[]).includes(v);
@@ -85,6 +86,27 @@ export function applyLamp(lamp: Lamp): void {
     localStorage.setItem(LAMP_KEY, lamp);
   } catch {
     // As above.
+  }
+}
+
+/**
+ * Whether Home carries the budget line. Per device on purpose: a phone has a
+ * screenful less room than a desktop, so it's reasonable to want budgets on one
+ * and not the other. Defaults to shown.
+ */
+export function readShowHomeBudgets(): boolean {
+  try {
+    return localStorage.getItem(HOME_BUDGETS_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function writeShowHomeBudgets(show: boolean): void {
+  try {
+    localStorage.setItem(HOME_BUDGETS_KEY, show ? "1" : "0");
+  } catch {
+    // Storage unavailable — the choice won't survive a reload.
   }
 }
 

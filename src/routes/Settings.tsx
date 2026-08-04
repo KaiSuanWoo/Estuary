@@ -17,6 +17,7 @@ import { investmentTotalInBase, parseZenithSnapshot } from "@/lib/investments";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { CURRENCIES, PAY_CYCLES } from "@/lib/constants";
+import { readShowHomeBudgets, writeShowHomeBudgets } from "@/lib/ledger";
 import { Button, Card, PageHeader, Spinner } from "@/components/ui";
 
 const controlCls =
@@ -151,6 +152,8 @@ export function Settings() {
             </Link>
           )}
 
+          <HomePreferences />
+
           <ExchangeRates baseCurrency={settings.base_currency} />
 
           <ZenithSync baseCurrency={settings.base_currency} />
@@ -171,6 +174,53 @@ export function Settings() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * What Home carries. Stored per device rather than per account: a phone has a
+ * screenful less room than a desktop, so wanting budgets on one and not the
+ * other is a reasonable thing to want.
+ */
+function HomePreferences() {
+  const [showBudgets, setShowBudgets] = useState(readShowHomeBudgets);
+
+  return (
+    <Card className="space-y-3">
+      <h2 className="text-sm font-semibold text-quill">Home page</h2>
+      <label className="flex items-center justify-between gap-3">
+        <span className="text-sm text-quill-soft">
+          Show budgets
+          <span className="block text-xs text-quill-faint">
+            A single line: spent, limit and what's left.
+          </span>
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={showBudgets}
+          onClick={() => {
+            const next = !showBudgets;
+            setShowBudgets(next);
+            writeShowHomeBudgets(next);
+          }}
+          className={cn(
+            "relative h-6 w-11 shrink-0 rounded-full border transition-colors",
+            showBudgets ? "border-brass bg-brass/30" : "border-rule",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 size-4 rounded-full transition-all",
+              showBudgets ? "left-[1.55rem] bg-brass" : "left-0.5 bg-quill-faint",
+            )}
+          />
+        </button>
+      </label>
+      <p className="text-xs italic text-quill-faint">
+        This device only \u2014 it won't change your other screens.
+      </p>
+    </Card>
   );
 }
 

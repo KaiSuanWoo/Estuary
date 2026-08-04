@@ -84,6 +84,7 @@ export function HoverDonut({
                 outerRadius={ringSize * 0.47}
                 paddingAngle={2}
                 stroke="none"
+                isAnimationActive={false}
                 onMouseEnter={(_, i) => setActive(i)}
                 onMouseLeave={() => setActive(null)}
               >

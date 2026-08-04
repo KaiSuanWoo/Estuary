@@ -35,8 +35,10 @@ import {
   useInvestmentSnapshot,
 } from "@/hooks/useInvestmentSnapshot";
 import { investmentTotalInBase } from "@/lib/investments";
-import { balancesByCurrency } from "@/lib/balances";
-import { totalInBase } from "@/lib/fx";
+import { accountBalancesByCurrency, balancesByCurrency } from "@/lib/balances";
+import type { BalanceOverride } from "@/lib/investments";
+import { readShowHomeBudgets } from "@/lib/ledger";
+import { convert, totalInBase, type RateMap } from "@/lib/fx";
 import {
   cashflowForRange,
   monthBounds,
@@ -59,10 +61,11 @@ import {
   Spread,
   Statement,
   useLedgerInk,
+  type Ink,
 } from "@/components/ledger";
 import { HoverDonut } from "@/components/HoverDonut";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
-import type { Budget } from "@/lib/types";
+import type { Account, Budget, Transaction } from "@/lib/types";
 
 export function Dashboard() {
   const [adding, setAdding] = useState(false);
@@ -88,6 +91,7 @@ export function Dashboard() {
   // Must sit with the other hooks: an early return below would otherwise make
   // the hook count differ between the loading and loaded renders.
   const ink = useLedgerInk();
+  const showBudgets = readShowHomeBudgets();
   // The spread only exists at lg; below it the recto is the whole page, so the
   // cashflow plate has to travel there or a phone would never see it.
   const wide = useMediaQuery("(min-width: 1024px)");
@@ -261,6 +265,17 @@ export function Dashboard() {
         value={formatMoney(combinedNetWorth, baseCurrency)}
       />
 
+      {/* An unconverted currency means the figure above is understated, so the
+          caveat belongs with it rather than beside a currency list. */}
+      {missing.length > 0 && (
+        <p className="-mt-1 mb-1 text-xs italic text-debit">
+          {missing.join(", ")} not converted —{" "}
+          <Link to="/settings" className="underline">
+            set a rate
+          </Link>
+        </p>
+      )}
+
 
       {showInvest && (
         <div className="mt-3">
@@ -278,23 +293,17 @@ export function Dashboard() {
 
       {wide && cashflowPlate}
 
-      {Object.keys(byCurrency).length > 1 && (
-        <Register title="By currency">
-          <Statement
-            rows={Object.entries(byCurrency).map(([c, v]) => ({
-              label: c,
-              value: formatMoney(v, c),
-            }))}
+      {investAccounts.length > 0 && (
+        <Plate caption="Investments" note="By account">
+          <InvestmentsPlate
+            accounts={investAccounts}
+            txns={txns}
+            overrides={overrides}
+            base={baseCurrency}
+            rates={rates}
+            ink={ink}
           />
-          {missing.length > 0 && (
-            <p className="mt-2 text-xs italic text-debit">
-              {missing.join(", ")} not converted —{" "}
-              <Link to="/settings" className="underline">
-                set a rate
-              </Link>
-            </p>
-          )}
-        </Register>
+        </Plate>
       )}
 
     </>
@@ -380,6 +389,7 @@ export function Dashboard() {
 
       {!wide && cashflowPlate}
 
+      {showBudgets && (
       <Register
         title="Budgets"
         action={
@@ -400,7 +410,7 @@ export function Dashboard() {
           />
         )}
       </Register>
-
+      )}
     </>
   );
 
@@ -587,6 +597,61 @@ function CashflowBars({
   );
 }
 
+
+
+/** Investment accounts as a proportional bar apiece, largest first. */
+function InvestmentsPlate({
+  accounts,
+  txns,
+  overrides,
+  base,
+  rates,
+  ink,
+}: {
+  accounts: Account[];
+  txns: Transaction[];
+  overrides: Map<string, BalanceOverride>;
+  base: string;
+  rates: RateMap;
+  ink: Ink;
+}) {
+  const rows = accounts
+    .map((a) => {
+      const balances = accountBalancesByCurrency(a, txns, overrides);
+      const native = balances[a.currency] ?? 0;
+      return {
+        id: a.id,
+        name: a.name,
+        currency: a.currency,
+        native,
+        inBase: convert(native, a.currency, base, rates) ?? native,
+      };
+    })
+    .sort((x, y) => y.inBase - x.inBase);
+
+  const max = Math.max(...rows.map((r) => r.inBase), 1);
+
+  return (
+    <ul className="space-y-2.5">
+      {rows.map((r, i) => (
+        <li key={r.id}>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="truncate text-sm text-quill">{r.name}</span>
+            <span className="tnum shrink-0 text-sm text-quill-soft">
+              {formatMoney(r.native, r.currency)}
+            </span>
+          </div>
+          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${(r.inBase / max) * 100}%`, background: headInk(i, ink) }}
+            />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function ChartEmpty({ label }: { label: string }) {
   return (

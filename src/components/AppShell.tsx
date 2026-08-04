@@ -1,29 +1,35 @@
 import { useEffect, useRef } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { BarChart3, LayoutDashboard, ListPlus, Settings, Wallet } from "lucide-react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/cn";
-import { pressDown, useReducedMotion } from "@/lib/motion";
+import { paperSettle, pressDown, useReducedMotion } from "@/lib/motion";
 import { LeafScrollProvider } from "@/components/leaf-scroll";
 import { BackToTop } from "@/components/BackToTop";
 
 interface NavItem {
   to: string;
   label: string;
+  icon: typeof LayoutDashboard;
   end: boolean;
 }
 
 /**
- * The five stiff dividers down the fore-edge. A bound ledger labels its tabs
- * rather than picturing them, so there are no icons here — the words are the
- * navigation.
+ * The five sections. On a desktop these are the stiff dividers down the
+ * fore-edge, labelled the way a ledger labels its tabs. A phone gets the
+ * floating dock instead — thumbs reach the bottom of a screen, not its edge —
+ * so the icons are here for it.
  */
 const NAV: NavItem[] = [
-  { to: "/", label: "Home", end: true },
-  { to: "/analytics", label: "Analytics", end: false },
-  { to: "/transactions", label: "Activity", end: false },
-  { to: "/accounts", label: "Accounts", end: false },
-  { to: "/settings", label: "Settings", end: false },
+  { to: "/", label: "Home", icon: LayoutDashboard, end: true },
+  { to: "/analytics", label: "Analytics", icon: BarChart3, end: false },
+  { to: "/transactions", label: "Activity", icon: ListPlus, end: false },
+  { to: "/accounts", label: "Accounts", icon: Wallet, end: false },
+  { to: "/settings", label: "Settings", icon: Settings, end: false },
 ];
+
+/** Each dock cell is size-12 (48px) with gap-1 (4px) → a 52px stride. */
+const PILL_STRIDE = 52;
 
 /**
  * The book.
@@ -46,6 +52,12 @@ export function AppShell() {
     leafRef.current?.scrollTo({ top: 0 });
   }, [pathname]);
 
+  // The dock's pill is driven by the active tab's index rather than a shared
+  // layout animation, so it can only ever move horizontally.
+  const activeIndex = NAV.findIndex((n) =>
+    n.end ? pathname === n.to : pathname === n.to || pathname.startsWith(`${n.to}/`),
+  );
+
   return (
     <div
       className="flex h-full flex-col lg:p-6"
@@ -66,12 +78,10 @@ export function AppShell() {
             ref={leafRef}
             className="surface-leaf relative min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-[2px]"
           >
-            {/* max-w-5xl on a spread: two pages need the width one didn't. */}
             {/* max-w-5xl on a spread: two pages need the width one didn't.
-                The deep bottom padding is clearance for the add button, which
-                is always present on a phone and would otherwise sit on top of
-                the last entry. */}
-            <div className="mx-auto w-full max-w-md pb-24 pl-9 pr-4 pt-6 lg:max-w-5xl lg:py-7 lg:pl-16 lg:pr-10">
+                The deep bottom padding is clearance for the dock and the add
+                button, which would otherwise sit on top of the last entry. */}
+            <div className="mx-auto w-full max-w-md pb-32 pl-9 pr-4 pt-6 lg:max-w-5xl lg:py-7 lg:pl-16 lg:pr-10">
               <Outlet />
             </div>
           </main>
@@ -79,10 +89,10 @@ export function AppShell() {
           <BackToTop />
         </LeafScrollProvider>
 
-        {/* Fore-edge tabs */}
+        {/* Fore-edge tabs — desktop only; a thumb can't reach a screen edge. */}
         <nav
-          aria-label="Primary"
-          className="relative z-20 ml-1.5 flex w-10 shrink-0 flex-col gap-1.5 lg:w-11"
+          aria-label="Sections"
+          className="relative z-20 ml-1.5 hidden w-10 shrink-0 flex-col gap-1.5 lg:flex lg:w-11"
         >
           {NAV.map(({ to, label, end }) => (
             <NavLink key={to} to={to} end={end} className="group block flex-1">
@@ -95,7 +105,7 @@ export function AppShell() {
                     "shadow-[1px_1px_3px_rgb(0_0_0/0.4)] transition-colors",
                     isActive
                       ? "brass-face"
-                      : "bg-page-edge text-quill-soft group-hover:text-quill",
+                      : "bg-page-edge text-quill/75 group-hover:text-quill",
                   )}
                 >
                   <span
@@ -132,6 +142,49 @@ export function AppShell() {
             clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 94%, 0 100%)",
           }}
         />
+
+        {/* Mobile: the dock, in leather and brass. Reachable by thumb, which
+            the fore-edge tabs are not. The pill only ever translates on x, so
+            it can't drift vertically as the leaf scrolls. */}
+        <nav
+          aria-label="Primary"
+          className="absolute inset-x-0 z-30 flex justify-center px-4 lg:hidden"
+          style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
+        >
+          <div
+            className="surface-hide relative flex items-center gap-1 rounded-[24px] p-1.5"
+            style={{ boxShadow: "0 10px 26px -8px rgb(0 0 0 / 0.7)" }}
+          >
+            {activeIndex >= 0 && (
+              <motion.span
+                aria-hidden
+                className="brass-face absolute left-1.5 top-1.5 z-0 size-12 rounded-[18px]"
+                initial={false}
+                animate={{ x: activeIndex * PILL_STRIDE }}
+                transition={reduce ? { duration: 0 } : paperSettle}
+              />
+            )}
+            {NAV.map(({ to, label, icon: Icon, end }) => (
+              <NavLink key={to} to={to} end={end} aria-label={label} className="relative z-10 block">
+                {({ isActive }) => (
+                  <motion.span
+                    whileTap={reduce ? undefined : { scale: 0.9 }}
+                    transition={pressDown}
+                    className="flex size-12 items-center justify-center rounded-[18px]"
+                  >
+                    <Icon
+                      className={cn(
+                        "size-[21px] shrink-0 transition-colors",
+                        isActive ? "text-[#24170a]" : "text-page-edge/70",
+                      )}
+                      strokeWidth={isActive ? 2.3 : 2}
+                    />
+                  </motion.span>
+                )}
+              </NavLink>
+            ))}
+          </div>
+        </nav>
 
         {/* Brass corner caps */}
         <span
