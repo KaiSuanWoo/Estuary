@@ -1,7 +1,17 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { format, subMonths } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useLeafScroll } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
@@ -17,7 +27,6 @@ import {
   goalFunding,
   groupLinks,
   groupTxnLinks,
-  periodLabel,
 } from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
@@ -26,14 +35,16 @@ import {
   useInvestmentSnapshot,
 } from "@/hooks/useInvestmentSnapshot";
 import { investmentTotalInBase } from "@/lib/investments";
-import { accountBalancesByCurrency, balancesByCurrency } from "@/lib/balances";
+import { balancesByCurrency } from "@/lib/balances";
 import { totalInBase } from "@/lib/fx";
 import {
   cashflowForRange,
   monthBounds,
+  monthlyCashflow,
   monthLabel,
   spendingByCategory,
   type CashflowMode,
+  type MonthlyPoint,
 } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -77,6 +88,9 @@ export function Dashboard() {
   // Must sit with the other hooks: an early return below would otherwise make
   // the hook count differ between the loading and loaded renders.
   const ink = useLedgerInk();
+  // The spread only exists at lg; below it the recto is the whole page, so the
+  // cashflow plate has to travel there or a phone would never see it.
+  const wide = useMediaQuery("(min-width: 1024px)");
 
   const accounts = accountsQ.data ?? [];
   const txns = allTxnsQ.data ?? [];
@@ -123,10 +137,21 @@ export function Dashboard() {
     () => (monthBack === 0 ? new Date() : subMonths(new Date(), monthBack)),
     [monthBack],
   );
+  const navigate = useNavigate();
   const { from, to } = monthBounds(refDate);
   // Each of these sums a scoped slice but resolves reimbursements against the
   // full ledger (`txns`) — a repayment in another month or account still counts.
   const month = cashflowForRange(scopedTxns, baseCurrency, rates, from, to, cashflowMode, txns);
+  // Six months of received-vs-expended; each bar carries its yyyy-MM so a click
+  // can open that month in Analytics.
+  const trend = useMemo(
+    () =>
+      monthlyCashflow(scopedTxns, baseCurrency, rates, 6, undefined, cashflowMode, txns).map(
+        (p, i) => ({ ...p, monthKey: format(subMonths(new Date(), 5 - i), "yyyy-MM") }),
+      ),
+    [scopedTxns, txns, baseCurrency, rates, cashflowMode],
+  );
+
   const categorySlices = spendingByCategory(
     scopedTxns,
     categoriesQ.data ?? [],
@@ -197,14 +222,15 @@ export function Dashboard() {
   const asAt = format(new Date(), "d MMMM yyyy");
   const periodNote = monthBack === 0 ? "this month" : monthLabel(refDate);
 
-  // ── Verso: the position ───────────────────────────────────────────────────
-  const positionRows = scopedAccounts.map((a) => {
-    const balances = accountBalancesByCurrency(a, txns, overrides);
-    return {
-      label: a.name,
-      value: formatMoney(balances[a.currency] ?? 0, a.currency),
-    };
-  });
+  const cashflowPlate = (
+    <Plate caption="Cashflow" note="Last 6 months · tap a month for detail">
+      <CashflowBars
+        data={trend}
+        base={baseCurrency}
+        onMonthClick={(mk) => navigate(`/analytics?month=${mk}`)}
+      />
+    </Plate>
+  );
 
   const verso = (
     <>
@@ -235,9 +261,6 @@ export function Dashboard() {
         value={formatMoney(combinedNetWorth, baseCurrency)}
       />
 
-      <Register title="Held in">
-        <Statement rows={positionRows} />
-      </Register>
 
       {showInvest && (
         <div className="mt-3">
@@ -252,6 +275,8 @@ export function Dashboard() {
           />
         </div>
       )}
+
+      {wide && cashflowPlate}
 
       {Object.keys(byCurrency).length > 1 && (
         <Register title="By currency">
@@ -353,6 +378,8 @@ export function Dashboard() {
         )}
       </Plate>
 
+      {!wide && cashflowPlate}
+
       <Register
         title="Budgets"
         action={
@@ -366,57 +393,11 @@ export function Dashboard() {
             No budgets set. Create one to track spending against a limit.
           </p>
         ) : (
-          <div className="space-y-2.5">
-            {expenseRows.length > 1 && (
-              <BudgetSummaryRow
-                spent={expenseTotals.spent}
-                budget={expenseTotals.budget}
-                base={baseCurrency}
-              />
-            )}
-            <ul className="space-y-2.5">
-              {expenseRows.slice(0, 3).map(({ b, spent, pacing }) => {
-                const left = b.amount - spent;
-                const ratio = b.amount > 0 ? spent / b.amount : 0;
-                return (
-                  <li key={b.id}>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm text-quill">{b.name}</p>
-                        <p className="text-xs italic text-quill-faint">
-                          {periodLabel(b)}
-                          {pacing.daysLeft != null &&
-                            ` · ${pacing.daysLeft === 0 ? "ends today" : `${pacing.daysLeft}d left`}`}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <span
-                          className={cn(
-                            "tnum text-sm",
-                            left < 0 ? "text-debit" : "text-quill",
-                          )}
-                        >
-                          {formatMoney(Math.abs(left), baseCurrency)}{" "}
-                          {left < 0 ? "over" : "left"}
-                        </span>
-                        <p className="tnum text-[11px] text-quill-faint">
-                          {Math.round(ratio * 100)}% used
-                        </p>
-                      </div>
-                    </div>
-                    <MiniBar ratio={ratio} elapsed={pacing.elapsedRatio} />
-                  </li>
-                );
-              })}
-              {expenseRows.length > 3 && (
-                <li>
-                  <Link to="/budgets">
-                    <MarginLink>+{expenseRows.length - 3} more</MarginLink>
-                  </Link>
-                </li>
-              )}
-            </ul>
-          </div>
+          <BudgetSummaryRow
+            spent={expenseTotals.spent}
+            budget={expenseTotals.budget}
+            base={baseCurrency}
+          />
         )}
       </Register>
 
@@ -535,6 +516,76 @@ function BudgetSummaryRow({
   );
 }
 
+
+
+function CashflowBars({
+  data,
+  base,
+  onMonthClick,
+}: {
+  data: (MonthlyPoint & { monthKey: string })[];
+  base: string;
+  onMonthClick?: (monthKey: string) => void;
+}) {
+  const ink = useLedgerInk();
+  const hasData = data.some((d) => d.income > 0 || d.expense > 0);
+  if (!hasData) return <ChartEmpty label="No activity in the last 6 months" />;
+
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart
+        data={data}
+        barGap={4}
+        margin={{ top: 8, right: 4, bottom: 0, left: 4 }}
+        onClick={(s) => {
+          const p = s?.activePayload?.[0]?.payload as
+            | { monthKey?: string; income?: number; expense?: number }
+            | undefined;
+          // Empty months have nothing to drill into — ignore the click.
+          if (p?.monthKey && ((p.income ?? 0) > 0 || (p.expense ?? 0) > 0))
+            onMonthClick?.(p.monthKey);
+        }}
+        className={onMonthClick ? "cursor-pointer" : undefined}
+      >
+        <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
+        <XAxis
+          dataKey="label"
+          tickLine={false}
+          axisLine={false}
+          tick={{ fill: ink["--color-quill-faint"], fontSize: 12 }}
+        />
+        <YAxis hide />
+        <Tooltip
+          cursor={{ fill: "rgb(0 0 0 / 0.04)" }}
+          contentStyle={{
+            background: ink["--color-page"],
+            border: `1px solid ${ink["--color-rule-strong"]}`,
+            borderRadius: 2,
+            fontSize: 12,
+            color: ink["--color-quill"],
+          }}
+          itemStyle={{ color: ink["--color-quill"] }}
+          labelStyle={{ color: ink["--color-quill-soft"] }}
+          formatter={(value) => formatMoney(Number(value), base)}
+        />
+        <Bar
+          dataKey="income"
+          name="Received"
+          fill={ink["--color-credit"]}
+          radius={[2, 2, 0, 0]}
+          isAnimationActive={false}
+        />
+        <Bar
+          dataKey="expense"
+          name="Expended"
+          fill={ink["--color-debit"]}
+          radius={[2, 2, 0, 0]}
+          isAnimationActive={false}
+        />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
 
 
 function ChartEmpty({ label }: { label: string }) {
