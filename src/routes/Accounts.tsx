@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { GripVertical, MoreHorizontal, Plus, Wallet } from "lucide-react";
 import { Reorder, useDragControls } from "motion/react";
@@ -151,6 +151,10 @@ function AccountList({
   );
 }
 
+/**
+ * A folio per account: its heading, what it holds, how it has moved, and when
+ * it was last checked against the bank. Ruled off rather than boxed.
+ */
 function AccountRow({
   account: a,
   txns,
@@ -174,13 +178,22 @@ function AccountRow({
   const owed = isCredit ? -(balances[a.currency] ?? 0) : 0;
   const available =
     isCredit && a.credit_limit != null ? a.credit_limit - owed : null;
-  // Primary currency first, then the rest alphabetically.
   const currencies = [
     a.currency,
-    ...Object.keys(balances)
-      .filter((c) => c !== a.currency)
-      .sort(),
+    ...Object.keys(balances).filter((c) => c !== a.currency).sort(),
   ];
+
+  const { data: checks = [] } = useReconciliations();
+  const lastCheck = checks.find((r) => r.account_id === a.id);
+
+  // A Zenith-valued account has no local movement to trace — its worth is
+  // whatever the snapshot last said, so a line drawn from transactions would
+  // be a flat lie.
+  const externallyValued = overrides.has(a.id);
+  const series = useMemo(
+    () => (externallyValued ? [] : dailyBalances(a, txns, 30)),
+    [a, txns, externallyValued],
+  );
 
   return (
     <Reorder.Item
@@ -189,76 +202,161 @@ function AccountRow({
       dragControls={controls}
       onDragEnd={onCommit}
     >
-      <Card className="flex items-center gap-2.5">
-        {/* Drag handle — press and drag to reorder */}
-        <button
-          type="button"
-          aria-label={`Reorder ${a.name}`}
-          onPointerDown={(e) => controls.start(e)}
-          className="-ml-1 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-quill-faint transition-colors hover:text-quill-soft active:cursor-grabbing"
-        >
-          <GripVertical className="size-4" />
-        </button>
-
-        {/* Account-type colour dot */}
-        <span className={cn("size-2.5 shrink-0 rounded-full", col.dot)} />
-
-        <Link to={`/transactions?account=${a.id}`} className="group min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 font-medium text-quill transition-colors group-hover:text-teal-300">
-            <span className="truncate">{a.name}</span>
+      <section className="border-b border-rule pb-4 pt-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="flex min-w-0 items-baseline gap-2">
+            <button
+              type="button"
+              aria-label={`Reorder ${a.name}`}
+              onPointerDown={(e) => controls.start(e)}
+              className="-ml-1 shrink-0 cursor-grab touch-none text-quill-faint transition-colors hover:text-quill active:cursor-grabbing"
+            >
+              <GripVertical className="size-4" />
+            </button>
+            <Link
+              to={`/transactions?account=${a.id}`}
+              className="truncate tracking-[0.08em] text-quill transition-colors hover:text-brass-lo"
+              style={{ fontVariant: "small-caps" }}
+            >
+              {a.name}
+            </Link>
+            <span className="shrink-0 text-xs italic text-quill-faint">
+              {ACCOUNT_TYPE_LABELS[a.type].toLowerCase()} · {a.currency}
+            </span>
             {isDefault && (
-              <span className="shrink-0 rounded-full bg-teal-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-teal-300">
-                Default
-              </span>
+              <span className="shrink-0 text-xs italic text-quill-faint">· default</span>
             )}
             {a.external_source === "zenith" && (
-              <span className="shrink-0 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-violet-300">
-                Zenith
-              </span>
+              <span className="shrink-0 text-xs italic text-head-5">· Zenith</span>
             )}
-          </p>
-          <p className="text-sm text-quill-faint">
-            <span className={col.text}>{ACCOUNT_TYPE_LABELS[a.type]}</span>
-            {" · "}
-            {available != null
-              ? `${formatMoney(available, a.currency)} available`
-              : multi
-                ? "Multi-currency"
-                : a.currency}
-          </p>
-        </Link>
+          </h2>
+          <button
+            onClick={() => onEdit(a)}
+            aria-label={`Edit ${a.name}`}
+            className="shrink-0 text-quill-faint transition-colors hover:text-quill"
+          >
+            <MoreHorizontal className="size-4" />
+          </button>
+        </div>
 
-        <Link
-          to={`/transactions?account=${a.id}`}
-          className="group flex flex-col items-end gap-0.5 transition-colors"
-        >
-          {currencies.map((c, i) => (
-            <span
-              key={c}
-              className={cn(
-                "tnum font-semibold transition-colors group-hover:text-teal-300",
-                i === 0
-                  ? isCredit
-                    ? "text-lg text-rose-300"
-                    : "text-lg text-quill"
-                  : "text-xs text-quill-soft",
-              )}
-            >
-              {formatMoney(balances[c] ?? 0, c)}
-              {multi && <span className="ml-1 text-quill-faint">{c}</span>}
-            </span>
-          ))}
-        </Link>
+        <div className="mt-2 flex items-end justify-between gap-4">
+          <div>
+            {currencies.map((c, i) => (
+              <p
+                key={c}
+                className={cn(
+                  "tnum leading-tight",
+                  i === 0
+                    ? isCredit
+                      ? "text-2xl text-debit"
+                      : "text-2xl text-quill"
+                    : "text-sm text-quill-soft",
+                )}
+              >
+                {formatMoney(balances[c] ?? 0, c)}
+                {multi && <span className="ml-1 text-xs text-quill-faint">{c}</span>}
+              </p>
+            ))}
+            {available != null && (
+              <p className="text-xs italic text-quill-faint">
+                {formatMoney(available, a.currency)} available
+              </p>
+            )}
+          </div>
 
-        <button
-          onClick={() => onEdit(a)}
-          aria-label={`Edit ${a.name}`}
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-quill-faint transition-colors hover:bg-ink-800 hover:text-quill"
-        >
-          <MoreHorizontal className="size-4" />
-        </button>
-      </Card>
+          {/* A flat line says "no movement" less clearly than nothing does. */}
+          {series.length > 1 && Math.min(...series) !== Math.max(...series) && (
+            <Sparkline points={series} className={col.text} />
+          )}
+        </div>
+
+        <p className="mt-1.5 text-xs italic text-quill-faint">
+          {externallyValued
+            ? "Valued by Zenith"
+            : lastCheck
+              ? `Reconciled ${formatDate(lastCheck.date)} · ${
+                  Math.abs(lastCheck.difference) < 0.005
+                    ? "matched"
+                    : `off by ${formatMoney(Math.abs(lastCheck.difference), a.currency)}`
+                }`
+              : "Never reconciled"}
+        </p>
+      </section>
     </Reorder.Item>
+  );
+}
+
+/**
+ * Daily closing balance for the last `days` days, in the account's own
+ * currency. Walks forward from the opening balance so each day records where
+ * the account actually stood.
+ */
+function dailyBalances(account: Account, txns: Transaction[], days: number): number[] {
+  const effect = (t: Transaction): number => {
+    if (t.destination_account_id === account.id && t.type === "transfer")
+      return t.destination_amount ?? t.amount;
+    if (t.account_id !== account.id) return 0;
+    if (t.type === "income" || t.type === "adjustment") return t.amount;
+    return -t.amount;
+  };
+
+  const mine = txns
+    .filter((t) => t.account_id === account.id || t.destination_account_id === account.id)
+    .sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffISO = cutoff.toISOString().slice(0, 10);
+
+  // Everything before the window collapses into the opening figure.
+  let running = account.opening_balance;
+  const byDay = new Map<string, number>();
+  for (const t of mine) {
+    running += effect(t);
+    if (t.date >= cutoffISO) byDay.set(t.date, running);
+  }
+
+  const out: number[] = [];
+  let last = account.opening_balance;
+  for (const t of mine) {
+    if (t.date >= cutoffISO) break;
+    last += effect(t);
+  }
+  for (let i = 0; i <= days; i++) {
+    const d = new Date(cutoff);
+    d.setDate(d.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    if (byDay.has(iso)) last = byDay.get(iso)!;
+    out.push(last);
+  }
+  return out;
+}
+
+/** A plain polyline — no chart library, so nothing can fail to animate in. */
+function Sparkline({ points, className }: { points: number[]; className?: string }) {
+  const w = 96;
+  const h = 26;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = max - min || 1;
+  const d = points
+    .map((v, i) => {
+      const x = (i / (points.length - 1)) * w;
+      const y = h - ((v - min) / span) * (h - 2) - 1;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  return (
+    <svg
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      className={cn("shrink-0 overflow-visible", className)}
+      aria-hidden
+    >
+      <path d={d} fill="none" stroke="currentColor" strokeWidth="1.25" opacity="0.75" />
+    </svg>
   );
 }
 
