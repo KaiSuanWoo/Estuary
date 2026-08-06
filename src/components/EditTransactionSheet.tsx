@@ -144,6 +144,25 @@ export function EditTransactionSheet({
     () => Array.from(new Set(accounts.map((a) => a.currency))).sort(),
     [accounts],
   );
+
+  /**
+   * Move the entry to another account, carrying its currency with it.
+   *
+   * `currency` was seeded from the saved transaction and never re-derived, so
+   * re-filing an AUD entry into an MYR account left it reading "100 AUD" while
+   * sitting in a ringgit account — a silent mis-statement of the balance. The
+   * amount is a figure the account denominates, so the denomination follows the
+   * account. Multi-currency accounts hold several at once and show a picker, so
+   * an explicit choice there is left alone.
+   */
+  function moveToAccount(nextId: string) {
+    setAccountId(nextId);
+    const next = accounts.find((a) => a.id === nextId);
+    if (next && !next.is_multi_currency) {
+      setCurrency(next.currency);
+      setSrcCurrency(next.currency);
+    }
+  }
   // Currency picker appears only for accounts explicitly marked multi-currency.
   const showCurrency = !!from?.is_multi_currency;
   const fromCurrency = srcCurrency || from?.currency || "";
@@ -378,7 +397,7 @@ export function EditTransactionSheet({
           <Field label={isTransfer ? "From account" : "Account"}>
             <select
               value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
+              onChange={(e) => moveToAccount(e.target.value)}
               className={inputCls}
             >
               {accounts.map((a) => (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, X } from "lucide-react";
+import { dismissKeyboard } from "@/lib/keyboard";
 import { cn } from "@/lib/cn";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import type { Category } from "@/lib/types";
@@ -103,6 +104,7 @@ export function CategoryPicker({
       <button
         ref={triggerRef}
         type="button"
+        onPointerDown={dismissKeyboard}
         onClick={() => setOpen(true)}
         aria-haspopup="listbox"
         aria-expanded={open}
