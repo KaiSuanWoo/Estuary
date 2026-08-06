@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useLeafScroll } from "@/components/leaf-scroll";
-import { useReimbursedAmountMap } from "@/hooks/useTransactions";
+import { useReimbursedAmountMap, useTransactions } from "@/hooks/useTransactions";
 import {
   PAGE_SIZE,
   useInfiniteTransactions,
@@ -345,6 +345,9 @@ export function Transactions() {
   const rates = useRateMap();
 
   const debouncedSearch = useDebouncedValue(search, 300);
+  // The whole ledger, for the running balance: a figure derived from one page
+  // of results would be wrong as soon as you scrolled.
+  const { data: allTxns = [] } = useTransactions();
   const bounds = getDateBounds(dateMode, customFrom, customTo);
 
   const tagMap = useMemo(
@@ -478,6 +481,61 @@ export function Transactions() {
   }
 
   const groups = groupByDay(rows);
+
+  /**
+   * Running balance after each entry.
+   *
+   * Only computed when the figure would actually be true: a single account, in
+   * date order, with nothing filtered out. Any filter or a second account and
+   * the column is dropped rather than shown as plausible-looking nonsense.
+   *
+   * It walks the account's FULL ledger — a balance derived from one page would
+   * be wrong the moment you scrolled.
+   */
+  const balances = useMemo(() => {
+    const onlyAccount = accountFilters.size === 1 ? [...accountFilters][0]! : null;
+    const unfiltered =
+      typeFilters.size === 0 &&
+      categoryFilters.size === 0 &&
+      tagFilters.size === 0 &&
+      dateMode === "all" &&
+      !debouncedSearch.trim();
+    if (!onlyAccount || !unfiltered) return null;
+
+    const account = accounts.find((a) => a.id === onlyAccount);
+    if (!account) return null;
+
+    const mine = allTxns
+      .filter(
+        (t) => t.account_id === onlyAccount || t.destination_account_id === onlyAccount,
+      )
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    // Forward from the opening balance, so each entry records the balance as it
+    // stood immediately after it was posted.
+    const map = new Map<string, number>();
+    let running = account.opening_balance;
+    for (const t of mine) {
+      if (t.destination_account_id === onlyAccount && t.type === "transfer") {
+        running += t.destination_amount ?? t.amount;
+      } else if (t.type === "income" || t.type === "adjustment") {
+        running += t.amount;
+      } else {
+        running -= t.amount;
+      }
+      map.set(t.id, running);
+    }
+    return map;
+  }, [
+    accountFilters,
+    typeFilters,
+    categoryFilters,
+    tagFilters,
+    dateMode,
+    debouncedSearch,
+    accounts,
+    allTxns,
+  ]);
 
   // Dot colour for the account FilterChip when exactly one account is selected
   const singleAccountDot =
@@ -805,10 +863,13 @@ export function Transactions() {
                 key={day}
                 variants={reduce ? undefined : listItemVariants}
               >
-                <h2 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-quill-faint">
+                <h2
+                  className="mb-1 border-b border-rule pb-1 text-xs tracking-[0.14em] text-quill-soft"
+                  style={{ fontVariant: "small-caps" }}
+                >
                   {dayLabel(day)}
                 </h2>
-                <Card className="divide-y divide-ink-800/70 py-0">
+                <div>
                   {txns.map((tx) => {
                     const cat = tx.category_id
                       ? categories.get(tx.category_id)
@@ -818,8 +879,6 @@ export function Transactions() {
                         key={tx.id}
                         tx={tx}
                         categoryName={cat?.name}
-                        categoryIcon={cat?.icon}
-                        categoryColor={cat?.color}
                         accountName={accountMap.get(tx.account_id)}
                         toAccountName={
                           tx.destination_account_id
@@ -827,11 +886,12 @@ export function Transactions() {
                             : undefined
                         }
                         reimbursedAmount={reimbursedInTxCurrency.get(tx.id)}
+                        balance={balances?.get(tx.id)}
                         onClick={() => setEditing(tx)}
                       />
                     );
                   })}
-                </Card>
+                </div>
               </motion.section>
             ))}
           </motion.div>
@@ -1043,8 +1103,6 @@ function SearchOverlay({
                     key={tx.id}
                     tx={tx}
                     categoryName={cat?.name}
-                    categoryIcon={cat?.icon}
-                    categoryColor={cat?.color}
                     accountName={accountMap.get(tx.account_id)}
                     toAccountName={
                       tx.destination_account_id

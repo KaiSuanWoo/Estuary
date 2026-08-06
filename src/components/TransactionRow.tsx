@@ -1,81 +1,51 @@
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  ArrowLeftRight,
-  Ban,
-  Flag,
-  SlidersHorizontal,
-} from "lucide-react";
+import { Ban, Flag } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { formatSignedMoney } from "@/lib/format";
-import { iconFor } from "@/lib/category-icons";
+import { formatMoney } from "@/lib/format";
 import { isReimbursement, reimbursementLinks } from "@/lib/reimbursements";
 import type { Transaction } from "@/lib/types";
 
-const ICON = {
-  income: ArrowDownLeft,
-  expense: ArrowUpRight,
-  transfer: ArrowLeftRight,
-  adjustment: SlidersHorizontal,
-} as const;
-
-/** Distinct colour per transaction type so the activity list is scannable. */
-const TYPE_STYLE: Record<
-  Transaction["type"],
-  { icon: string; amount: string }
-> = {
-  income: { icon: "bg-teal-500/15 text-teal-400", amount: "text-teal-400" },
-  expense: { icon: "bg-rose-500/15 text-rose-400", amount: "text-rose-300" },
-  transfer: { icon: "bg-sky-500/15 text-sky-400", amount: "text-sky-300" },
-  adjustment: {
-    icon: "bg-violet-500/15 text-violet-400",
-    amount: "text-violet-300",
-  },
-};
-
+/**
+ * One entry in the register.
+ *
+ * A ledger has no avatars and no coloured pills — it has columns. Money out and
+ * money in sit under their own headings so a glance down either column answers
+ * "what did I spend" without reading a sign, and the particulars carry the
+ * merchant with its category and account beneath.
+ */
 export function TransactionRow({
   tx,
   categoryName,
-  categoryIcon,
-  categoryColor,
   accountName,
   toAccountName,
   reimbursedAmount,
+  balance,
   onClick,
 }: {
   tx: Transaction;
   categoryName?: string;
-  categoryIcon?: string | null;
-  categoryColor?: string | null;
   /** Name of the source account (used in transfer subtitle). */
   accountName?: string;
   /** Name of the destination account (used in transfer title). */
   toAccountName?: string;
   /**
    * Total already reimbursed for this expense (sum of linked income txns).
-   * When > 0, the gross amount is shown struck-through with the net below.
+   * When > 0, the gross is shown struck through with the net beneath.
    */
   reimbursedAmount?: number;
+  /**
+   * Running balance after this entry, in the account's currency. Only supplied
+   * when it is arithmetically true — one account, in date order, unfiltered.
+   */
+  balance?: number;
   onClick?: () => void;
 }) {
-  const Icon = ICON[tx.type];
   const isTransfer = tx.type === "transfer";
   const reimb = isReimbursement(tx);
   const isSplit = tx.type === "expense" && tx.is_reimbursable;
-  // A reimbursable expense you haven't marked settled yet → still owed.
   const unsettled = isSplit && tx.reimbursement_status !== "settled";
   const isExcluded = tx.excluded_from_cashflow;
-  const style = TYPE_STYLE[tx.type];
 
-  // Show the category's icon (tinted with its colour) as the avatar for
-  // categorised income/expense; otherwise fall back to the type icon.
-  const showCategory =
-    !reimb &&
-    (tx.type === "expense" || tx.type === "income") &&
-    !!categoryColor;
-  const CategoryGlyph = iconFor(categoryIcon);
-
-  // Net amount after reimbursements — only meaningful for reimbursable expenses
+  // Net cost after reimbursements — only meaningful for reimbursable expenses.
   const netAmt =
     isSplit && reimbursedAmount && reimbursedAmount > 0
       ? Math.max(0, tx.amount - reimbursedAmount)
@@ -85,19 +55,14 @@ export function TransactionRow({
   const reimbNet = reimb
     ? Math.max(
         0,
-        tx.amount -
-          reimbursementLinks(tx).reduce((s, l) => s + l.amount, 0),
+        tx.amount - reimbursementLinks(tx).reduce((s, l) => s + l.amount, 0),
       )
     : 0;
 
   const title = isTransfer
-    ? // Prefer the imported description so you know what the transfer was for;
-      // fall back to the linked destination account, then a generic label.
-      tx.merchant?.trim() ||
-      (toAccountName ? `→ ${toAccountName}` : "Transfer")
+    ? tx.merchant?.trim() || (toAccountName ? `→ ${toAccountName}` : "Transfer")
     : tx.merchant || categoryName || labelFor(tx.type);
 
-  // Secondary detail (category / notes / reimbursement) shown before the account.
   const detail = isTransfer
     ? tx.notes || null
     : reimb
@@ -106,113 +71,86 @@ export function TransactionRow({
         ? categoryName
         : tx.notes || null;
 
+  // Which column the figure belongs in. Transfers leave the account they're
+  // filed against, so they sit under "out".
+  const outward = tx.type === "expense" || tx.type === "transfer";
+  const gross = tx.amount;
+  const net = netAmt ?? (reimb ? reimbNet : null);
+
+  const figure = (value: number) => formatMoney(value, tx.currency);
+
   return (
     <div
       className={cn(
-        "flex items-center gap-3 py-3",
-        isExcluded && "opacity-40",
-        onClick &&
-          "cursor-pointer rounded-lg transition-colors hover:bg-ink-800/30 active:bg-ink-800/50",
+        "grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-0.5 border-b border-rule py-2.5 last:border-b-0",
+        balance !== undefined && "sm:grid-cols-[1fr_auto_auto]",
+        isExcluded && "opacity-45",
+        onClick && "cursor-pointer transition-colors hover:bg-[color-mix(in_oklab,var(--color-quill)_4%,transparent)]",
       )}
       onClick={onClick}
     >
-      {showCategory ? (
-        <div
-          className="flex size-10 shrink-0 items-center justify-center rounded-full"
-          style={{
-            backgroundColor: `${categoryColor}26`,
-            color: categoryColor ?? undefined,
-          }}
-        >
-          <CategoryGlyph className="size-5" />
-        </div>
-      ) : (
-        <div
-          className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-full",
-            reimb ? "bg-ink-800 text-quill-soft" : style.icon,
-          )}
-        >
-          <Icon className="size-5" />
-        </div>
-      )}
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
+      {/* Particulars */}
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 truncate text-quill">
           {tx.flagged && (
             <Flag
-              className="size-3 shrink-0 text-amber-400"
+              className="size-3 shrink-0 text-head-3"
               fill="currentColor"
               aria-label="Flagged for review"
             />
           )}
-          <p className="truncate font-medium text-quill">{title}</p>
-        </div>
+          <span className="truncate">{title}</span>
+        </p>
         {(detail || accountName) && (
-          <p className="truncate text-sm text-quill-faint">
-            {detail && (
-              <>
-                {detail}
-                {accountName && <span className="text-quill-faint"> · </span>}
-              </>
-            )}
-            {accountName && (
-              <span className="text-quill-soft">{accountName}</span>
-            )}
+          <p className="truncate text-xs italic text-quill-faint">
+            {detail}
+            {detail && accountName && " · "}
+            {accountName}
           </p>
         )}
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-0.5">
-        {isExcluded ? (
-          // Excluded — amount shown struck through with cancel icon
+      {/* The figure, in the column its direction belongs to */}
+      <div className="flex flex-col items-end">
+        {net !== null ? (
           <>
-            <span className="tnum font-medium text-quill-faint line-through">
-              {formatSignedMoney(tx.amount, tx.currency, tx.type)}
+            <span className="tnum text-xs text-quill-faint line-through">
+              {figure(gross)}
             </span>
-            <span className="flex items-center gap-1 text-[10px] text-quill-faint">
-              <Ban className="size-3" /> excluded
+            <span className={cn("tnum", outward ? "text-debit" : "text-credit")}>
+              {figure(net)}
             </span>
-          </>
-        ) : netAmt !== null ? (
-          // Reimbursable expense with some money back — gross struck through + net
-          <>
-            <span className="tnum text-xs font-medium text-quill-faint line-through">
-              {formatSignedMoney(tx.amount, tx.currency, tx.type)}
-            </span>
-            <span className="tnum font-medium text-quill">
-              {formatSignedMoney(netAmt, tx.currency, tx.type)}
-            </span>
-            <span className="text-[10px] text-quill-faint">net</span>
-          </>
-        ) : reimb ? (
-          // Repayment — gross struck through, net (unallocated) income below
-          <>
-            <span className="tnum text-xs font-medium text-quill-faint line-through">
-              {formatSignedMoney(tx.amount, tx.currency, tx.type)}
-            </span>
-            <span
-              className={cn(
-                "tnum font-medium",
-                reimbNet > 0 ? "text-teal-400" : "text-quill-soft",
-              )}
-            >
-              {formatSignedMoney(reimbNet, tx.currency, tx.type)}
-            </span>
-            <span className="text-[10px] text-quill-faint">net</span>
           </>
         ) : (
-          // Normal display
-          <span className={cn("tnum font-medium", style.amount)}>
-            {formatSignedMoney(tx.amount, tx.currency, tx.type)}
+          <span
+            className={cn(
+              "tnum",
+              isExcluded
+                ? "text-quill-faint line-through"
+                : outward
+                  ? "text-debit"
+                  : "text-credit",
+            )}
+          >
+            {figure(gross)}
+          </span>
+        )}
+        {isExcluded && (
+          <span className="flex items-center gap-1 text-[10px] text-quill-faint">
+            <Ban className="size-3" /> excluded
           </span>
         )}
         {unsettled && (
-          <span className="rounded-full bg-amber-500/15 px-1.5 py-px text-[10px] font-medium text-amber-400">
-            owed
-          </span>
+          <span className="text-[10px] italic text-head-3">owed</span>
         )}
       </div>
+
+      {/* Running balance — only rendered when it's true (see `balance`). */}
+      {balance !== undefined && (
+        <span className="tnum hidden text-quill-soft sm:block sm:min-w-[6.5rem] sm:text-right">
+          {figure(balance)}
+        </span>
+      )}
     </div>
   );
 }
