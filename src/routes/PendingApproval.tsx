@@ -14,8 +14,17 @@ export function PendingApproval({ status }: { status: ProfileStatus }) {
   const rejected = status === "rejected";
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center px-6 py-10 text-center">
-      <div className="w-full max-w-sm">
+    <div
+      className="flex min-h-full flex-col items-center justify-center px-6 py-10 text-center"
+      style={{
+        background:
+          "linear-gradient(170deg, var(--color-desk-a), var(--color-desk-b))",
+      }}
+    >
+      <div
+        className="surface-leaf w-full max-w-sm rounded-[3px] px-6 py-8"
+        style={{ boxShadow: "var(--shadow-book)" }}
+      >
         <div className="mb-6 flex items-end justify-center">
           <Logo className="h-12 w-auto" />
           <span className="-ml-1 font-serif text-4xl font-medium leading-none tracking-tight text-quill">

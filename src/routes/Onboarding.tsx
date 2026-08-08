@@ -104,7 +104,9 @@ export function Onboarding() {
       };
 
   return (
-    <div className="flex min-h-full flex-col px-5 py-6 sm:items-center sm:p-8">
+    <div
+      className="surface-leaf flex min-h-full flex-col px-5 py-6 sm:items-center sm:p-8"
+    >
       {/* Responsive panel: full-bleed column on phones, centered card on desktop.
           my-auto centers it vertically when it fits and lets the page scroll
           when the viewport is short, so the primary button is always reachable. */}

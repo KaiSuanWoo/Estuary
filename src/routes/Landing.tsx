@@ -83,7 +83,14 @@ export function Landing() {
   if (isStandalone()) return <Navigate to="/login" replace />;
 
   return (
-    <div className="min-h-full">
+    <div
+      className="min-h-full"
+      style={{
+        background:
+          "linear-gradient(170deg, var(--color-desk-a), var(--color-desk-b))",
+      }}
+    >
+    <div className="surface-leaf mx-auto min-h-full max-w-5xl">
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <header className="mx-auto flex max-w-5xl items-center justify-between px-5 py-5 sm:px-8">
         <div className="flex items-end">
@@ -254,6 +261,7 @@ export function Landing() {
           Estuary · dual-currency cash-flow tracker
         </p>
       </footer>
+    </div>
     </div>
   );
 }

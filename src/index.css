@@ -18,7 +18,7 @@
   --color-well:         #ded0b4;
   --color-quill:        #1a1512;
   --color-quill-soft:   #4a3d2e;
-  --color-quill-faint:  #6d5f47;
+  --color-quill-faint:  #665840;
   --color-rule:         #c9b99a;
   --color-rule-strong:  #8b7a5c;
 
@@ -29,7 +29,7 @@
   /* Selection. The one accent the interface itself is allowed: brass written
      as ink, so it reads as a mark on the page rather than a UI highlight.
      Dark under the day lamp, light under the night one — legible in both. */
-  --color-accent:       #7a5a1e;
+  --color-accent:       #6f5219;
 
   /* Heads. One ink per category, held constant across every chart, drawn
      from ink and earth so it can never be confused with credit or debit. */
@@ -107,12 +107,12 @@
     --color-well:        #ded0b4;
     --color-quill:       #1a1512;
     --color-quill-soft:  #4a3d2e;
-    --color-quill-faint: #6d5f47;
+    --color-quill-faint: #665840;
     --color-rule:        #c9b99a;
     --color-rule-strong: #8b7a5c;
     --color-credit:      #2f6b4a;
     --color-debit:       #a32b22;
-    --color-accent:      #7a5a1e;
+    --color-accent:      #6f5219;
     --color-head-1:      #33507a;
     --color-head-2:      #8a5a2b;
     --color-head-3:      #a8802f;

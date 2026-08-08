@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { MailCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/cn";
-import { Button, Card, Spinner } from "@/components/ui";
+import { Button, Spinner } from "@/components/ui";
 import { Logo } from "@/components/Logo";
 
 type Mode = "signin" | "signup" | "reset";
@@ -71,20 +71,35 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center px-6 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center text-center">
+    <div
+      className="flex min-h-full flex-col items-center justify-center px-6 py-10"
+      style={{
+        background:
+          "linear-gradient(170deg, var(--color-desk-a), var(--color-desk-b))",
+      }}
+    >
+      <div
+        className="surface-leaf w-full max-w-sm rounded-[3px] px-6 py-8"
+        style={{ boxShadow: "var(--shadow-book)" }}
+      >
+        <div className="mb-7 flex flex-col items-center text-center">
           <div className="mb-1 flex items-end justify-center">
             <Logo className="h-16 w-auto" />
-            <h1 className="-ml-1.5 font-serif text-5xl font-medium leading-none tracking-tight text-quill">
+            <h1
+              className="-ml-1.5 text-5xl leading-none tracking-tight text-quill"
+              style={{ fontVariant: "small-caps" }}
+            >
               stuary
             </h1>
           </div>
-          <p className="mt-1 text-sm text-quill-soft">From many streams, one flow.</p>
+          <p className="mt-1 text-sm italic text-quill-soft">
+            From many streams, one flow.
+          </p>
+          <hr className="brass-rule mt-4 w-full" />
         </div>
 
         {sent ? (
-          <Card>
+          <div>
             <div className="flex flex-col items-center py-4 text-center">
               <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-accent/12 text-accent">
                 <MailCheck className="size-6" />
@@ -113,9 +128,9 @@ export function Login() {
                 </p>
               )}
             </div>
-          </Card>
+          </div>
         ) : mode === "reset" ? (
-          <Card>
+          <div>
             <h2 className="text-base font-semibold text-quill">Reset password</h2>
             <p className="mt-1 text-sm text-quill-soft">
               Enter your email and we'll send a link to set a new password.
@@ -139,9 +154,9 @@ export function Login() {
                 {busy === "form" ? "Sending…" : "Send reset link"}
               </Button>
             </form>
-          </Card>
+          </div>
         ) : (
-          <Card>
+          <div>
             {/* Mode toggle */}
             <div className="mb-4 grid grid-cols-2 gap-1 rounded-[2px] border border-rule/60 bg-well p-1">
               {(["signin", "signup"] as Mode[]).map((m) => (
@@ -233,7 +248,7 @@ export function Login() {
                     : "Sign in"}
               </Button>
             </form>
-          </Card>
+          </div>
         )}
 
         <p className="mt-4 text-center text-xs text-quill-faint">

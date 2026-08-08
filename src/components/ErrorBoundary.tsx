@@ -33,8 +33,17 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="flex min-h-full flex-col items-center justify-center px-6 text-center">
-          <div className="w-full max-w-sm rounded-[2px] border border-rule/80 bg-page-edge p-6">
+        <div
+          className="flex min-h-full flex-col items-center justify-center px-6 text-center"
+          style={{
+            background:
+              "linear-gradient(170deg, var(--color-desk-a), var(--color-desk-b))",
+          }}
+        >
+          <div
+            className="surface-leaf w-full max-w-sm rounded-[3px] p-6"
+            style={{ boxShadow: "var(--shadow-book)" }}
+          >
             <h1 className="text-lg font-semibold text-quill">
               Something went wrong
             </h1>
