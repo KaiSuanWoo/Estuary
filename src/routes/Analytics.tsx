@@ -526,7 +526,14 @@ export function Analytics() {
                     labelStyle={{ color: "#eef4fa" }}
                     formatter={(v: number) => [formatMoney(v, base), "Spent so far"]}
                   />
-                  <Area type="monotone" dataKey="cum" stroke="#fb7185" strokeWidth={2} fill="url(#cumSpend)" />
+                  <Area
+                    type="monotone"
+                    dataKey="cum"
+                    stroke="#fb7185"
+                    strokeWidth={2}
+                    fill="url(#cumSpend)"
+                    isAnimationActive={false}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -565,6 +572,7 @@ export function Analytics() {
                       strokeWidth={2}
                       dot={{ r: 3 }}
                       connectNulls={false}
+                      isAnimationActive={false}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -887,7 +895,12 @@ function CategoryDetail({
               contentStyle={TOOLTIP_STYLE}
               formatter={(v: number) => [formatMoney(v, base), slice.name]}
             />
-            <Bar dataKey="value" fill={slice.color} radius={[4, 4, 0, 0]} />
+            <Bar
+              dataKey="value"
+              fill={slice.color}
+              radius={[4, 4, 0, 0]}
+              isAnimationActive={false}
+            />
           </BarChart>
         </ResponsiveContainer>
       )}
@@ -1011,7 +1024,14 @@ function BudgetsDetail({
                         strokeDasharray="5 4"
                         label={{ value: "Budget", position: "insideTopRight", fill: "#fb7185", fontSize: 11 }}
                       />
-                      <Area type="stepAfter" dataKey="cum" stroke={b.color} strokeWidth={2} fill={`url(#bud-${b.id})`} />
+                      <Area
+                        type="stepAfter"
+                        dataKey="cum"
+                        stroke={b.color}
+                        strokeWidth={2}
+                        fill={`url(#bud-${b.id})`}
+                        isAnimationActive={false}
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
