@@ -885,7 +885,7 @@ export function Import() {
               "flex cursor-pointer flex-col items-center gap-3 rounded-[2px] border-2 border-dashed py-14 transition-colors",
               dragging
                 ? "border-accent bg-accent/5"
-                : "border-rule hover:border-rule",
+                : "border-rule hover:border-rule-strong",
             )}
           >
             <FileUp className="size-8 text-quill-faint" />
@@ -1292,7 +1292,7 @@ export function Import() {
                           setDeletingId(null);
                         }}
                         disabled={deleteBatch.isPending}
-                        className="rounded-[2px] bg-debit/60 px-2 py-1 text-xs font-medium text-debit transition-colors hover:bg-debit/60 disabled:opacity-50"
+                        className="rounded-[2px] bg-debit/60 px-2 py-1 text-xs font-medium text-debit transition-colors hover:bg-debit disabled:opacity-50"
                       >
                         {deleteBatch.isPending ? "Deleting…" : "Delete"}
                       </button>

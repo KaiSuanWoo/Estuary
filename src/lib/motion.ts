@@ -61,28 +61,6 @@ export const pressDown: Transition = {
 /** Re-export so callers import motion helpers from one place. */
 export { useReducedMotion };
 
-/**
- * Collapse a variants object to opacity-only when the user prefers reduced
- * motion: strip transforms (x/y/scale) and swap springs for an instant fade.
- * Pass the result straight to a `<motion.*>` `variants` prop.
- */
-export function withReducedMotion(
-  variants: Variants,
-  reduced: boolean | null,
-): Variants {
-  if (!reduced) return variants;
-  const out: Variants = {};
-  for (const [key, value] of Object.entries(variants)) {
-    if (value && typeof value === "object") {
-      const opacity = (value as { opacity?: number }).opacity ?? 1;
-      out[key] = { opacity, transition: { duration: 0.12 } };
-    } else {
-      out[key] = value;
-    }
-  }
-  return out;
-}
-
 /** Standard list-item entrance (used with a staggered parent). */
 export const listItemVariants: Variants = {
   hidden: { opacity: 0, y: 8 },

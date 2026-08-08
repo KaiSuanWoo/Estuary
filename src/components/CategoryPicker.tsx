@@ -173,7 +173,7 @@ export function CategoryPicker({
                     onClick={() => choose(o.id)}
                     className={cn(
                       "flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm transition-colors",
-                      i === active ? "bg-page-edge" : "hover:bg-page-edge",
+                      i === active ? "bg-page-edge" : "hover:bg-well",
                     )}
                   >
                     <CategoryIcon icon={o.icon} color={o.color} size="sm" />

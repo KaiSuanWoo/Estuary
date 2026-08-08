@@ -35,6 +35,7 @@ import type { RateMap } from "@/lib/fx";
 import { formatMoney, formatSignedMoney, todayISO } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Button, Card, EmptyState, Sheet, Spinner } from "@/components/ui";
+import { PacingBar } from "@/components/ledger";
 import type {
   Account,
   Budget,
@@ -259,73 +260,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Progress bar that signals *within vs over* budget by colour (teal → amber →
- * rose) and, for time-boxed periods, marks where an even pace would sit via a
- * thin vertical tick — so a fill left of the tick is ahead, right of it behind.
- */
-function BudgetBar({
-  ratio,
-  saving,
-  elapsed,
-}: {
-  ratio: number;
-  saving: boolean;
-  elapsed?: number | null;
-}) {
-  // Over budget → two-tone split: amber up to the limit, rose for the overspend,
-  // so the part you went over is visually distinct from the budget itself.
-  if (!saving && ratio > 1) {
-    const budgetFrac = (1 / ratio) * 100; // share of the bar that is within budget
-    return (
-      <div
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={100}
-        aria-label={`${Math.round(ratio * 100)}% of budget — over by ${Math.round((ratio - 1) * 100)}%`}
-        className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-page-edge"
-      >
-        <div className="h-full bg-head-3" style={{ width: `${budgetFrac}%` }} />
-        <div
-          className="h-full bg-debit ring-1 ring-inset ring-debit/30"
-          style={{ width: `${100 - budgetFrac}%` }}
-        />
-      </div>
-    );
-  }
-
-  const pct = Math.min(100, Math.max(0, ratio * 100));
-  const showMarker =
-    !saving && elapsed != null && elapsed > 0.02 && elapsed < 0.98;
-  return (
-    <div
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(pct)}
-      aria-label={`${Math.round(ratio * 100)}% of ${saving ? "target" : "budget"}`}
-      className="relative mt-3 h-2.5 overflow-hidden rounded-full bg-page-edge"
-    >
-      <div
-        className={cn(
-          "h-full rounded-full transition-all",
-          toneFor(ratio, saving).bar,
-        )}
-        style={{ width: `${pct}%` }}
-      />
-      {showMarker && (
-        <span
-          aria-hidden
-          title="Even-pace marker"
-          className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-page/70 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
-          style={{ left: `${elapsed * 100}%` }}
-        />
-      )}
-    </div>
-  );
-}
-
 /** Aggregate progress across all spending budgets — the page's focal summary. */
 function BudgetTotals({
   spent,
@@ -363,7 +297,7 @@ function BudgetTotals({
             : `${formatMoney(-remaining, base)} over`}
         </span>
       </div>
-      <BudgetBar ratio={ratio} saving={false} />
+      <PacingBar ratio={ratio} className="mt-3 h-2.5" />
     </Card>
   );
 }
@@ -487,7 +421,12 @@ function BudgetRow({
           </p>
         </div>
       </div>
-      <BudgetBar ratio={ratio} saving={saving} elapsed={pacing.elapsedRatio} />
+      <PacingBar
+        ratio={ratio}
+        elapsed={pacing.elapsedRatio}
+        tone={saving ? "credit" : undefined}
+        className="mt-3 h-2.5"
+      />
       <div className="mt-2 flex items-center justify-between gap-2 text-xs">
         <span className={cn("tnum font-medium", tone.text)}>{remainingLabel}</span>
         {pacing.daysLeft != null && (
@@ -744,7 +683,7 @@ function BudgetSheet({
                   "rounded-[2px] border px-3 py-2 text-left transition-colors",
                   btype === t.value
                     ? "border-accent bg-accent/10"
-                    : "border-rule hover:border-rule",
+                    : "border-rule hover:border-rule-strong",
                 )}
               >
                 <span
@@ -874,7 +813,7 @@ function BudgetSheet({
                       "rounded-[2px] border px-3 py-2 text-left transition-colors",
                       direction === d.value
                         ? "border-accent bg-accent/10"
-                        : "border-rule hover:border-rule",
+                        : "border-rule hover:border-rule-strong",
                     )}
                   >
                     <span
@@ -906,7 +845,7 @@ function BudgetSheet({
                       "h-9 rounded-[2px] border text-xs font-medium transition-colors",
                       period === p.value
                         ? "border-accent bg-accent/10 text-accent"
-                        : "border-rule text-quill-soft hover:border-rule",
+                        : "border-rule text-quill-soft hover:border-rule-strong",
                     )}
                   >
                     {p.label}
@@ -977,7 +916,7 @@ function BudgetSheet({
                           "inline-flex items-center gap-1.5 rounded-[2px] border px-2.5 py-1 text-xs font-medium transition-colors",
                           on
                             ? "border-accent bg-accent/15 text-accent"
-                            : "border-rule text-quill-soft hover:border-rule",
+                            : "border-rule text-quill-soft hover:border-rule-strong",
                         )}
                       >
                         <span

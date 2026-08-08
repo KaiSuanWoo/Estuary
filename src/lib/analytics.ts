@@ -283,56 +283,6 @@ export function monthsBetween(from: string, to: string): string[] {
   return out;
 }
 
-export interface StackedMonth {
-  label: string;
-  monthKey: string;
-  income: number;
-  net: number;
-  [category: string]: number | string;
-}
-
-/**
- * Per-month stacked expense-by-category plus income & net — the data behind the
- * main combined Analytics chart. Categories beyond `topN` fold into "Other".
- */
-export function stackedCategoryByMonth(
-  txns: Transaction[],
-  categories: Category[],
-  base: string,
-  rates: RateMap,
-  months: string[],
-  mode: CashflowMode = "net",
-  topN = 6,
-): { data: StackedMonth[]; keys: { name: string; color: string }[] } {
-  const all = breakdownByCategory(txns, categories, base, rates, "0000-01-01", "9999-12-31", "expense", mode);
-  const top = all.slice(0, topN);
-  const topNames = new Set(top.map((t) => t.name));
-  const keys = top.map((t) => ({ name: t.name, color: t.color }));
-  const hasOther = all.length > top.length;
-  if (hasOther) keys.push({ name: "Other", color: FALLBACK_HEAD });
-
-  const data = months.map<StackedMonth>((mk) => {
-    const from = `${mk}-01`;
-    const to = format(endOfMonth(parseISO(from)), "yyyy-MM-dd");
-    const cats = breakdownByCategory(txns, categories, base, rates, from, to, "expense", mode);
-    const cf = cashflowForRange(txns, base, rates, from, to, mode);
-    const row: StackedMonth = {
-      label: format(parseISO(from), "MMM ''yy"),
-      monthKey: mk,
-      income: cf.income,
-      net: cf.net,
-    };
-    for (const k of top) row[k.name] = 0;
-    let other = 0;
-    for (const c of cats) {
-      if (topNames.has(c.name)) row[c.name] = (row[c.name] as number) + c.value;
-      else other += c.value;
-    }
-    if (hasOther) row["Other"] = other;
-    return row;
-  });
-  return { data, keys };
-}
 
 export interface MonthlyPoint {
   label: string;
@@ -349,44 +299,6 @@ export function rangeBounds(
     from: format(startOfMonth(subMonths(now, months - 1)), "yyyy-MM-dd"),
     to: format(endOfMonth(now), "yyyy-MM-dd"),
   };
-}
-
-export interface MerchantStat {
-  name: string;
-  value: number;
-  count: number;
-}
-
-/** Top merchants by expense over a range (net-aware), largest first. */
-export function merchantLeaderboard(
-  txns: Transaction[],
-  base: string,
-  rates: RateMap,
-  from: string,
-  to: string,
-  mode: CashflowMode = "net",
-  topN = 8,
-  ledger: Transaction[] = txns,
-): MerchantStat[] {
-  const reimbursed = mode === "net" ? buildReimbursedMap(ledger, base, rates) : null;
-  const m = new Map<string, MerchantStat>();
-  for (const t of txns) {
-    if (t.type !== "expense" || t.date < from || t.date > to) continue;
-    if (t.excluded_from_cashflow) continue;
-    const gross = amountInBase(t.amount, t, base, rates);
-    const reimb = reimbursed?.get(t.id) ?? 0;
-    const amount = mode === "net" ? Math.max(0, gross - reimb) : gross;
-    if (isNegligible(amount)) continue;
-    const name = (t.merchant ?? "").trim() || "Unlabelled";
-    const s = m.get(name);
-    if (s) {
-      s.value += amount;
-      s.count += 1;
-    } else {
-      m.set(name, { name, value: amount, count: 1 });
-    }
-  }
-  return [...m.values()].sort((a, b) => b.value - a.value).slice(0, topN);
 }
 
 export interface CategoryMover {

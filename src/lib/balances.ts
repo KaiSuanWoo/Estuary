@@ -2,44 +2,6 @@ import type { BalanceOverride } from "./investments";
 import type { Account, Transaction } from "./types";
 
 /**
- * Current balance for one account = opening balance, plus income, minus
- * expenses, plus transfers in, minus transfers out. `adjustment` rows are
- * treated as signed corrections via their linked sign (positive income-like).
- *
- * This collapses every currency into a single number — only correct for a
- * single-currency account. For multi-currency accounts use
- * `accountBalancesByCurrency` instead.
- *
- * `overrides` (account id → {currency, value}) short-circuits the derivation
- * for externally-valued accounts (Zenith-linked investments): the external
- * system is the source of truth, so local transactions don't move the balance.
- */
-export function accountBalance(
-  account: Account,
-  txns: Transaction[],
-  overrides?: Map<string, BalanceOverride>,
-): number {
-  const ext = overrides?.get(account.id);
-  if (ext) return ext.value;
-
-  let balance = account.opening_balance;
-
-  for (const tx of txns) {
-    if (tx.account_id === account.id) {
-      if (tx.type === "income" || tx.type === "adjustment") balance += tx.amount;
-      else if (tx.type === "expense") balance -= tx.amount;
-      else if (tx.type === "transfer") balance -= tx.amount; // money leaving
-    }
-    // Transfer landing in this account.
-    if (tx.type === "transfer" && tx.destination_account_id === account.id) {
-      balance += tx.destination_amount ?? tx.amount;
-    }
-  }
-
-  return balance;
-}
-
-/**
  * Per-currency balances for one account, keyed by currency code.
  *
  * The opening balance counts under the account's primary `currency`. Each

@@ -204,7 +204,7 @@ export function Login() {
                     <button
                       type="button"
                       onClick={() => switchMode("reset")}
-                      className="text-xs font-medium text-accent hover:text-accent"
+                      className="text-xs font-medium text-accent hover:text-quill"
                     >
                       Forgot?
                     </button>
@@ -243,7 +243,7 @@ export function Login() {
             <button
               type="button"
               onClick={() => switchMode("signin")}
-              className="text-accent hover:text-accent"
+              className="text-accent hover:text-quill"
             >
               ← Back to sign in
             </button>

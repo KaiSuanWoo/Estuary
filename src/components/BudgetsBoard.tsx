@@ -36,9 +36,11 @@ import { Spinner } from "@/components/ui";
 import {
   LeadFigure,
   MarginLink,
+  PacingBar,
   Plate,
   Register,
   Statement,
+  tooltipStyle,
   useLedgerInk,
 } from "@/components/ledger";
 import type { Budget } from "@/lib/types";
@@ -316,15 +318,7 @@ export function BudgetsBoard() {
               />
               <Tooltip
                 cursor={{ fill: "rgb(0 0 0 / 0.04)" }}
-                contentStyle={{
-                  background: ink["--color-page"],
-                  border: `1px solid ${ink["--color-rule-strong"]}`,
-                  borderRadius: 2,
-                  fontSize: 12,
-                  color: ink["--color-quill"],
-                }}
-                itemStyle={{ color: ink["--color-quill"] }}
-                labelStyle={{ color: ink["--color-quill-soft"] }}
+                {...tooltipStyle(ink)}
                 formatter={(v: number) => formatMoney(Number(v), base)}
               />
               {/* The line you were trying to stay under. */}
@@ -456,7 +450,7 @@ export function BudgetsBoard() {
                     </span>
                   </span>
                 </div>
-                <Bar2 ratio={ratio} tone="credit" />
+                <PacingBar ratio={ratio} tone="credit" />
               </div>
             );
           })}
@@ -511,69 +505,8 @@ function BudgetLine({
           <span className="text-quill-faint"> / {formatMoney(budget.amount, base)}</span>
         </span>
       </div>
-      <Bar2 ratio={ratio} elapsed={pacing.elapsedRatio} />
+      <PacingBar ratio={ratio} elapsed={pacing.elapsedRatio} />
       <p className={cn("mt-1 text-xs italic", verdict.tone)}>{verdict.text}</p>
-    </div>
-  );
-}
-
-/**
- * The pacing bar. The tick is where an even spend would have reached by now —
- * the bar being past it is the whole signal, so it is drawn, not described.
- */
-function Bar2({
-  ratio,
-  elapsed,
-  tone,
-}: {
-  ratio: number;
-  elapsed?: number | null;
-  tone?: "credit";
-}) {
-  const over = ratio > 1;
-  const pct = Math.min(100, Math.max(0, ratio * 100));
-  const showTick = elapsed != null && elapsed > 0.02 && elapsed < 0.98;
-
-  if (over && !tone) {
-    const withinFrac = (1 / ratio) * 100;
-    return (
-      <div
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={100}
-        aria-label={`${Math.round(ratio * 100)}% of budget`}
-        className="mt-2 flex h-1.5 overflow-hidden bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]"
-      >
-        <div className="h-full bg-head-3" style={{ width: `${withinFrac}%` }} />
-        <div className="h-full bg-debit" style={{ width: `${100 - withinFrac}%` }} />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(pct)}
-      aria-label={`${Math.round(ratio * 100)}% of ${tone ? "target" : "budget"}`}
-      className="relative mt-2 h-1.5 overflow-hidden bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]"
-    >
-      <div
-        className={cn(
-          "h-full transition-[width] duration-500",
-          tone === "credit" ? "bg-credit" : ratio > 0.85 ? "bg-head-3" : "bg-head-1",
-        )}
-        style={{ width: `${pct}%` }}
-      />
-      {showTick && (
-        <span
-          aria-hidden
-          className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-quill/70"
-          style={{ left: `${elapsed! * 100}%` }}
-        />
-      )}
     </div>
   );
 }

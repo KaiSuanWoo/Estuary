@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </p>
             <button
               onClick={this.handleReload}
-              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-[2px] bg-accent text-sm font-medium text-page transition-colors hover:bg-accent"
+              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-[2px] bg-accent text-sm font-medium text-page transition-colors hover:brightness-110"
             >
               Reload Estuary
             </button>

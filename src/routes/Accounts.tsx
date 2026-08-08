@@ -300,7 +300,7 @@ function TypePicker({
                 "h-9 rounded-[2px] border text-xs font-medium transition-colors",
                 active
                   ? cn(col.border, col.bg, col.text)
-                  : "border-rule text-quill-soft hover:border-rule",
+                  : "border-rule text-quill-soft hover:border-rule-strong",
               )}
             >
               {t === "investmentCash"

@@ -259,6 +259,112 @@ export function MarginLink({ children }: { children: ReactNode }) {
 }
 
 /**
+ * Where a plate would be, when there is nothing to draw. A ruled void says
+ * "this belongs here and is empty" where a missing block says nothing at all.
+ */
+export function ChartEmpty({ label, height = 180 }: { label: string; height?: number }) {
+  return (
+    <div
+      className="flex items-center justify-center border border-dashed border-rule px-4 text-center text-sm italic text-quill-faint"
+      style={{ height }}
+    >
+      {label}
+    </div>
+  );
+}
+
+/**
+ * A chart tooltip, sitting on the page in its own ink.
+ *
+ * It has to be resolved through `Ink` rather than written as classes because
+ * charting libraries take it as a style object, not a className.
+ */
+export function tooltipStyle(ink: Ink) {
+  return {
+    contentStyle: {
+      background: ink["--color-page"],
+      border: `1px solid ${ink["--color-rule-strong"]}`,
+      borderRadius: 2,
+      fontSize: 12,
+      color: ink["--color-quill"],
+    },
+    itemStyle: { color: ink["--color-quill"] },
+    labelStyle: { color: ink["--color-quill-soft"] },
+  } as const;
+}
+
+/**
+ * Spend against a limit.
+ *
+ * The tick is where an even pace would have reached by now — the bar being
+ * past it is the whole signal, so it is drawn rather than described. Over the
+ * limit the bar goes two-tone: ochre to the limit, then debit red for the
+ * overspend, so you read *how far* over and not merely *that* you are.
+ */
+export function PacingBar({
+  ratio,
+  elapsed,
+  tone,
+  className,
+}: {
+  ratio: number;
+  /** Fraction of the period elapsed (0–1). Omitted for windowless budgets. */
+  elapsed?: number | null;
+  /** `credit` for money put aside, where more is better and over is not a fault. */
+  tone?: "credit";
+  className?: string;
+}) {
+  const track =
+    "h-1.5 overflow-hidden bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]";
+  const label = `${Math.round(ratio * 100)}% of ${tone ? "target" : "budget"}`;
+
+  if (ratio > 1 && !tone) {
+    const withinFrac = (1 / ratio) * 100;
+    return (
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={100}
+        aria-label={`${label} — over by ${Math.round((ratio - 1) * 100)}%`}
+        className={cn("mt-2 flex", track, className)}
+      >
+        <div className="h-full bg-head-3" style={{ width: `${withinFrac}%` }} />
+        <div className="h-full bg-debit" style={{ width: `${100 - withinFrac}%` }} />
+      </div>
+    );
+  }
+
+  const pct = Math.min(100, Math.max(0, ratio * 100));
+  const showTick = !tone && elapsed != null && elapsed > 0.02 && elapsed < 0.98;
+  return (
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(pct)}
+      aria-label={label}
+      className={cn("relative mt-2", track, className)}
+    >
+      <div
+        className={cn(
+          "h-full transition-[width] duration-500",
+          tone === "credit" ? "bg-credit" : ratio > 0.85 ? "bg-head-3" : "bg-head-1",
+        )}
+        style={{ width: `${pct}%` }}
+      />
+      {showTick && (
+        <span
+          aria-hidden
+          className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-quill/70"
+          style={{ left: `${elapsed! * 100}%` }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
  * The ink a head is written in, by rank. Five inks exist; everything past them
  * shares the sixth, which is why category charts fold their tail into "Other".
  * Rank rather than stored colour, so a head keeps one ink across every chart.

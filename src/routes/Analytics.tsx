@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   endOfMonth,
@@ -58,26 +58,16 @@ import {
   type CategorySlice,
 } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
-
-/** Tooltips sit on the page, in its ink. */
-function tooltipStyle(ink: Ink) {
-  return {
-    background: ink["--color-page"],
-    border: `1px solid ${ink["--color-rule-strong"]}`,
-    borderRadius: 2,
-    fontSize: 12,
-    color: ink["--color-quill"],
-  } as const;
-}
 import { cn } from "@/lib/cn";
 import { EmptyState, Spinner } from "@/components/ui";
 import {
+  ChartEmpty,
   MarginLink,
   PageHead,
   Plate,
   Statement,
+  tooltipStyle,
   useLedgerInk,
-  type Ink,
 } from "@/components/ledger";
 import { BudgetsBoard } from "@/components/BudgetsBoard";
 import type { Transaction } from "@/lib/types";
@@ -455,7 +445,7 @@ export function Analytics() {
                     "rounded-[2px] border px-3 py-1 text-xs font-medium transition-colors",
                     preset === p.id
                       ? "border-accent bg-accent/10 text-accent"
-                      : "border-rule text-quill-soft hover:border-rule",
+                      : "border-rule text-quill-soft hover:border-rule-strong",
                   )}
                 >
                   {p.label}
@@ -501,7 +491,7 @@ export function Analytics() {
                     "rounded-[2px] border px-2.5 py-1 text-xs font-medium transition-colors",
                     on
                       ? "border-accent bg-accent/15 text-accent"
-                      : "border-rule text-quill-soft hover:border-rule",
+                      : "border-rule text-quill-soft hover:border-rule-strong",
                   )}
                 >
                   {m.label}
@@ -540,9 +530,9 @@ export function Analytics() {
           <Insights view={view} base={base} />
 
           {/* MAIN chart: money flow — income sources → categories + saved */}
-          <Widget
-            title="Money flow"
-            hint="Where income came from and where it went — the surplus flows to Saved"
+          <Plate
+            caption="Money flow"
+            note="Where income came from and where it went — the surplus flows to Saved"
           >
             {!view.flow ? (
               <ChartEmpty label="No income or spending in range" />
@@ -556,18 +546,16 @@ export function Analytics() {
                   link={{ stroke: FALLBACK_HEAD, strokeOpacity: 0.28 }}
                 >
                   <Tooltip
-                    contentStyle={tooltipStyle(ink)}
-                    itemStyle={{ color: ink["--color-quill"] }}
-                    labelStyle={{ color: ink["--color-quill"] }}
+                    {...tooltipStyle(ink)}
                     formatter={(v: number) => formatMoney(Number(v), base)}
                   />
                 </Sankey>
               </ResponsiveContainer>
             )}
-          </Widget>
+          </Plate>
 
           {/* Cumulative spending over the period */}
-          <Widget title="Cumulative spending" hint="Running total across the period">
+          <Plate caption="Cumulative spending" note="Running total across the period">
             {view.cumulative.length === 0 ? (
               <ChartEmpty label="No spending in range" />
             ) : (
@@ -583,9 +571,7 @@ export function Analytics() {
                   <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} minTickGap={24} />
                   <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} tickFormatter={(v) => compact(v, base)} />
                   <Tooltip
-                    contentStyle={tooltipStyle(ink)}
-                    itemStyle={{ color: ink["--color-quill"] }}
-                    labelStyle={{ color: ink["--color-quill"] }}
+                    {...tooltipStyle(ink)}
                     formatter={(v: number) => [formatMoney(v, base), "Spent so far"]}
                   />
                   <Area
@@ -599,11 +585,11 @@ export function Analytics() {
                 </AreaChart>
               </ResponsiveContainer>
             )}
-          </Widget>
+          </Plate>
 
           {/* Savings-rate trend + fixed vs discretionary */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Widget title="Savings rate" hint="Net ÷ income, per month">
+            <Plate caption="Savings rate" note="Net ÷ income, per month">
               {view.savingsTrend.filter((p) => p.rate != null).length < 2 ? (
                 <p className="py-6 text-center text-sm text-quill-faint">
                   Needs at least two months with income.
@@ -621,9 +607,7 @@ export function Analytics() {
                       tickFormatter={(v) => `${v}%`}
                     />
                     <Tooltip
-                      contentStyle={tooltipStyle(ink)}
-                      itemStyle={{ color: ink["--color-quill"] }}
-                      labelStyle={{ color: ink["--color-quill"] }}
+                      {...tooltipStyle(ink)}
                       formatter={(v: number) => [`${Math.round(v)}%`, "Savings rate"]}
                     />
                     <ReferenceLine y={0} stroke={ink["--color-debit"]} strokeDasharray="4 3" />
@@ -639,9 +623,9 @@ export function Analytics() {
                   </LineChart>
                 </ResponsiveContainer>
               )}
-            </Widget>
+            </Plate>
 
-            <Widget title="Fixed vs discretionary" hint="Committed bills vs controllable spend">
+            <Plate caption="Fixed vs discretionary" note="Committed bills vs controllable spend">
               {view.fixedTotal + view.discTotal <= 0 ? (
                 <p className="py-6 text-center text-sm text-quill-faint">No spending in range.</p>
               ) : (
@@ -653,11 +637,11 @@ export function Analytics() {
                   base={base}
                 />
               )}
-            </Widget>
+            </Plate>
           </div>
 
           {/* Expense breakdown — expandable category bars */}
-          <Widget title="Where money went" hint="Expenses by category — tap a row for detail">
+          <Plate caption="Where money went" note="Expenses by category — tap a row for detail">
             {view.expenseCats.length === 0 ? (
               <ChartEmpty label="No spending in range" />
             ) : (
@@ -672,10 +656,10 @@ export function Analytics() {
                 mode={txnMode}
               />
             )}
-          </Widget>
+          </Plate>
 
           {/* Income breakdown */}
-          <Widget title="Where money came from" hint="Income by category — tap a row for detail">
+          <Plate caption="Where money came from" note="Income by category — tap a row for detail">
             {view.incomeCats.length === 0 ? (
               <ChartEmpty label="No income in range" />
             ) : (
@@ -690,12 +674,12 @@ export function Analytics() {
                 mode={txnMode}
               />
             )}
-          </Widget>
+          </Plate>
 
           {/* Recurring & subscriptions — detected from the full ledger */}
-          <Widget
-            title="Recurring & subscriptions"
-            hint={
+          <Plate
+            caption="Recurring & subscriptions"
+            note={
               view.recurring.length > 0
                 ? `≈ ${formatMoney(view.recurring.reduce((s, r) => s + r.monthlyEquivalent, 0), base)}/month committed`
                 : "Detected from steady intervals and stable amounts"
@@ -734,7 +718,7 @@ export function Analytics() {
                 ))}
               </ul>
             )}
-          </Widget>
+          </Plate>
 
           {/* Budgets live on their own view now — this is the way through. */}
           <Plate
@@ -767,7 +751,7 @@ export function Analytics() {
 
           {/* Movers + currency exposure */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Widget title="Month-on-month movers" hint="This month vs last">
+            <Plate caption="Month-on-month movers" note="This month vs last">
               {view.movers.length === 0 ? (
                 <p className="py-6 text-center text-sm text-quill-faint">No change to report.</p>
               ) : (
@@ -786,9 +770,9 @@ export function Analytics() {
                   ))}
                 </ul>
               )}
-            </Widget>
+            </Plate>
 
-            <Widget title="Currency exposure" hint="Across all accounts">
+            <Plate caption="Currency exposure" note="Across all accounts">
               {view.exposure.length === 0 ? (
                 <p className="py-6 text-center text-sm text-quill-faint">No balances to show.</p>
               ) : (
@@ -811,7 +795,7 @@ export function Analytics() {
                   ))}
                 </ul>
               )}
-            </Widget>
+            </Plate>
           </div>
         </div>
       )}
@@ -956,8 +940,8 @@ function CategoryDetail({
             <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} />
             <YAxis hide />
             <Tooltip
-              cursor={{ fill: "rgba(255,255,255,0.03)" }}
-              contentStyle={tooltipStyle(ink)}
+              cursor={{ fill: "rgb(0 0 0 / 0.04)" }}
+              {...tooltipStyle(ink)}
               formatter={(v: number) => [formatMoney(v, base), slice.name]}
             />
             <Bar
@@ -1079,9 +1063,7 @@ function BudgetsDetail({
                       <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} minTickGap={20} />
                       <YAxis tickLine={false} axisLine={false} width={44} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} tickFormatter={(v) => compact(v, base)} domain={[0, (dataMax: number) => Math.max(dataMax, b.amount) * 1.1]} />
                       <Tooltip
-                        contentStyle={tooltipStyle(ink)}
-                        itemStyle={{ color: ink["--color-quill"] }}
-                        labelStyle={{ color: ink["--color-quill"] }}
+                        {...tooltipStyle(ink)}
                         formatter={(v: number) => [formatMoney(v, base), "Spent so far"]}
                       />
                       <ReferenceLine
@@ -1280,19 +1262,4 @@ function FixedVsDiscretionary({
   );
 }
 
-function ChartEmpty({ label }: { label: string }) {
-  return (
-    <div className="flex h-[180px] items-center justify-center rounded-[2px] border border-dashed border-rule text-center text-sm text-quill-faint">
-      {label}
-    </div>
-  );
-}
 
-/** Every figure on this page is a plate tipped into it. */
-function Widget({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
-  return (
-    <Plate caption={title} note={hint}>
-      {children}
-    </Plate>
-  );
-}

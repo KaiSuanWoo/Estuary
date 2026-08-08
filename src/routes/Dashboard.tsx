@@ -55,14 +55,17 @@ import { cn } from "@/lib/cn";
 import { useReducedMotion } from "@/lib/motion";
 import { Spinner } from "@/components/ui";
 import {
+  ChartEmpty,
   headInk,
   LeadFigure,
   MarginLink,
+  PacingBar,
   PageHead,
   Plate,
   Register,
   Spread,
   Statement,
+  tooltipStyle,
   useLedgerInk,
   type Ink,
 } from "@/components/ledger";
@@ -430,7 +433,7 @@ export function Dashboard() {
             No budgets set. Create one to track spending against a limit.
           </p>
         ) : (
-          <BudgetSummaryRow
+          <BudgetSummary
             spent={expenseTotals.spent}
             budget={expenseTotals.budget}
             base={baseCurrency}
@@ -453,74 +456,8 @@ export function Dashboard() {
 
 // --- building blocks -------------------------------------------------------
 
-/**
- * Slim progress bar for the Budget/Goals widgets. Colour signals within vs over
- * budget (teal → amber → rose); the optional `elapsed` tick marks an even pace.
- */
-function MiniBar({
-  ratio,
-  savings = false,
-  elapsed,
-}: {
-  ratio: number;
-  savings?: boolean;
-  elapsed?: number | null;
-}) {
-  // Over budget → two-tone: amber up to the limit, rose for the overspend.
-  if (!savings && ratio > 1) {
-    const budgetFrac = (1 / ratio) * 100;
-    return (
-      <div
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={100}
-        aria-label={`${Math.round(ratio * 100)}% of budget — over by ${Math.round((ratio - 1) * 100)}%`}
-        className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]"
-      >
-        <div className="h-full bg-head-3" style={{ width: `${budgetFrac}%` }} />
-        <div
-          className="h-full bg-debit"
-          style={{ width: `${100 - budgetFrac}%` }}
-        />
-      </div>
-    );
-  }
-
-  const pct = Math.min(100, Math.max(0, ratio * 100));
-  const color = savings
-    ? "bg-credit"
-    : ratio > 0.85
-      ? "bg-head-3"
-      : "bg-head-1";
-  const showMarker =
-    !savings && elapsed != null && elapsed > 0.02 && elapsed < 0.98;
-  return (
-    <div
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(pct)}
-      aria-label={`${Math.round(ratio * 100)}% of ${savings ? "target" : "budget"}`}
-      className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]"
-    >
-      <div
-        className={cn("h-full rounded-full transition-all", color)}
-        style={{ width: `${pct}%` }}
-      />
-      {showMarker && (
-        <span
-          aria-hidden
-          className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-quill/70 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
-          style={{ left: `${elapsed * 100}%` }}
-        />
-      )}
-    </div>
-  );
-}
-
 /** Compact aggregate strip atop the Budget widget — all spending budgets combined. */
-function BudgetSummaryRow({
+function BudgetSummary({
   spent,
   budget,
   base,
@@ -548,7 +485,7 @@ function BudgetSummaryRow({
             : `${formatMoney(-remaining, base)} over`}
         </span>
       </div>
-      <MiniBar ratio={ratio} />
+      <PacingBar ratio={ratio} />
     </div>
   );
 }
@@ -594,15 +531,7 @@ function CashflowBars({
         <YAxis hide />
         <Tooltip
           cursor={{ fill: "rgb(0 0 0 / 0.04)" }}
-          contentStyle={{
-            background: ink["--color-page"],
-            border: `1px solid ${ink["--color-rule-strong"]}`,
-            borderRadius: 2,
-            fontSize: 12,
-            color: ink["--color-quill"],
-          }}
-          itemStyle={{ color: ink["--color-quill"] }}
-          labelStyle={{ color: ink["--color-quill-soft"] }}
+          {...tooltipStyle(ink)}
           formatter={(value) => formatMoney(Number(value), base)}
         />
         <Bar
@@ -692,14 +621,7 @@ function InvestmentsPlate({
           <YAxis hide domain={["dataMin", "dataMax"]} />
           <Tooltip
             cursor={{ stroke: ink["--color-rule-strong"], strokeWidth: 1 }}
-            contentStyle={{
-              background: ink["--color-page"],
-              border: `1px solid ${ink["--color-rule-strong"]}`,
-              borderRadius: 2,
-              fontSize: 12,
-              color: ink["--color-quill"],
-            }}
-            labelStyle={{ color: ink["--color-quill-soft"] }}
+            {...tooltipStyle(ink)}
             formatter={(v: number) => [formatMoney(v, base), "Value"]}
           />
           <Area
@@ -714,14 +636,6 @@ function InvestmentsPlate({
           />
         </AreaChart>
       </ResponsiveContainer>
-    </div>
-  );
-}
-
-function ChartEmpty({ label }: { label: string }) {
-  return (
-    <div className="flex h-[180px] items-center justify-center border border-dashed border-rule text-center text-sm text-quill-faint">
-      {label}
     </div>
   );
 }

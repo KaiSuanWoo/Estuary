@@ -586,7 +586,7 @@ export function EditTransactionSheet({
                         "inline-flex items-center gap-1.5 rounded-[2px] border px-2.5 py-1 text-xs font-medium transition-colors",
                         on
                           ? "border-accent bg-accent/15 text-accent"
-                          : "border-rule text-quill-soft hover:border-rule",
+                          : "border-rule text-quill-soft hover:border-rule-strong",
                       )}
                     >
                       {on && <Check className="size-3" strokeWidth={3} />}
@@ -704,7 +704,7 @@ export function EditTransactionSheet({
                             "flex size-5 shrink-0 items-center justify-center rounded-[2px] border transition-colors",
                             selected
                               ? "border-accent bg-accent text-page"
-                              : "border-rule text-transparent hover:border-rule",
+                              : "border-rule text-transparent hover:border-rule-strong",
                           )}
                         >
                           <Check className="size-3.5" strokeWidth={3} />

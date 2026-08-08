@@ -48,7 +48,7 @@ export function TagPicker({
             "rounded-[2px] border px-2.5 py-1 text-xs font-medium transition-colors",
             value.includes(t.id)
               ? "border-accent bg-accent/15 text-accent"
-              : "border-rule text-quill-soft hover:border-rule",
+              : "border-rule text-quill-soft hover:border-rule-strong",
           )}
         >
           {t.name}

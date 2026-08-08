@@ -844,7 +844,7 @@ export function Transactions() {
           {hasFilters && (
             <button
               onClick={clearAll}
-              className="mt-3 w-full text-center text-sm text-accent hover:text-accent"
+              className="mt-3 w-full text-center text-sm text-accent hover:text-quill"
             >
               Clear all filters
             </button>

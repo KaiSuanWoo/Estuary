@@ -170,7 +170,7 @@ export function Onboarding() {
                         "flex flex-col items-start rounded-[2px] border px-3 py-2.5 text-left transition-colors",
                         currency === c
                           ? "border-accent bg-accent/10"
-                          : "border-rule hover:border-rule",
+                          : "border-rule hover:border-rule-strong",
                       )}
                     >
                       <span
@@ -288,7 +288,7 @@ export function Onboarding() {
                     "flex w-full items-center justify-between gap-3 rounded-[2px] border p-3.5 text-left transition-colors",
                     seed
                       ? "border-accent bg-accent/10"
-                      : "border-rule hover:border-rule",
+                      : "border-rule hover:border-rule-strong",
                   )}
                 >
                   <div>
