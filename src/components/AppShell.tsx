@@ -44,11 +44,17 @@ const TAB_LENGTH = 56;
 const TAB_TUCK = TAB_LENGTH - 20;
 const TAB_TUCK_ACTIVE = TAB_LENGTH - 34;
 /**
- * Even fully out, a tab keeps its root under the leather. Pulling it clear of
- * the cover would read as five loose cards lying beside the book rather than
- * dividers bound into it.
+ * Even fully out, a tab keeps its root under the leather. Pulling one clear of
+ * the cover would read as a loose card lying beside the book rather than a
+ * divider bound into it — so every state below leaves some tuck.
  */
-const TAB_TUCK_OPEN = 8;
+const TAB_TUCK_OPEN = 14;
+/**
+ * The extra a tab gives when your pointer is on *it* rather than merely on the
+ * stack. Reaching for the fore-edge fans all five out; touching one picks it
+ * out of the fan.
+ */
+const TAB_REACH = 10;
 
 /**
  * The book.
@@ -116,37 +122,59 @@ export function AppShell() {
         >
           {NAV.map(({ to, label, end }) => (
             <NavLink key={to} to={to} end={end} className="group block flex-1">
-              {({ isActive }) => (
-                <motion.span
-                  initial={false}
-                  animate={{
-                    x: tabsOpen || reduce
-                      ? -TAB_TUCK_OPEN
-                      : isActive
-                        ? -TAB_TUCK_ACTIVE
-                        : -TAB_TUCK,
-                  }}
-                  whileTap={reduce ? undefined : { scale: 0.97 }}
-                  transition={paperSettle}
-                  className={cn(
-                    "flex h-full items-center justify-center rounded-r-[4px]",
-                    "shadow-[2px_2px_7px_rgb(0_0_0/0.5)] transition-colors",
-                    isActive
-                      ? "brass-face"
-                      : "bg-page-edge text-quill/75 group-hover:text-quill",
-                  )}
-                >
+              {({ isActive }) => {
+                // Where this tab sits when nothing is touching it: fanned out
+                // with the rest, standing proud because it's the section
+                // you're on, or tucked back in the stack.
+                const rest = tabsOpen || reduce
+                  ? -TAB_TUCK_OPEN
+                  : isActive
+                    ? -TAB_TUCK_ACTIVE
+                    : -TAB_TUCK;
+                return (
                   <motion.span
                     initial={false}
-                    animate={{ opacity: tabsOpen || reduce ? 1 : 0 }}
-                    transition={{ duration: 0.16 }}
-                    className="text-[0.68rem] tracking-[0.16em] lg:text-xs"
-                    style={{ writingMode: "vertical-rl", fontVariant: "small-caps" }}
+                    animate={{
+                      x: rest,
+                      boxShadow: "2px 2px 7px rgb(0 0 0 / 0.5)",
+                    }}
+                    // Your pointer on *this* tab picks it out of the fan: it
+                    // comes further than its neighbours and its shadow deepens
+                    // and throws further, as a thing lifting off the desk does.
+                    whileHover={
+                      reduce
+                        ? undefined
+                        : {
+                            x: rest + TAB_REACH,
+                            boxShadow: "6px 3px 15px rgb(0 0 0 / 0.62)",
+                            transition: { duration: 0.2, ease: [0.2, 0.8, 0.2, 1] },
+                          }
+                    }
+                    whileTap={reduce ? undefined : { scale: 0.97 }}
+                    transition={paperSettle}
+                    className={cn(
+                      "flex h-full items-center justify-center rounded-r-[4px] transition-colors",
+                      isActive
+                        ? "brass-face"
+                        : "bg-page-edge text-quill/75 group-hover:text-quill",
+                    )}
                   >
-                    {label}
+                    <motion.span
+                      initial={false}
+                      // The name only exists once the fan is open. Which tab
+                      // your pointer is on is carried by `group-hover` on the
+                      // face above — driving it from here would only respond
+                      // to the pointer being on the glyphs themselves.
+                      animate={{ opacity: tabsOpen || reduce ? 1 : 0 }}
+                      transition={{ duration: 0.16 }}
+                      className="text-[0.68rem] tracking-[0.16em] lg:text-xs"
+                      style={{ writingMode: "vertical-rl", fontVariant: "small-caps" }}
+                    >
+                      {label}
+                    </motion.span>
                   </motion.span>
-                </motion.span>
-              )}
+                );
+              }}
             </NavLink>
           ))}
         </nav>
