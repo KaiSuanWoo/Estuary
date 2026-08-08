@@ -196,7 +196,7 @@ function TheBook() {
                 applyLamp(l);
               }}
               className={cn(
-                "px-3 py-1.5 text-xs capitalize transition-colors",
+                "tap px-3 py-1.5 text-xs capitalize transition-colors",
                 lamp === l ? "brass-face" : "text-quill-soft hover:text-quill",
               )}
             >
@@ -229,7 +229,7 @@ function TheBook() {
                 } as React.CSSProperties
               }
               className={cn(
-                "surface-hide size-7 rounded-[2px] transition-transform",
+                "tap surface-hide size-7 rounded-[2px] transition-transform",
                 hide === h
                   ? "ring-2 ring-brass ring-offset-2 ring-offset-page"
                   : "hover:-translate-y-0.5",
@@ -251,7 +251,7 @@ function TheBook() {
             writeShowHomeBudgets(next);
           }}
           className={cn(
-            "relative h-6 w-11 shrink-0 rounded-full border transition-colors",
+            "tap relative h-6 w-11 shrink-0 rounded-full border transition-colors",
             showBudgets ? "border-brass bg-brass/30" : "border-rule",
           )}
         >
@@ -343,7 +343,7 @@ function ZenithSync({ baseCurrency }: { baseCurrency: string }) {
 
       <button
         onClick={() => setOpen((v) => !v)}
-        className="mt-3 text-xs italic text-quill-faint underline decoration-rule underline-offset-4 transition-colors hover:text-quill"
+className="tap mt-3 text-xs italic text-quill-faint underline decoration-rule underline-offset-4 transition-colors hover:text-quill"
       >
         {open ? "hide manual import" : "import from a Zenith export…"}
       </button>
@@ -407,7 +407,7 @@ function ExchangeRates({ baseCurrency }: { baseCurrency: string }) {
           onClick={() => void refetch()}
           disabled={isFetching}
           aria-label="Refresh rates"
-          className="flex size-7 items-center justify-center rounded-[2px] text-quill-faint transition-colors hover:text-quill disabled:opacity-40"
+className="tap flex size-7 items-center justify-center rounded-[2px] text-quill-faint transition-colors hover:text-quill disabled:opacity-40"
         >
           <RefreshCw className={cn("size-3.5", isFetching && "animate-spin")} />
         </button>
@@ -504,7 +504,7 @@ function RateRow({
           <span className="text-xs italic text-quill-faint">live: {liveStr}</span>
           <button
             onClick={resetToLive}
-            className="text-xs italic text-quill-faint underline decoration-rule underline-offset-4 transition-colors hover:text-quill"
+className="tap text-xs italic text-quill-faint underline decoration-rule underline-offset-4 transition-colors hover:text-quill"
           >
             reset
           </button>

@@ -66,7 +66,7 @@ function toneFor(ratio: number, saving: boolean): { bar: string; text: string } 
       ? { bar: "bg-credit", text: "text-credit" }
       : { bar: "bg-accent", text: "text-accent" };
   if (ratio > 1) return { bar: "bg-debit", text: "text-debit" };
-  if (ratio > 0.85) return { bar: "bg-head-3", text: "text-head-3" };
+  if (ratio > 0.85) return { bar: "bg-head-3", text: "text-accent" };
   return { bar: "bg-accent", text: "text-accent" };
 }
 
@@ -387,7 +387,7 @@ function BudgetRow({
     if (pacing.overPace && pacing.projected != null)
       hint = {
         text: `Ahead of pace · on track for ${formatMoney(pacing.projected, base)}`,
-        tone: "text-head-3",
+        tone: "text-accent",
       };
     else if (pacing.perDayLeft != null)
       hint = {

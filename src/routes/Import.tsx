@@ -911,8 +911,8 @@ export function Import() {
         {/* Loaded a file but parsed nothing usable */}
         {emptyParse && !isDone && (
           <div className="flex items-center gap-2.5 rounded-[2px] border border-head-3/30 bg-head-3/10 px-3 py-2.5">
-            <AlertCircle className="size-4 shrink-0 text-head-3" />
-            <span className="text-sm text-head-3">
+            <AlertCircle className="size-4 shrink-0 text-accent" />
+            <span className="text-sm text-accent">
               Couldn't read any rows from{" "}
               <span className="font-medium">{fileName}</span>. Make sure it's a
               CSV file with a row per transaction.
@@ -1167,8 +1167,8 @@ export function Import() {
             {/* Duplicate-transfer warning */}
             {flaggedCount > 0 && (
               <div className="flex items-center gap-2.5 rounded-[2px] border border-head-3/30 bg-head-3/10 px-3 py-2.5">
-                <Flag className="size-4 shrink-0 text-head-3" />
-                <span className="text-sm font-medium text-head-3">
+                <Flag className="size-4 shrink-0 text-accent" />
+                <span className="text-sm font-medium text-accent">
                   {flaggedCount} flagged as a possible duplicate transfer — review
                   in Activity (flag filter) after importing.
                 </span>

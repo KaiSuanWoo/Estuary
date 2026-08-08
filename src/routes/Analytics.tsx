@@ -167,7 +167,7 @@ function cumulativeSpendSeries(
 
 export function Analytics() {
   const ink = useLedgerInk();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
 
   // Deep-link seeds: ?month=YYYY-MM → single-month; ?from&to → custom range.
   const seedMonth = params.get("month");
@@ -184,11 +184,17 @@ export function Analytics() {
 
   const [txnMode, setTxnMode] = useState<CashflowMode>("net");
 
-  // Which of the two boards is open. Seeded from ?view= so Home and Settings
-  // can link straight at the budgets one.
-  const [board, setBoard] = useState<"analysis" | "budgets">(
-    params.get("view") === "budgets" ? "budgets" : "analysis",
-  );
+  // Which of the two boards is open, read from the URL rather than held in
+  // state. Seeding state from a search param only reads it once, so a link to
+  // ?view=budgets did nothing if you were already on Analytics, and switching
+  // boards left the URL behind — no back button, nothing to share or reload.
+  const board = params.get("view") === "budgets" ? "budgets" : "analysis";
+  const setBoard = (next: "analysis" | "budgets") => {
+    const p = new URLSearchParams(params);
+    if (next === "budgets") p.set("view", "budgets");
+    else p.delete("view");
+    setParams(p);
+  };
 
   const { data: txns = [], isLoading } = useTransactions();
   const { data: categories = [] } = useCategories();
@@ -374,7 +380,7 @@ export function Analytics() {
               key={v}
               onClick={() => setBoard(v)}
               className={cn(
-                "capitalize transition-colors",
+                "tap capitalize transition-colors",
                 board === v
                   ? "text-quill underline decoration-brass underline-offset-4"
                   : "text-quill-faint hover:text-quill-soft",
@@ -410,8 +416,8 @@ export function Analytics() {
                 key={m}
                 onClick={() => setMode(m)}
                 className={cn(
-                  "rounded-[2px] px-3 py-1 text-xs font-medium capitalize transition-colors",
-                  mode === m ? "bg-rule text-quill" : "text-quill-faint hover:text-quill-soft",
+                  "tap rounded-[2px] px-3 py-1 text-xs font-medium capitalize transition-colors",
+                  mode === m ? "bg-rule text-quill" : "text-quill-soft hover:text-quill",
                 )}
               >
                 {m === "range" ? "Range" : "Pick months"}
@@ -424,8 +430,8 @@ export function Analytics() {
                 key={mo}
                 onClick={() => setTxnMode(mo)}
                 className={cn(
-                  "rounded-[2px] px-3 py-1 text-xs font-medium capitalize transition-colors",
-                  txnMode === mo ? "bg-rule text-quill" : "text-quill-faint hover:text-quill-soft",
+                  "tap rounded-[2px] px-3 py-1 text-xs font-medium capitalize transition-colors",
+                  txnMode === mo ? "bg-rule text-quill" : "text-quill-soft hover:text-quill",
                 )}
               >
                 {mo}
@@ -442,7 +448,7 @@ export function Analytics() {
                   key={p.id}
                   onClick={() => setPreset(p.id)}
                   className={cn(
-                    "rounded-[2px] border px-3 py-1 text-xs font-medium transition-colors",
+                    "tap rounded-[2px] border px-3 py-1 text-xs font-medium transition-colors",
                     preset === p.id
                       ? "border-accent bg-accent/10 text-accent"
                       : "border-rule text-quill-soft hover:border-rule-strong",
@@ -488,7 +494,7 @@ export function Analytics() {
                   key={m.key}
                   onClick={() => toggleMonth(m.key)}
                   className={cn(
-                    "rounded-[2px] border px-2.5 py-1 text-xs font-medium transition-colors",
+                    "tap rounded-[2px] border px-2.5 py-1 text-xs font-medium transition-colors",
                     on
                       ? "border-accent bg-accent/15 text-accent"
                       : "border-rule text-quill-soft hover:border-rule-strong",
@@ -700,7 +706,7 @@ export function Analytics() {
                       <p className="text-xs text-quill-faint">
                         {r.cadence} · ×{r.count} ·{" "}
                         {r.maybeStopped ? (
-                          <span className="text-head-3">
+                          <span className="text-accent">
                             no charge since {format(parseISO(r.lastDate), "d MMM")} — stopped?
                           </span>
                         ) : (
@@ -1245,7 +1251,7 @@ function FixedVsDiscretionary({
           </p>
         </div>
         <div>
-          <p className="text-xs font-medium text-head-3">
+          <p className="text-xs font-medium text-accent">
             Discretionary · {Math.round(100 - fixedPct)}%
           </p>
           <p className="tnum font-semibold text-quill">{formatMoney(discTotal, base)}</p>

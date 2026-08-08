@@ -329,7 +329,7 @@ export function Dashboard() {
                 key={m}
                 onClick={() => setCashflowMode(m)}
                 className={cn(
-                  "capitalize transition-colors",
+                  "tap capitalize transition-colors",
                   cashflowMode === m
                     ? "text-quill underline decoration-brass underline-offset-4"
                     : "text-quill-faint hover:text-quill-soft",
@@ -347,7 +347,7 @@ export function Dashboard() {
                 setTurned(1);
                 setMonthBack((m) => m + 1);
               }}
-              className="flex size-6 items-center justify-center text-quill-faint transition-colors hover:text-quill"
+              className="tap flex size-6 items-center justify-center text-quill-faint transition-colors hover:text-quill"
               aria-label="Previous month"
             >
               <ChevronLeft className="size-4" />
@@ -358,7 +358,7 @@ export function Dashboard() {
                 setMonthBack((m) => Math.max(m - 1, 0));
               }}
               disabled={monthBack === 0}
-              className="flex size-6 items-center justify-center text-quill-faint transition-colors hover:text-quill disabled:cursor-not-allowed disabled:opacity-25"
+              className="tap flex size-6 items-center justify-center text-quill-faint transition-colors hover:text-quill disabled:cursor-not-allowed disabled:opacity-25"
               aria-label="Next month"
             >
               <ChevronRight className="size-4" />
@@ -469,7 +469,7 @@ function BudgetSummary({
   const ratio = budget > 0 ? spent / budget : 0;
   const remaining = budget - spent;
   const tone =
-    ratio > 1 ? "text-debit" : ratio > 0.85 ? "text-head-3" : "text-quill";
+    ratio > 1 ? "text-debit" : ratio > 0.85 ? "text-accent" : "text-quill";
   return (
     <div className="leaf-panel p-3">
       <div className="flex items-center justify-between gap-2 text-xs">

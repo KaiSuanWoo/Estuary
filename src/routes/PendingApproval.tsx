@@ -29,7 +29,7 @@ export function PendingApproval({ status }: { status: ProfileStatus }) {
               className={
                 rejected
                   ? "mb-4 flex size-14 items-center justify-center rounded-[2px] bg-debit/12 text-debit"
-                  : "mb-4 flex size-14 items-center justify-center rounded-[2px] bg-head-3/12 text-head-3"
+                  : "mb-4 flex size-14 items-center justify-center rounded-[2px] bg-head-3/12 text-accent"
               }
             >
               {rejected ? (

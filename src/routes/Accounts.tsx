@@ -203,13 +203,13 @@ function AccountRow({
               type="button"
               aria-label={`Reorder ${a.name}`}
               onPointerDown={(e) => controls.start(e)}
-              className="-ml-1 shrink-0 cursor-grab touch-none text-quill-faint transition-colors hover:text-quill active:cursor-grabbing"
+              className="tap -ml-1 shrink-0 cursor-grab touch-none text-quill-faint transition-colors hover:text-quill active:cursor-grabbing"
             >
               <GripVertical className="size-4" />
             </button>
             <Link
               to={`/transactions?account=${a.id}`}
-              className="truncate tracking-[0.08em] text-quill transition-colors hover:text-brass-lo"
+              className="tap truncate tracking-[0.08em] text-quill transition-colors hover:text-brass-lo"
               style={{ fontVariant: "small-caps" }}
             >
               {a.name}
@@ -227,7 +227,7 @@ function AccountRow({
           <button
             onClick={() => onEdit(a)}
             aria-label={`Edit ${a.name}`}
-            className="shrink-0 text-quill-faint transition-colors hover:text-quill"
+            className="tap shrink-0 text-quill-faint transition-colors hover:text-quill"
           >
             <MoreHorizontal className="size-4" />
           </button>
@@ -566,7 +566,7 @@ function ReconcileSection({ account }: { account: Account }) {
           <p
             className={cn(
               "tnum text-xs",
-              Math.abs(shown.difference) < 0.005 ? "text-accent" : "text-head-3",
+              Math.abs(shown.difference) < 0.005 ? "text-accent" : "text-accent",
             )}
           >
             {formatDate(shown.date)} ·{" "}

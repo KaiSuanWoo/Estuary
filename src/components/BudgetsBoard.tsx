@@ -482,7 +482,7 @@ function BudgetLine({
       : pacing.projected != null && pacing.projected > budget.amount
         ? {
             text: `on track for ${formatMoney(pacing.projected, base)}`,
-            tone: "text-head-3",
+            tone: "text-accent",
           }
         : pacing.perDayLeft != null
           ? {

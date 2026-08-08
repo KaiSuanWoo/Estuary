@@ -17,8 +17,8 @@
   /* A well is paper pressed in: form fields, wells, inset strips. */
   --color-well:         #ded0b4;
   --color-quill:        #1a1512;
-  --color-quill-soft:   #6b5b48;
-  --color-quill-faint:  #a0906f;
+  --color-quill-soft:   #4a3d2e;
+  --color-quill-faint:  #6d5f47;
   --color-rule:         #c9b99a;
   --color-rule-strong:  #8b7a5c;
 
@@ -82,7 +82,7 @@
       --color-well:        #1f1812;
       --color-quill:       #e8dcc8;
       --color-quill-soft:  #b4a288;
-      --color-quill-faint: #7a6a54;
+      --color-quill-faint: #a2916f;
       --color-rule:        #4a3b2c;
       --color-rule-strong: #6e5a42;
       --color-credit:      #6fae86;
@@ -106,8 +106,8 @@
     --color-page-edge:   #e2d5bc;
     --color-well:        #ded0b4;
     --color-quill:       #1a1512;
-    --color-quill-soft:  #6b5b48;
-    --color-quill-faint: #a0906f;
+    --color-quill-soft:  #4a3d2e;
+    --color-quill-faint: #6d5f47;
     --color-rule:        #c9b99a;
     --color-rule-strong: #8b7a5c;
     --color-credit:      #2f6b4a;
@@ -131,7 +131,7 @@
     --color-well:        #1f1812;
     --color-quill:       #e8dcc8;
     --color-quill-soft:  #b4a288;
-    --color-quill-faint: #7a6a54;
+    --color-quill-faint: #a2916f;
     --color-rule:        #4a3b2c;
     --color-rule-strong: #6e5a42;
     --color-credit:      #6fae86;
@@ -230,6 +230,26 @@
     );
     animation: shimmer 1.5s infinite;
   }
+  /* A thumb needs about 44px; a marginal note wants to stay small. This gives
+     a control a bigger *hit* box than its ink, drawn on a pseudo-element so
+     nothing in the layout shifts to make room. Touch only — a pointer is
+     precise enough already, and on a desktop these overlays would swallow
+     hovers meant for what's underneath. */
+  @media (pointer: coarse) {
+    .tap {
+      position: relative;
+    }
+    /* Vertical is where the room is: a 12px note becomes a 44px target. The
+       horizontal reach stays at 8px because adjacent controls sit `gap-2`
+       apart — any more and their hit boxes would overlap and you'd tap the
+       neighbour. */
+    .tap::after {
+      content: "";
+      position: absolute;
+      inset: -16px -8px;
+    }
+  }
+
   /* Ink settling on paper: a block arrives a beat after the page it's on.
      Transform and opacity only, so it costs nothing to run. */
   @keyframes settle {

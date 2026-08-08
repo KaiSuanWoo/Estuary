@@ -386,7 +386,7 @@ export function EditTransactionSheet({
                 </select>
               ) : (
                 from && (
-                  <span className="flex h-9 shrink-0 items-center rounded-[2px] border border-rule bg-well px-3 text-sm text-quill-faint">
+                  <span className="flex h-9 shrink-0 items-center rounded-[2px] border border-rule bg-well px-3 text-sm text-quill-soft">
                     {from.currency}
                   </span>
                 )
@@ -671,7 +671,7 @@ export function EditTransactionSheet({
                     className={cn(
                       "tnum text-xs",
                       allocatedTotal > Number(amount)
-                        ? "text-head-3"
+                        ? "text-accent"
                         : "text-quill-faint",
                     )}
                   >
@@ -749,7 +749,7 @@ export function EditTransactionSheet({
               <Flag
                 className={cn(
                   "size-4 shrink-0",
-                  flagged ? "text-head-3" : "text-quill-faint",
+                  flagged ? "text-accent" : "text-quill-faint",
                 )}
               />
               <div>
@@ -787,7 +787,7 @@ export function EditTransactionSheet({
           )}
 
           {type === "income" && allocatedTotal > Number(amount) + 0.005 && (
-            <p className="text-xs text-head-3">
+            <p className="text-xs text-accent">
               Reimbursement allocations exceed this income's amount.
             </p>
           )}

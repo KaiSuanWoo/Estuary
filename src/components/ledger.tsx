@@ -252,7 +252,7 @@ export function Plate({
 /** An action written in the margin rather than drawn as a button. */
 export function MarginLink({ children }: { children: ReactNode }) {
   return (
-    <span className="text-xs italic text-quill-faint underline decoration-rule underline-offset-4 transition-colors hover:text-quill">
+    <span className="tap text-xs italic text-quill-faint underline decoration-rule underline-offset-4 transition-colors hover:text-quill">
       {children}
     </span>
   );

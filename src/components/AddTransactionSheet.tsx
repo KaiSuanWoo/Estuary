@@ -267,7 +267,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                       </select>
                     ) : (
                       from && (
-                        <span className="flex h-9 shrink-0 items-center rounded-[2px] border border-rule bg-well px-3 text-sm text-quill-faint">
+                        <span className="flex h-9 shrink-0 items-center rounded-[2px] border border-rule bg-well px-3 text-sm text-quill-soft">
                           {from.currency}
                         </span>
                       )

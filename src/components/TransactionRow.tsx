@@ -101,7 +101,7 @@ export function TransactionRow({
         <p className="flex items-center gap-1.5 truncate text-quill">
           {tx.flagged && (
             <Flag
-              className="size-3 shrink-0 text-head-3"
+              className="size-3 shrink-0 text-accent"
               fill="currentColor"
               aria-label="Flagged for review"
             />
@@ -148,7 +148,7 @@ export function TransactionRow({
           </span>
         )}
         {unsettled && (
-          <span className="text-[10px] italic text-head-3">owed</span>
+          <span className="text-[10px] italic text-accent">owed</span>
         )}
       </div>
 
