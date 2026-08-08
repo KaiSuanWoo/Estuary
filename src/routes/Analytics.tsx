@@ -70,8 +70,16 @@ function tooltipStyle(ink: Ink) {
   } as const;
 }
 import { cn } from "@/lib/cn";
-import { Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
-import { useLedgerInk, type Ink } from "@/components/ledger";
+import { EmptyState, Spinner } from "@/components/ui";
+import {
+  MarginLink,
+  PageHead,
+  Plate,
+  Statement,
+  useLedgerInk,
+  type Ink,
+} from "@/components/ledger";
+import { BudgetsBoard } from "@/components/BudgetsBoard";
 import type { Transaction } from "@/lib/types";
 import { FALLBACK_HEAD } from "@/lib/constants";
 
@@ -185,6 +193,12 @@ export function Analytics() {
   );
 
   const [txnMode, setTxnMode] = useState<CashflowMode>("net");
+
+  // Which of the two boards is open. Seeded from ?view= so Home and Settings
+  // can link straight at the budgets one.
+  const [board, setBoard] = useState<"analysis" | "budgets">(
+    params.get("view") === "budgets" ? "budgets" : "analysis",
+  );
 
   const { data: txns = [], isLoading } = useTransactions();
   const { data: categories = [] } = useCategories();
@@ -357,12 +371,48 @@ export function Analytics() {
     );
   }
 
+  const head = (
+    <PageHead
+      title="Analytics"
+      note={board === "budgets" ? "What you meant to spend" : "What actually happened"}
+      action={
+        // Two ways of reading the same ledger: what happened, and what you
+        // said would happen. They belong on one page, not in two places.
+        <span className="inline-flex items-center gap-3 text-xs">
+          {(["analysis", "budgets"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setBoard(v)}
+              className={cn(
+                "capitalize transition-colors",
+                board === v
+                  ? "text-quill underline decoration-brass underline-offset-4"
+                  : "text-quill-faint hover:text-quill-soft",
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </span>
+      }
+    />
+  );
+
+  if (board === "budgets") {
+    return (
+      <div className="mx-auto max-w-2xl">
+        {head}
+        <BudgetsBoard />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader title="Analytics" />
+      {head}
 
       {/* ── Period controls ─────────────────────────────────────────────── */}
-      <Card className="mb-4 space-y-3">
+      <div className="settle mb-4 space-y-3 border-b border-rule pb-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1 rounded-[2px] border border-rule/60 bg-well p-1">
             {(["range", "months"] as const).map((m) => (
@@ -460,10 +510,10 @@ export function Analytics() {
             })}
           </div>
         )}
-        <p className="text-xs text-quill-faint">
+        <p className="text-xs italic text-quill-faint">
           Showing <span className="text-quill-soft">{period.label}</span>
         </p>
-      </Card>
+      </div>
 
       {txns.length === 0 ? (
         <EmptyState
@@ -473,13 +523,19 @@ export function Analytics() {
         />
       ) : (
         <div className="space-y-4">
-          {/* KPIs */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi label="Income" value={formatMoney(view.cf.income, base)} tone="up" />
-            <Kpi label="Expenses" value={formatMoney(view.cf.expense, base)} tone="down" />
-            <Kpi label="Net" value={formatMoney(view.cf.net, base)} tone={view.cf.net >= 0 ? "up" : "down"} />
-            <Kpi label="Savings rate" value={`${Math.round(view.savingsRate * 100)}%`} />
-          </div>
+          {/* The period, set out */}
+          <Statement
+            rows={[
+              { label: "Received", value: formatMoney(view.cf.income, base), tone: "credit" },
+              { label: "Expended", value: formatMoney(view.cf.expense, base), tone: "debit" },
+              { label: "Kept", value: `${Math.round(view.savingsRate * 100)}%` },
+            ]}
+            total={{
+              label: "Net",
+              value: formatMoney(view.cf.net, base),
+              tone: view.cf.net >= 0 ? "credit" : "debit",
+            }}
+          />
 
           <Insights view={view} base={base} />
 
@@ -680,21 +736,23 @@ export function Analytics() {
             )}
           </Widget>
 
-          {/* Budgets — deep per-budget detail for a single month */}
-          <Widget
-            title="Budgets"
-            hint={
-              period.months.length === 1
-                ? `${period.label} — tap a budget for detail`
-                : "Select a single month to see budgets"
+          {/* Budgets live on their own view now — this is the way through. */}
+          <Plate
+            caption="Budgets"
+            note="Pacing, overruns and the heads nothing is watching"
+            action={
+              <button onClick={() => setBoard("budgets")}>
+                <MarginLink>open budgets</MarginLink>
+              </button>
             }
           >
             {period.months.length !== 1 ? (
-              <p className="py-6 text-center text-sm text-quill-faint">
-                Budgets are monthly — pick one month to see them.
+              <p className="text-sm italic text-quill-faint">
+                Budgets are kept by period — the budgets view reads them against
+                their own windows rather than this one.
               </p>
             ) : view.budgetRows.length === 0 ? (
-              <p className="py-6 text-center text-sm text-quill-faint">No spending budgets set.</p>
+              <p className="text-sm italic text-quill-faint">No spending budgets set.</p>
             ) : (
               <BudgetsDetail
                 rows={view.budgetRows}
@@ -705,7 +763,7 @@ export function Analytics() {
                 mode={txnMode}
               />
             )}
-          </Widget>
+          </Plate>
 
           {/* Movers + currency exposure */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1061,24 +1119,6 @@ function compact(v: number, base: string): string {
   return formatMoney(v, base).replace(/\.00$/, "");
 }
 
-function Kpi({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
-  const size = value.length > 11 ? "text-lg lg:text-xl" : "text-xl lg:text-2xl";
-  return (
-    <Card className="min-w-0 p-3.5">
-      <p className="truncate text-xs font-medium text-quill-soft">{label}</p>
-      <p
-        className={cn(
-          "tnum mt-1 break-words font-semibold leading-tight tracking-tight",
-          size,
-          tone === "up" ? "text-accent" : tone === "down" ? "text-debit" : "text-quill",
-        )}
-      >
-        {value}
-      </p>
-    </Card>
-  );
-}
-
 interface AnalyticsView {
   cf: { income: number; expense: number; net: number };
   expenseCats: CategorySlice[];
@@ -1144,18 +1184,15 @@ function Insights({ view, base }: { view: AnalyticsView; base: string }) {
       ? `You saved ${Math.round(view.savingsRate * 100)}% of income this period.`
       : `You spent more than you earned this period.`,
   );
+  // A marginal note in the bookkeeper's hand, not a callout box.
   return (
-    <Card className="space-y-1.5">
-      <p className="text-sm font-semibold text-quill">Insights</p>
-      <ul className="space-y-1 text-sm text-quill-soft">
-        {items.map((t, i) => (
-          <li key={i} className="flex gap-2">
-            <span className="text-accent">•</span>
-            <span>{t}</span>
-          </li>
-        ))}
-      </ul>
-    </Card>
+    <aside className="settle border-l-2 border-brass/50 pl-3 text-sm italic text-quill-soft">
+      {items.map((t, i) => (
+        <p key={i} className={i > 0 ? "mt-1" : undefined}>
+          {t}
+        </p>
+      ))}
+    </aside>
   );
 }
 
@@ -1251,14 +1288,11 @@ function ChartEmpty({ label }: { label: string }) {
   );
 }
 
+/** Every figure on this page is a plate tipped into it. */
 function Widget({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
-    <Card className="flex min-w-0 flex-col">
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold text-quill">{title}</h2>
-        {hint && <p className="text-xs text-quill-faint">{hint}</p>}
-      </div>
-      <div className="flex-1">{children}</div>
-    </Card>
+    <Plate caption={title} note={hint}>
+      {children}
+    </Plate>
   );
 }

@@ -147,18 +147,22 @@ export function Budgets() {
   return (
     <div className="mx-auto max-w-2xl">
       <header className="mb-4 flex items-center gap-2">
+        {/* This page sets the limits; Analytics reads them. */}
         <Link
-          to="/settings"
+          to="/analytics?view=budgets"
           className="flex size-8 items-center justify-center rounded-[2px] text-quill-soft hover:text-quill"
-          aria-label="Back to settings"
+          aria-label="Back to budget analysis"
         >
           <ChevronLeft className="size-5" />
         </Link>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-quill">
-            Budgets
+          <h1
+            className="text-2xl tracking-[0.04em] text-quill"
+            style={{ fontVariant: "small-caps" }}
+          >
+            Setting budgets
           </h1>
-          <p className="text-sm text-quill-soft">
+          <p className="text-sm italic text-quill-faint">
             Recurring limits and one-time goals
           </p>
         </div>

@@ -925,8 +925,8 @@ export function Transactions() {
           tabIndex={scrolled ? 0 : -1}
           className={cn(
             "fixed bottom-56 left-5 z-30 flex size-11 items-center justify-center rounded-full",
-            "border border-rule bg-page-edge text-quill shadow-lg shadow-black/40",
-            "transition-all hover:bg-page-edge hover:text-quill",
+            "border border-rule-strong bg-page text-quill-soft shadow-[0_3px_10px_rgb(0_0_0/0.4)]",
+            "transition-all hover:text-quill",
             "lg:bottom-40 lg:left-auto lg:right-8",
             scrolled
               ? "opacity-100"
@@ -945,11 +945,11 @@ export function Transactions() {
           aria-label="Show only what I'm owed (unsettled reimbursable)"
           title="What I'm owed"
           className={cn(
-            "fixed bottom-24 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-black/40 transition-colors",
-            "lg:bottom-8 lg:left-auto lg:right-8",
+            "fixed bottom-24 left-5 z-30 flex size-11 items-center justify-center rounded-full transition-colors",
+            "shadow-[0_3px_10px_rgb(0_0_0/0.4)] lg:bottom-8 lg:left-auto lg:right-8",
             owedOnly
-              ? "border border-accent/60 bg-accent/15 text-accent hover:bg-accent/25"
-              : "border border-rule bg-page-edge text-quill hover:bg-page-edge hover:text-quill",
+              ? "brass-face"
+              : "border border-rule-strong bg-page text-quill-soft hover:text-quill",
           )}
         >
           <Receipt className="size-5" />
@@ -963,11 +963,11 @@ export function Transactions() {
           aria-pressed={flaggedOnly}
           aria-label="Show flagged only"
           className={cn(
-            "fixed bottom-40 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-black/40 transition-colors",
-            "lg:bottom-24 lg:left-auto lg:right-8",
+            "fixed bottom-40 left-5 z-30 flex size-11 items-center justify-center rounded-full transition-colors",
+            "shadow-[0_3px_10px_rgb(0_0_0/0.4)] lg:bottom-24 lg:left-auto lg:right-8",
             flaggedOnly
-              ? "border border-head-3/60 bg-head-3/15 text-head-3 hover:bg-head-3/25"
-              : "border border-rule bg-page-edge text-quill hover:bg-page-edge hover:text-quill",
+              ? "brass-face"
+              : "border border-rule-strong bg-page text-quill-soft hover:text-quill",
           )}
         >
           <Flag className="size-5" />

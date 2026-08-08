@@ -99,10 +99,17 @@ export function HoverDonut({
               </Pie>
             </PieChart>
           </ResponsiveContainer>
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[11px] text-quill-faint">{cur ? cur.name : centerLabel}</span>
+          {/* Held to 62% of the ring so a six-figure total can't spill out over
+              the arcs. The label and the figure both truncate rather than wrap. */}
+          <div
+            className="pointer-events-none absolute inset-0 m-auto flex flex-col items-center justify-center text-center"
+            style={{ width: "62%" }}
+          >
+            <span className="w-full truncate text-[11px] text-quill-faint">
+              {cur ? cur.name : centerLabel}
+            </span>
             <span
-              className="tnum text-sm font-semibold"
+              className="tnum w-full truncate text-[13px]"
               style={{ color: cur ? cur.color : undefined }}
             >
               {formatMoney(cur ? cur.value : total, base)}

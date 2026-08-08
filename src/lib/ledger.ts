@@ -22,6 +22,22 @@ export const HIDE_LABELS: Record<Hide, string> = {
   black: "Black",
 };
 
+/**
+ * The two leather tones each binding is built from, mirroring the `data-hide`
+ * blocks in `index.css`.
+ *
+ * They are duplicated here because that CSS keys off `:root` — a swatch that
+ * wants to show a hide it is *not* currently bound in has to declare the two
+ * variables on itself, and only JS can hand them over.
+ */
+export const HIDE_TONES: Record<Hide, [string, string]> = {
+  oxblood: ["#5a1826", "#330d16"],
+  navy: ["#243c5c", "#101e31"],
+  forest: ["#254032", "#122018"],
+  tan: ["#9a6538", "#5e3b1e"],
+  black: ["#2a2320", "#100d0b"],
+};
+
 export const HIDE_NOTES: Record<Hide, string> = {
   oxblood: "Traditional banking red. Warm, formal, slightly severe.",
   navy: "Iron-gall blue-black. The coolest of the five, sharpest against brass.",

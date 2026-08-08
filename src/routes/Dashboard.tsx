@@ -420,7 +420,7 @@ export function Dashboard() {
       <Register
         title="Budgets"
         action={
-          <Link to="/budgets">
+          <Link to="/analytics?view=budgets">
             <MarginLink>manage</MarginLink>
           </Link>
         }

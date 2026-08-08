@@ -23,6 +23,7 @@ import {
   HIDES,
   HIDE_LABELS,
   HIDE_NOTES,
+  HIDE_TONES,
   LAMPS,
   readHide,
   readLamp,
@@ -219,12 +220,13 @@ function TheBook() {
               }}
               // The swatch is a scrap of the hide itself — grain, sheen and all —
               // so the choice is made against the material, not a colour name.
-              // `data-hide` on the element re-declares the tokens locally.
-              data-hide={h === "oxblood" ? undefined : h}
+              // The tones are set on the element because the `data-hide` rules
+              // in the stylesheet only ever match :root.
               style={
-                h === "oxblood"
-                  ? { "--color-hide-a": "#5a1826", "--color-hide-b": "#330d16" } as React.CSSProperties
-                  : undefined
+                {
+                  "--color-hide-a": HIDE_TONES[h][0],
+                  "--color-hide-b": HIDE_TONES[h][1],
+                } as React.CSSProperties
               }
               className={cn(
                 "surface-hide size-7 rounded-[2px] transition-transform",
