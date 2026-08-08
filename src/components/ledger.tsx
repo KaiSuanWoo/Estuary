@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/cn";
+import { useReducedMotion } from "@/lib/motion";
 
 /**
  * Structural pieces of a ledger page.
@@ -55,6 +57,7 @@ export function LeadFigure({
   value: string;
   tone?: "credit" | "debit";
 }) {
+  const reduce = useReducedMotion();
   return (
     <div className="pb-1">
       <p
@@ -63,14 +66,24 @@ export function LeadFigure({
       >
         {label}
       </p>
-      <p
-        className={cn(
-          "tnum mt-0.5 text-[2.6rem] leading-[1.05] tracking-[-0.01em] lg:text-[3.1rem]",
-          tone === "credit" ? "text-credit" : tone === "debit" ? "text-debit" : "text-quill",
-        )}
-      >
-        {value}
-      </p>
+      {/* Re-scoping the book to one account rewrites this figure. Blotting the
+          old one out and writing the new one makes the change legible; swapping
+          the digits silently does not. */}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.p
+          key={value}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduce ? { opacity: 0 } : { opacity: 0, y: -6 }}
+          transition={{ duration: reduce ? 0.1 : 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+          className={cn(
+            "tnum mt-0.5 text-[2.6rem] leading-[1.05] tracking-[-0.01em] lg:text-[3.1rem]",
+            tone === "credit" ? "text-credit" : tone === "debit" ? "text-debit" : "text-quill",
+          )}
+        >
+          {value}
+        </motion.p>
+      </AnimatePresence>
     </div>
   );
 }
@@ -187,7 +200,7 @@ export function Register({
   className?: string;
 }) {
   return (
-    <section className={cn("mt-5", className)}>
+    <section className={cn("settle settle-2 mt-5", className)}>
       <div className="flex items-baseline justify-between gap-3 border-b border-rule pb-1">
         <h3
           className="text-sm tracking-[0.14em] text-quill-soft"
@@ -220,7 +233,7 @@ export function Plate({
   children: ReactNode;
 }) {
   return (
-    <figure className="mt-5">
+    <figure className="settle settle-3 mt-5">
       <figcaption className="flex items-baseline justify-between gap-3 border-b border-rule pb-1">
         <span
           className="text-sm tracking-[0.14em] text-quill-soft"

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { format, parseISO, subMonths } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   Area,
   AreaChart,
@@ -51,6 +52,7 @@ import {
 } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { useReducedMotion } from "@/lib/motion";
 import { Spinner } from "@/components/ui";
 import {
   headInk,
@@ -72,6 +74,9 @@ export function Dashboard() {
   const [adding, setAdding] = useState(false);
   // monthBack: 0 = current month, 1 = last month, etc.
   const [monthBack, setMonthBack] = useState(0);
+  // +1 when you turned back through the book, -1 when you turned forward. Only
+  // the sign is used, to point the month transition the right way.
+  const [turned, setTurned] = useState(1);
   const [cashflowMode, setCashflowMode] = useState<CashflowMode>("net");
   // "" = all accounts; otherwise scope the whole overview to one account.
   const [accountFilter, setAccountFilter] = useState<string>("");
@@ -93,6 +98,7 @@ export function Dashboard() {
   // Must sit with the other hooks: an early return below would otherwise make
   // the hook count differ between the loading and loaded renders.
   const ink = useLedgerInk();
+  const reduce = useReducedMotion();
   const showBudgets = readShowHomeBudgets();
 
   const accounts = accountsQ.data ?? [];
@@ -301,6 +307,10 @@ export function Dashboard() {
         </Plate>
       )}
 
+      {/* Six months of received-against-expended. It belongs on the verso: the
+          shape of the last half-year is part of where you stand, not part of
+          what happened this month. */}
+      {cashflowPlate}
     </>
   );
 
@@ -330,14 +340,20 @@ export function Dashboard() {
         action={
           <span className="flex items-center gap-1">
             <button
-              onClick={() => setMonthBack((m) => m + 1)}
+              onClick={() => {
+                setTurned(1);
+                setMonthBack((m) => m + 1);
+              }}
               className="flex size-6 items-center justify-center text-quill-faint transition-colors hover:text-quill"
               aria-label="Previous month"
             >
               <ChevronLeft className="size-4" />
             </button>
             <button
-              onClick={() => setMonthBack((m) => Math.max(m - 1, 0))}
+              onClick={() => {
+                setTurned(-1);
+                setMonthBack((m) => Math.max(m - 1, 0));
+              }}
               disabled={monthBack === 0}
               className="flex size-6 items-center justify-center text-quill-faint transition-colors hover:text-quill disabled:cursor-not-allowed disabled:opacity-25"
               aria-label="Next month"
@@ -348,17 +364,30 @@ export function Dashboard() {
         }
       />
 
-      <Statement
-        rows={[
-          { label: "Received", value: formatMoney(month.income, baseCurrency), tone: "credit" },
-          { label: "Expended", value: formatMoney(month.expense, baseCurrency), tone: "debit" },
-        ]}
-        total={{
-          label: "Net",
-          value: formatMoney(month.net, baseCurrency),
-          tone: month.net >= 0 ? "credit" : "debit",
-        }}
-      />
+      {/* The month's figures slide the way you turned. Back a month and they
+          come in from the left, the way an earlier page would. */}
+      <AnimatePresence mode="wait" initial={false} custom={turned}>
+        <motion.div
+          key={monthBack}
+          custom={turned}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, x: turned > 0 ? -24 : 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={reduce ? { opacity: 0 } : { opacity: 0, x: turned > 0 ? 24 : -24 }}
+          transition={{ duration: reduce ? 0.1 : 0.24, ease: [0.2, 0.8, 0.2, 1] }}
+        >
+          <Statement
+            rows={[
+              { label: "Received", value: formatMoney(month.income, baseCurrency), tone: "credit" },
+              { label: "Expended", value: formatMoney(month.expense, baseCurrency), tone: "debit" },
+            ]}
+            total={{
+              label: "Net",
+              value: formatMoney(month.net, baseCurrency),
+              tone: month.net >= 0 ? "credit" : "debit",
+            }}
+          />
+        </motion.div>
+      </AnimatePresence>
 
 
       <Plate
@@ -383,7 +412,9 @@ export function Dashboard() {
         )}
       </Plate>
 
-      {cashflowPlate}
+      {/* A phone never opens the verso, so the plate is repeated here — hidden
+          the moment there is a left page to carry it. */}
+      <div className="lg:hidden">{cashflowPlate}</div>
 
       {showBudgets && (
       <Register

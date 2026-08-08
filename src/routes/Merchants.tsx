@@ -47,7 +47,7 @@ export function Merchants() {
       <header className="mb-4 flex items-center gap-2">
         <Link
           to="/settings"
-          className="flex size-8 items-center justify-center rounded-lg text-quill-soft hover:text-quill"
+          className="flex size-8 items-center justify-center rounded-[2px] text-quill-soft hover:text-quill"
           aria-label="Back to settings"
         >
           <ChevronLeft className="size-5" />
@@ -74,7 +74,7 @@ export function Merchants() {
           hint="Add or import some transactions first."
         />
       ) : (
-        <Card className="divide-y divide-ink-800/70 py-0">
+        <Card className="divide-y divide-rule py-0">
           {groups.slice(0, 100).map((g) => {
             const isEditing = editing === g.canonical;
             const renamed = isRenamed(g);
@@ -90,14 +90,14 @@ export function Merchants() {
                         if (e.key === "Enter") void saveRename(g);
                         if (e.key === "Escape") setEditing(null);
                       }}
-                      className="h-8 w-full rounded-lg border border-teal-500 bg-ink-950/60 px-2 text-sm text-quill focus:outline-none"
+                      className="h-8 w-full rounded-[2px] border border-accent bg-well px-2 text-sm text-quill focus:outline-none"
                     />
                   ) : (
                     <>
                       <p className="truncate text-sm font-medium text-quill">
                         {g.canonical}
                         {renamed && (
-                          <span className="ml-2 rounded-full bg-teal-500/15 px-1.5 py-0.5 text-[10px] font-medium text-teal-400">
+                          <span className="ml-2 rounded-[2px] bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">
                             renamed
                           </span>
                         )}
@@ -118,14 +118,14 @@ export function Merchants() {
                       onClick={() => void saveRename(g)}
                       disabled={rename.isPending}
                       aria-label="Save name"
-                      className="flex size-8 items-center justify-center rounded-lg bg-teal-500/15 text-teal-300 hover:bg-teal-500/25"
+                      className="flex size-8 items-center justify-center rounded-[2px] bg-accent/15 text-accent hover:bg-accent/25"
                     >
                       <Check className="size-4" />
                     </button>
                     <button
                       onClick={() => setEditing(null)}
                       aria-label="Cancel"
-                      className="flex size-8 items-center justify-center rounded-lg text-quill-faint hover:bg-ink-800 hover:text-quill"
+                      className="flex size-8 items-center justify-center rounded-[2px] text-quill-faint hover:bg-page-edge hover:text-quill"
                     >
                       <X className="size-4" />
                     </button>
@@ -137,7 +137,7 @@ export function Merchants() {
                         onClick={() => clear.mutate(g.keys)}
                         aria-label={`Reset ${g.canonical} to automatic name`}
                         title="Reset to automatic name"
-                        className="flex size-8 items-center justify-center rounded-lg text-quill-faint hover:bg-ink-800 hover:text-quill"
+                        className="flex size-8 items-center justify-center rounded-[2px] text-quill-faint hover:bg-page-edge hover:text-quill"
                       >
                         <RotateCcw className="size-3.5" />
                       </button>
@@ -148,7 +148,7 @@ export function Merchants() {
                         setDraft(g.canonical);
                       }}
                       aria-label={`Rename ${g.canonical}`}
-                      className="flex size-8 items-center justify-center rounded-lg text-quill-faint hover:bg-ink-800 hover:text-quill"
+                      className="flex size-8 items-center justify-center rounded-[2px] text-quill-faint hover:bg-page-edge hover:text-quill"
                     >
                       <Pencil className="size-3.5" />
                     </button>

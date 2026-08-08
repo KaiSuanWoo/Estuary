@@ -21,7 +21,7 @@ import {
   useReorderCategories,
   useSeedCategories,
 } from "@/hooks/useCategories";
-import { SEED_CATEGORIES } from "@/lib/constants";
+import { HEAD_SWATCHES, SEED_CATEGORIES } from "@/lib/constants";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
@@ -34,10 +34,10 @@ import { CATEGORY_ICONS, CATEGORY_ICON_NAMES } from "@/lib/category-icons";
 import type { Category, CategoryKind } from "@/lib/types";
 
 const inputCls =
-  "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
+  "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
 // Default colours used when seeding categories.
-const SWATCHES = ["#7FD1B9", "#3F72AF", "#4F8A6D", "#8AA6C4", "#E0A458", "#C46D6D"];
+const SWATCHES = HEAD_SWATCHES;
 
 /** Colour picker: a single swatch that opens the OS colour picker. */
 function ColorPicker({
@@ -52,7 +52,7 @@ function ColorPicker({
       <span className="mb-1.5 block text-xs font-medium text-quill-soft">Colour</span>
       <label className="flex w-fit cursor-pointer items-center gap-3">
         <span
-          className="relative block size-9 shrink-0 rounded-lg border border-rule"
+          className="relative block size-9 shrink-0 rounded-[2px] border border-rule"
           style={{ backgroundColor: value }}
         >
           <input
@@ -94,10 +94,10 @@ function IconPicker({
               aria-label={name}
               aria-pressed={active}
               className={cn(
-                "flex aspect-square items-center justify-center rounded-xl border transition-colors",
+                "flex aspect-square items-center justify-center rounded-[2px] border transition-colors",
                 active
                   ? "border-transparent"
-                  : "border-rule text-quill-soft hover:border-rule hover:text-quill",
+                  : "border-rule text-quill-soft hover:border-rule-strong hover:text-quill",
               )}
               style={active ? { backgroundColor: `${color}26`, color } : undefined}
             >
@@ -148,7 +148,7 @@ export function Categories() {
         <div className="flex items-center gap-2">
           <Link
             to="/settings"
-            className="flex size-8 items-center justify-center rounded-lg text-quill-soft hover:text-quill"
+            className="flex size-8 items-center justify-center rounded-[2px] text-quill-soft hover:text-quill"
           >
             <ChevronLeft className="size-5" />
           </Link>
@@ -166,7 +166,7 @@ export function Categories() {
               <button
                 onClick={() => setReordering(true)}
                 aria-label="Reorder categories"
-                className="flex size-9 items-center justify-center rounded-xl bg-ink-800/60 text-quill transition-colors hover:bg-ink-700/60"
+                className="flex size-9 items-center justify-center rounded-[2px] bg-page-edge text-quill transition-colors hover:bg-rule"
               >
                 <ArrowUpDown className="size-4" />
               </button>
@@ -174,7 +174,7 @@ export function Categories() {
             <Link
               to="/rules"
               aria-label="Auto-categorise rules"
-              className="flex size-9 items-center justify-center rounded-xl bg-ink-800/60 text-quill transition-colors hover:bg-ink-700/60"
+              className="flex size-9 items-center justify-center rounded-[2px] bg-page-edge text-quill transition-colors hover:bg-rule"
             >
               <Wand2 className="size-4" />
             </Link>
@@ -188,7 +188,7 @@ export function Categories() {
       {isLoading ? (
         <div className="space-y-6">
           {[0, 1].map((g) => (
-            <Card key={g} className="divide-y divide-ink-800/70 py-0">
+            <Card key={g} className="divide-y divide-rule py-0">
               {[0, 1, 2].map((r) => (
                 <div key={r} className="flex items-center gap-3 px-1 py-3">
                   <Skeleton className="size-9 shrink-0 rounded-full" />
@@ -200,7 +200,7 @@ export function Categories() {
           ))}
         </div>
       ) : data.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-rule/70 px-6 py-12 text-center">
+        <div className="flex flex-col items-center justify-center rounded-[2px] border border-dashed border-rule/70 px-6 py-12 text-center">
           <div className="mb-3 text-quill-faint">
             <Tag className="size-6" />
           </div>
@@ -225,7 +225,7 @@ export function Categories() {
             )}
           </Button>
           {seed.isError && (
-            <p className="mt-2 text-xs text-red-400">
+            <p className="mt-2 text-xs text-debit">
               {(seed.error as Error).message}
             </p>
           )}
@@ -300,7 +300,7 @@ function Group({
       <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-quill-faint">
         {title}
       </h2>
-      <Card className="divide-y divide-ink-800/70 py-0">
+      <Card className="divide-y divide-rule py-0">
         {items.map((c, i) => {
           const spent = spendMap.get(c.id) ?? 0;
           return (
@@ -317,7 +317,7 @@ function Group({
                       onClick={() => move(i, -1)}
                       disabled={i === 0}
                       aria-label={`Move ${c.name} up`}
-                      className="flex size-8 items-center justify-center rounded-lg text-quill-soft transition-colors hover:bg-ink-800 hover:text-quill disabled:opacity-25"
+                      className="flex size-8 items-center justify-center rounded-[2px] text-quill-soft transition-colors hover:bg-page-edge hover:text-quill disabled:opacity-25"
                     >
                       <ChevronUp className="size-4" />
                     </button>
@@ -325,7 +325,7 @@ function Group({
                       onClick={() => move(i, 1)}
                       disabled={i === items.length - 1}
                       aria-label={`Move ${c.name} down`}
-                      className="flex size-8 items-center justify-center rounded-lg text-quill-soft transition-colors hover:bg-ink-800 hover:text-quill disabled:opacity-25"
+                      className="flex size-8 items-center justify-center rounded-[2px] text-quill-soft transition-colors hover:bg-page-edge hover:text-quill disabled:opacity-25"
                     >
                       <ChevronDown className="size-4" />
                     </button>
@@ -340,14 +340,14 @@ function Group({
                     <button
                       onClick={() => onEdit(c)}
                       aria-label={`Edit ${c.name}`}
-                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-quill-faint hover:bg-ink-800 hover:text-quill transition-colors"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-[2px] text-quill-faint hover:bg-page-edge hover:text-quill transition-colors"
                     >
                       <Pencil className="size-3.5" />
                     </button>
                     <button
                       onClick={() => onArchive(c.id)}
                       aria-label={`Archive ${c.name}`}
-                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-quill-faint hover:text-red-400 transition-colors"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-[2px] text-quill-faint hover:text-debit transition-colors"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -416,7 +416,7 @@ function EditCategorySheet({
           <IconPicker value={icon} color={color} onChange={setIcon} />
 
           {category.kind === "expense" && (
-            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-rule/60 bg-ink-950/30 p-3">
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[2px] border border-rule/60 bg-well p-3">
               <div>
                 <p className="text-sm font-medium text-quill">Fixed cost</p>
                 <p className="text-xs text-quill-faint">
@@ -431,12 +431,12 @@ function EditCategorySheet({
                 onClick={() => setIsFixed((v) => !v)}
                 className={cn(
                   "relative h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors",
-                  isFixed ? "bg-sky-500" : "bg-ink-700",
+                  isFixed ? "bg-head-1" : "bg-rule",
                 )}
               >
                 <span
                   className={cn(
-                    "block h-4 w-4 rounded-full bg-white shadow transition-transform",
+                    "block h-4 w-4 rounded-full bg-page shadow transition-transform",
                     isFixed ? "translate-x-5" : "translate-x-0.5",
                   )}
                 />
@@ -445,7 +445,7 @@ function EditCategorySheet({
           )}
 
           {update.isError && (
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-debit">
               Couldn't save. {(update.error as Error).message}
             </p>
           )}
@@ -478,7 +478,7 @@ function EditCategorySheet({
             <button
               type="button"
               onClick={() => setConfirmArchive(true)}
-              className="flex w-full items-center justify-center gap-2 text-xs text-quill-faint transition-colors hover:text-red-400"
+              className="flex w-full items-center justify-center gap-2 text-xs text-quill-faint transition-colors hover:text-debit"
             >
               Archive category
             </button>
@@ -516,9 +516,9 @@ function AddCategorySheet({ onClose }: { onClose: () => void }) {
                 type="button"
                 onClick={() => setKind(k)}
                 className={cn(
-                  "h-9 rounded-xl border text-xs font-medium capitalize transition-colors",
+                  "h-9 rounded-[2px] border text-xs font-medium capitalize transition-colors",
                   kind === k
-                    ? "border-teal-500 bg-teal-500/10 text-teal-300"
+                    ? "border-accent bg-accent/10 text-accent"
                     : "border-rule text-quill-soft",
                 )}
               >
@@ -545,7 +545,7 @@ function AddCategorySheet({ onClose }: { onClose: () => void }) {
           <IconPicker value={icon} color={color} onChange={setIcon} />
 
           {create.isError && (
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-debit">
               Couldn't save. {(create.error as Error).message}
             </p>
           )}

@@ -28,8 +28,8 @@ export function PendingApproval({ status }: { status: ProfileStatus }) {
             <div
               className={
                 rejected
-                  ? "mb-4 flex size-14 items-center justify-center rounded-2xl bg-rose-500/12 text-rose-300"
-                  : "mb-4 flex size-14 items-center justify-center rounded-2xl bg-amber-500/12 text-amber-300"
+                  ? "mb-4 flex size-14 items-center justify-center rounded-[2px] bg-debit/12 text-debit"
+                  : "mb-4 flex size-14 items-center justify-center rounded-[2px] bg-head-3/12 text-head-3"
               }
             >
               {rejected ? (

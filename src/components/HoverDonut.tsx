@@ -118,7 +118,7 @@ export function HoverDonut({
                 onMouseEnter={() => setActive(i)}
                 onMouseLeave={() => setActive(null)}
                 className={cn(
-                  "flex cursor-default items-center gap-2 rounded-md px-1 py-0.5 text-sm transition-colors",
+                  "flex cursor-default items-center gap-2 rounded-[2px] px-1 py-0.5 text-sm transition-colors",
                   active === i && "bg-[color-mix(in_oklab,var(--color-quill)_8%,transparent)]",
                 )}
               >

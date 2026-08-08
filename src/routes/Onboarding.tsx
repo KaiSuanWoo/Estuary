@@ -24,7 +24,7 @@ import { Button, Spinner } from "@/components/ui";
 import { Logo } from "@/components/Logo";
 
 const inputCls =
-  "h-11 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
+  "h-11 w-full rounded-[2px] border border-rule bg-well px-3 text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
 type StepId = "welcome" | "currency" | "account" | "categories" | "done";
 const STEPS: StepId[] = ["welcome", "currency", "account", "categories", "done"];
@@ -108,7 +108,7 @@ export function Onboarding() {
       {/* Responsive panel: full-bleed column on phones, centered card on desktop.
           my-auto centers it vertically when it fits and lets the page scroll
           when the viewport is short, so the primary button is always reachable. */}
-      <div className="flex w-full flex-1 flex-col sm:my-auto sm:max-w-md sm:flex-none sm:min-h-[34rem] sm:rounded-[28px] sm:border sm:border-rule/70 sm:bg-ink-900/50 sm:p-8 sm:shadow-[var(--shadow-sheet)]">
+      <div className="flex w-full flex-1 flex-col sm:my-auto sm:max-w-md sm:flex-none sm:min-h-[34rem] sm:rounded-[28px] sm:border sm:border-rule/70 sm:bg-page-edge sm:p-8 sm:shadow-[var(--shadow-sheet)]">
         {/* Brand + progress */}
         <div className="w-full">
           <div className="mb-6 flex items-center justify-between">
@@ -167,16 +167,16 @@ export function Onboarding() {
                       key={c}
                       onClick={() => setCurrency(c)}
                       className={cn(
-                        "flex flex-col items-start rounded-xl border px-3 py-2.5 text-left transition-colors",
+                        "flex flex-col items-start rounded-[2px] border px-3 py-2.5 text-left transition-colors",
                         currency === c
-                          ? "border-teal-500 bg-teal-500/10"
+                          ? "border-accent bg-accent/10"
                           : "border-rule hover:border-rule",
                       )}
                     >
                       <span
                         className={cn(
                           "text-sm font-semibold",
-                          currency === c ? "text-teal-300" : "text-quill",
+                          currency === c ? "text-accent" : "text-quill",
                         )}
                       >
                         {c}
@@ -222,9 +222,9 @@ export function Onboarding() {
                           type="button"
                           onClick={() => setAcctType(t.value)}
                           className={cn(
-                            "h-9 rounded-xl border text-xs font-medium transition-colors",
+                            "h-9 rounded-[2px] border text-xs font-medium transition-colors",
                             acctType === t.value
-                              ? "border-teal-500 bg-teal-500/10 text-teal-300"
+                              ? "border-accent bg-accent/10 text-accent"
                               : "border-rule text-quill-soft",
                           )}
                         >
@@ -285,9 +285,9 @@ export function Onboarding() {
                   type="button"
                   onClick={() => setSeed((v) => !v)}
                   className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-xl border p-3.5 text-left transition-colors",
+                    "flex w-full items-center justify-between gap-3 rounded-[2px] border p-3.5 text-left transition-colors",
                     seed
-                      ? "border-teal-500 bg-teal-500/10"
+                      ? "border-accent bg-accent/10"
                       : "border-rule hover:border-rule",
                   )}
                 >
@@ -303,7 +303,7 @@ export function Onboarding() {
                     className={cn(
                       "flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                       seed
-                        ? "border-teal-400 bg-teal-500 text-ink-950"
+                        ? "border-accent bg-accent text-page"
                         : "border-rule",
                     )}
                   >
@@ -329,7 +329,7 @@ export function Onboarding() {
                 }
               >
                 {error && (
-                  <p className="mb-3 text-sm text-red-400">{error}</p>
+                  <p className="mb-3 text-sm text-debit">{error}</p>
                 )}
                 <Button
                   className="w-full"
@@ -384,7 +384,7 @@ function StepShell({
   return (
     <div className="flex flex-1 flex-col">
       <div className="mb-5">
-        <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-teal-500/12 text-teal-300 ring-1 ring-inset ring-teal-400/20">
+        <div className="mb-4 flex size-14 items-center justify-center rounded-[2px] bg-accent/12 text-accent ring-1 ring-inset ring-accent/20">
           {icon}
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-quill">
@@ -427,10 +427,10 @@ function Dots({ count, active }: { count: number; active: number }) {
           className={cn(
             "h-1.5 rounded-full transition-all duration-300",
             i === active
-              ? "w-6 bg-teal-400"
+              ? "w-6 bg-accent"
               : i < active
-                ? "w-1.5 bg-teal-500/50"
-                : "w-1.5 bg-ink-700",
+                ? "w-1.5 bg-accent/50"
+                : "w-1.5 bg-rule",
           )}
         />
       ))}

@@ -44,6 +44,7 @@ import type {
   Category,
   Transaction,
 } from "@/lib/types";
+import { FALLBACK_HEAD, HEAD_SWATCHES } from "@/lib/constants";
 
 const PERIODS: { value: BudgetPeriod; label: string }[] = [
   { value: "weekly", label: "Weekly" },
@@ -52,7 +53,7 @@ const PERIODS: { value: BudgetPeriod; label: string }[] = [
   { value: "custom", label: "Custom" },
 ];
 
-const SWATCHES = ["#7FD1B9", "#3F72AF", "#4F8A6D", "#8AA6C4", "#E0A458", "#C46D6D"];
+const SWATCHES = HEAD_SWATCHES;
 
 /**
  * Bar/text colour by progress. An expense budget counts *down* (over = bad, red);
@@ -61,11 +62,11 @@ const SWATCHES = ["#7FD1B9", "#3F72AF", "#4F8A6D", "#8AA6C4", "#E0A458", "#C46D6
 function toneFor(ratio: number, saving: boolean): { bar: string; text: string } {
   if (saving)
     return ratio >= 1
-      ? { bar: "bg-emerald-500", text: "text-emerald-400" }
-      : { bar: "bg-teal-500", text: "text-teal-300" };
-  if (ratio > 1) return { bar: "bg-rose-500", text: "text-rose-400" };
-  if (ratio > 0.85) return { bar: "bg-amber-500", text: "text-amber-400" };
-  return { bar: "bg-teal-500", text: "text-teal-300" };
+      ? { bar: "bg-credit", text: "text-credit" }
+      : { bar: "bg-accent", text: "text-accent" };
+  if (ratio > 1) return { bar: "bg-debit", text: "text-debit" };
+  if (ratio > 0.85) return { bar: "bg-head-3", text: "text-head-3" };
+  return { bar: "bg-accent", text: "text-accent" };
 }
 
 export function Budgets() {
@@ -148,7 +149,7 @@ export function Budgets() {
       <header className="mb-4 flex items-center gap-2">
         <Link
           to="/settings"
-          className="flex size-8 items-center justify-center rounded-lg text-quill-soft hover:text-quill"
+          className="flex size-8 items-center justify-center rounded-[2px] text-quill-soft hover:text-quill"
           aria-label="Back to settings"
         >
           <ChevronLeft className="size-5" />
@@ -166,7 +167,7 @@ export function Budgets() {
       {/* Prominent add button */}
       <button
         onClick={() => setSheet("new")}
-        className="mb-5 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-rule py-3 text-sm font-medium text-quill-soft transition-colors hover:border-teal-500/60 hover:text-teal-300"
+        className="mb-5 flex w-full items-center justify-center gap-2 rounded-[2px] border border-dashed border-rule py-3 text-sm font-medium text-quill-soft transition-colors hover:border-accent/60 hover:text-accent"
       >
         <Plus className="size-4" /> New budget
       </button>
@@ -279,11 +280,11 @@ function BudgetBar({
         aria-valuemax={100}
         aria-valuenow={100}
         aria-label={`${Math.round(ratio * 100)}% of budget — over by ${Math.round((ratio - 1) * 100)}%`}
-        className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-ink-800"
+        className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-page-edge"
       >
-        <div className="h-full bg-amber-500" style={{ width: `${budgetFrac}%` }} />
+        <div className="h-full bg-head-3" style={{ width: `${budgetFrac}%` }} />
         <div
-          className="h-full bg-rose-500 ring-1 ring-inset ring-rose-300/30"
+          className="h-full bg-debit ring-1 ring-inset ring-debit/30"
           style={{ width: `${100 - budgetFrac}%` }}
         />
       </div>
@@ -300,7 +301,7 @@ function BudgetBar({
       aria-valuemax={100}
       aria-valuenow={Math.round(pct)}
       aria-label={`${Math.round(ratio * 100)}% of ${saving ? "target" : "budget"}`}
-      className="relative mt-3 h-2.5 overflow-hidden rounded-full bg-ink-800"
+      className="relative mt-3 h-2.5 overflow-hidden rounded-full bg-page-edge"
     >
       <div
         className={cn(
@@ -313,7 +314,7 @@ function BudgetBar({
         <span
           aria-hidden
           title="Even-pace marker"
-          className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-ink-50/70 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
+          className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-page/70 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
           style={{ left: `${elapsed * 100}%` }}
         />
       )}
@@ -386,10 +387,10 @@ function StackedBar({
       aria-valuemax={100}
       aria-valuenow={Math.round(spentPct + savedPct)}
       aria-label={`${Math.round(((spent + saved) / t) * 100)}% funded`}
-      className="mt-3 flex h-2 overflow-hidden rounded-full bg-ink-800"
+      className="mt-3 flex h-2 overflow-hidden rounded-full bg-page-edge"
     >
-      <div className="h-full bg-indigo-400 transition-all" style={{ width: `${spentPct}%` }} />
-      <div className="h-full bg-emerald-400 transition-all" style={{ width: `${savedPct}%` }} />
+      <div className="h-full bg-head-4 transition-all" style={{ width: `${spentPct}%` }} />
+      <div className="h-full bg-credit transition-all" style={{ width: `${savedPct}%` }} />
     </div>
   );
 }
@@ -441,14 +442,14 @@ function BudgetRow({
       const elapsedDays = Math.max(1, pacing.daysTotal - pacing.daysLeft);
       hint = {
         text: `${formatMoney(spent / elapsedDays, base)}/day vs ${formatMoney(b.amount / pacing.daysTotal, base)}/day budgeted`,
-        tone: "text-rose-400/80",
+        tone: "text-debit/80",
       };
     }
   } else {
     if (pacing.overPace && pacing.projected != null)
       hint = {
         text: `Ahead of pace · on track for ${formatMoney(pacing.projected, base)}`,
-        tone: "text-amber-400",
+        tone: "text-head-3",
       };
     else if (pacing.perDayLeft != null)
       hint = {
@@ -463,7 +464,7 @@ function BudgetRow({
         <div className="flex min-w-0 items-center gap-2">
           <span
             className="size-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: b.color ?? "#4d6175" }}
+            style={{ backgroundColor: b.color ?? FALLBACK_HEAD }}
           />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-quill">{b.name}</p>
@@ -530,7 +531,7 @@ function GoalRow({
         <div className="flex min-w-0 items-center gap-2">
           <span
             className="size-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: b.color ?? "#4d6175" }}
+            style={{ backgroundColor: b.color ?? FALLBACK_HEAD }}
           />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-quill">{b.name}</p>
@@ -540,11 +541,11 @@ function GoalRow({
           </div>
         </div>
         <div className="shrink-0 text-right">
-          <span className="tnum text-sm font-medium text-emerald-400">
+          <span className="tnum text-sm font-medium text-credit">
             {formatMoney(funded, base)}
             <span className="text-quill-faint"> / {formatMoney(b.amount, base)}</span>
           </span>
-          <p className="tnum text-[11px] font-medium text-emerald-400/80">
+          <p className="tnum text-[11px] font-medium text-credit/80">
             {Math.round(funding.ratio * 100)}% funded
           </p>
         </div>
@@ -558,9 +559,9 @@ function GoalRow({
             "No transactions yet"
           ) : (
             <>
-              <span className="text-indigo-300">{formatMoney(spent, base)} spent</span>
+              <span className="text-head-4">{formatMoney(spent, base)} spent</span>
               {" · "}
-              <span className="text-emerald-400">{formatMoney(saved, base)} saved</span>
+              <span className="text-credit">{formatMoney(saved, base)} saved</span>
             </>
           )}
         </span>
@@ -581,7 +582,7 @@ function GoalRow({
       </button>
       <button
         onClick={onContribute}
-        className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-rule/60 py-1.5 text-xs font-medium text-teal-300 transition-colors hover:border-teal-500/50 hover:bg-teal-500/5"
+        className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-[2px] border border-rule/60 py-1.5 text-xs font-medium text-accent transition-colors hover:border-accent/50 hover:bg-accent/5"
       >
         <Plus className="size-3.5" /> Contribute
       </button>
@@ -642,7 +643,7 @@ function BudgetSheet({
   const pending =
     create.isPending || update.isPending || setCats.isPending || setTxns.isPending;
   const field =
-    "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
+    "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
   // Live funding preview for goals
   const preview = useMemo(
@@ -736,16 +737,16 @@ function BudgetSheet({
                 type="button"
                 onClick={() => setBtype(t.value)}
                 className={cn(
-                  "rounded-xl border px-3 py-2 text-left transition-colors",
+                  "rounded-[2px] border px-3 py-2 text-left transition-colors",
                   btype === t.value
-                    ? "border-teal-500 bg-teal-500/10"
+                    ? "border-accent bg-accent/10"
                     : "border-rule hover:border-rule",
                 )}
               >
                 <span
                   className={cn(
                     "block text-sm font-medium",
-                    btype === t.value ? "text-teal-300" : "text-quill",
+                    btype === t.value ? "text-accent" : "text-quill",
                   )}
                 >
                   {t.label}
@@ -780,7 +781,7 @@ function BudgetSheet({
                 className={cn(
                   "size-7 rounded-full transition-transform",
                   color === c
-                    ? "ring-2 ring-ink-50 ring-offset-2 ring-offset-ink-900"
+                    ? "ring-2 ring-quill ring-offset-2 ring-offset-page"
                     : "hover:scale-110",
                 )}
                 style={{ backgroundColor: c }}
@@ -827,11 +828,11 @@ function BudgetSheet({
                   Transactions ({pickedTxns.size})
                 </span>
                 <span className="tnum text-xs text-quill-faint">
-                  <span className="text-indigo-300">
+                  <span className="text-head-4">
                     {formatMoney(preview.spent, base)} spent
                   </span>
                   {" · "}
-                  <span className="text-emerald-400">
+                  <span className="text-credit">
                     {formatMoney(preview.saved, base)} saved
                   </span>
                 </span>
@@ -866,16 +867,16 @@ function BudgetSheet({
                     type="button"
                     onClick={() => setDirection(d.value)}
                     className={cn(
-                      "rounded-xl border px-3 py-2 text-left transition-colors",
+                      "rounded-[2px] border px-3 py-2 text-left transition-colors",
                       direction === d.value
-                        ? "border-teal-500 bg-teal-500/10"
+                        ? "border-accent bg-accent/10"
                         : "border-rule hover:border-rule",
                     )}
                   >
                     <span
                       className={cn(
                         "block text-sm font-medium",
-                        direction === d.value ? "text-teal-300" : "text-quill",
+                        direction === d.value ? "text-accent" : "text-quill",
                       )}
                     >
                       {d.label}
@@ -898,9 +899,9 @@ function BudgetSheet({
                     type="button"
                     onClick={() => setPeriod(p.value)}
                     className={cn(
-                      "h-9 rounded-xl border text-xs font-medium transition-colors",
+                      "h-9 rounded-[2px] border text-xs font-medium transition-colors",
                       period === p.value
-                        ? "border-teal-500 bg-teal-500/10 text-teal-300"
+                        ? "border-accent bg-accent/10 text-accent"
                         : "border-rule text-quill-soft hover:border-rule",
                     )}
                   >
@@ -969,15 +970,15 @@ function BudgetSheet({
                         type="button"
                         onClick={() => toggleCat(c.id)}
                         className={cn(
-                          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                          "inline-flex items-center gap-1.5 rounded-[2px] border px-2.5 py-1 text-xs font-medium transition-colors",
                           on
-                            ? "border-teal-500 bg-teal-500/15 text-teal-300"
+                            ? "border-accent bg-accent/15 text-accent"
                             : "border-rule text-quill-soft hover:border-rule",
                         )}
                       >
                         <span
                           className="size-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: c.color ?? "#6f8499" }}
+                          style={{ backgroundColor: c.color ?? FALLBACK_HEAD }}
                         />
                         {c.name}
                       </button>
@@ -989,9 +990,9 @@ function BudgetSheet({
           </>
         )}
 
-        {dateError && <p className="text-xs text-red-400">{dateError}</p>}
+        {dateError && <p className="text-xs text-debit">{dateError}</p>}
         {anyError && (
-          <p className="text-xs text-red-400">Couldn't save — please try again.</p>
+          <p className="text-xs text-debit">Couldn't save — please try again.</p>
         )}
 
         <Button
@@ -1023,7 +1024,7 @@ function BudgetSheet({
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}
-              className="flex w-full items-center justify-center gap-2 text-xs text-quill-faint transition-colors hover:text-red-400"
+              className="flex w-full items-center justify-center gap-2 text-xs text-quill-faint transition-colors hover:text-debit"
             >
               <Trash2 className="size-3.5" /> Delete budget
             </button>
@@ -1060,7 +1061,7 @@ function TransactionPicker({
   }, [txns, q, picked]);
 
   return (
-    <div className="rounded-xl border border-rule/60 bg-ink-950/30">
+    <div className="rounded-[2px] border border-rule/60 bg-well">
       <div className="flex items-center gap-2 border-b border-rule px-3 py-2">
         <Search className="size-3.5 shrink-0 text-quill-faint" />
         <input
@@ -1076,7 +1077,7 @@ function TransactionPicker({
             {txns.length === 0 ? "No transactions yet." : "No matches."}
           </p>
         ) : (
-          <ul className="divide-y divide-ink-800/70">
+          <ul className="divide-y divide-rule">
             {filtered.map((t) => {
               const on = picked.has(t.id);
               const isExpense = t.type === "expense";
@@ -1085,13 +1086,13 @@ function TransactionPicker({
                   <button
                     type="button"
                     onClick={() => onToggle(t.id)}
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-ink-800/40"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-page-edge"
                   >
                     <span
                       className={cn(
                         "flex size-4 shrink-0 items-center justify-center rounded border",
                         on
-                          ? "border-teal-500 bg-teal-500 text-ink-950"
+                          ? "border-accent bg-accent text-page"
                           : "border-rule",
                       )}
                     >
@@ -1109,7 +1110,7 @@ function TransactionPicker({
                     <span
                       className={cn(
                         "tnum shrink-0 text-xs font-medium",
-                        isExpense ? "text-quill-soft" : "text-emerald-400",
+                        isExpense ? "text-quill-soft" : "text-credit",
                       )}
                     >
                       {formatSignedMoney(t.amount, t.currency, t.type)}
@@ -1163,7 +1164,7 @@ function ContributeSheet({
   const multi = accounts.length >= 2;
   const pending = create.isPending || setGoals.isPending;
   const field =
-    "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill focus:border-teal-500 focus:outline-none";
+    "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill focus:border-accent focus:outline-none";
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -1265,7 +1266,7 @@ function ContributeSheet({
               : "Recorded as a set-aside on this account, counted toward this goal."}
           </p>
 
-          {error && <p className="text-xs text-rose-400">{error}</p>}
+          {error && <p className="text-xs text-debit">{error}</p>}
 
           <Button
             type="submit"

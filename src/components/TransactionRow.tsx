@@ -1,7 +1,9 @@
 import { Ban, Flag } from "lucide-react";
+import { motion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { formatMoney } from "@/lib/format";
 import { isReimbursement, reimbursementLinks } from "@/lib/reimbursements";
+import { pressDown, useReducedMotion } from "@/lib/motion";
 import type { Transaction } from "@/lib/types";
 
 /**
@@ -39,6 +41,7 @@ export function TransactionRow({
   balance?: number;
   onClick?: () => void;
 }) {
+  const reduce = useReducedMotion();
   const isTransfer = tx.type === "transfer";
   const reimb = isReimbursement(tx);
   const isSplit = tx.type === "expense" && tx.is_reimbursable;
@@ -80,7 +83,11 @@ export function TransactionRow({
   const figure = (value: number) => formatMoney(value, tx.currency);
 
   return (
-    <div
+    <motion.div
+      // An entry presses under a finger. Only entries you can actually open do,
+      // so the feedback always means something happened.
+      whileTap={onClick && !reduce ? { scale: 0.99 } : undefined}
+      transition={pressDown}
       className={cn(
         "grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-0.5 border-b border-rule py-2.5 last:border-b-0",
         balance !== undefined && "sm:grid-cols-[1fr_auto_auto]",
@@ -151,7 +158,7 @@ export function TransactionRow({
           {figure(balance)}
         </span>
       )}
-    </div>
+    </motion.div>
   );
 }
 

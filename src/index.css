@@ -1,48 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  /* --- Estuary navy neutrals (ink) ------------------------------------- */
-  --color-ink-50: #eef4fa;
-  --color-ink-100: #dbe6f1;
-  --color-ink-200: #b6cadf;
-  --color-ink-300: #8aa6c4;
-  --color-ink-400: #5e83a8;
-  --color-ink-500: #406890;
-  --color-ink-600: #2c4f73;
-  --color-ink-700: #1c3a5a;
-  --color-ink-800: #122a45;
-  --color-ink-900: #0d2138;
-  --color-ink-950: #08172a;
-
-  /* --- Seafoam accent (teal) — brand seafoam #7FD1B9 at 400 ------------ */
-  --color-teal-50: #eafaf4;
-  --color-teal-100: #cdf2e4;
-  --color-teal-200: #a9e7d2;
-  --color-teal-300: #8edcc4;
-  --color-teal-400: #7fd1b9;
-  --color-teal-500: #5bbfa1;
-  --color-teal-600: #46a588;
-  --color-teal-700: #3a8670;
-  --color-teal-800: #2f6a59;
-  --color-teal-900: #244f43;
-
-  /* --- River blue secondary — brand River Blue #3F72AF at 500 ---------- */
-  --color-river-300: #7ba3d4;
-  --color-river-400: #5b8fc9;
-  --color-river-500: #3f72af;
-  --color-river-600: #335f93;
-  --color-river-700: #284a73;
-
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-serif: "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
-
-  /* --- Elevation for premium frosted surfaces (nav dock, sheets) -------- */
-  --shadow-float: 0 8px 30px -6px rgba(2, 10, 22, 0.55), 0 2px 8px -2px rgba(2, 10, 22, 0.4);
-  --shadow-sheet: 0 -8px 40px -8px rgba(2, 10, 22, 0.7), 0 24px 48px -12px rgba(2, 10, 22, 0.6);
-
   /* ══ The ledger ════════════════════════════════════════════════════════
-     Estuary is a leather-bound ledger. These tokens describe that object;
-     the palette above is the outgoing one and is removed screen by screen.
+     Estuary is a leather-bound ledger. These tokens describe that object,
+     and they are the only palette — the navy/seafoam/river scales this app
+     shipped with are gone.
 
      Values here are DAY. The lamp (below, in @layer base) redefines them for
      night — same book, less light on it, never a second theme. Naming follows
@@ -52,6 +14,8 @@
   /* The page you write on */
   --color-page:         #efe5d2;
   --color-page-edge:    #e2d5bc;
+  /* A well is paper pressed in: form fields, wells, inset strips. */
+  --color-well:         #ded0b4;
   --color-quill:        #1a1512;
   --color-quill-soft:   #6b5b48;
   --color-quill-faint:  #a0906f;
@@ -61,6 +25,11 @@
   /* Direction. Reserved — no head, chart or accent may borrow these. */
   --color-credit:       #2f6b4a;
   --color-debit:        #a32b22;
+
+  /* Selection. The one accent the interface itself is allowed: brass written
+     as ink, so it reads as a mark on the page rather than a UI highlight.
+     Dark under the day lamp, light under the night one — legible in both. */
+  --color-accent:       #7a5a1e;
 
   /* Heads. One ink per category, held constant across every chart, drawn
      from ink and earth so it can never be confused with credit or debit. */
@@ -87,6 +56,10 @@
 
   --font-ledger: "Hoefler Text", "Iowan Old Style", Baskerville, ui-serif, Georgia,
     "Times New Roman", serif;
+  /* The book has one voice. `sans` still resolves so any stray utility lands
+     on the ledger face rather than on a system grotesque. */
+  --font-sans: var(--font-ledger);
+  --font-serif: var(--font-ledger);
 
   --shadow-book: 0 26px 50px -18px rgb(0 0 0 / 0.75), 0 4px 10px rgb(0 0 0 / 0.5);
   --shadow-leaf: 0 2px 5px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(0 0 0 / 0.25);
@@ -106,6 +79,7 @@
     :root {
       --color-page:        #2a211a;
       --color-page-edge:   #221a14;
+      --color-well:        #1f1812;
       --color-quill:       #e8dcc8;
       --color-quill-soft:  #b4a288;
       --color-quill-faint: #7a6a54;
@@ -113,6 +87,7 @@
       --color-rule-strong: #6e5a42;
       --color-credit:      #6fae86;
       --color-debit:       #d9705f;
+      --color-accent:      #d2a962;
       --color-head-1:      #7fa0cc;
       --color-head-2:      #c09468;
       --color-head-3:      #d9b06a;
@@ -129,6 +104,7 @@
   :root[data-lamp="day"] {
     --color-page:        #efe5d2;
     --color-page-edge:   #e2d5bc;
+    --color-well:        #ded0b4;
     --color-quill:       #1a1512;
     --color-quill-soft:  #6b5b48;
     --color-quill-faint: #a0906f;
@@ -136,6 +112,7 @@
     --color-rule-strong: #8b7a5c;
     --color-credit:      #2f6b4a;
     --color-debit:       #a32b22;
+    --color-accent:      #7a5a1e;
     --color-head-1:      #33507a;
     --color-head-2:      #8a5a2b;
     --color-head-3:      #a8802f;
@@ -151,6 +128,7 @@
   :root[data-lamp="night"] {
     --color-page:        #2a211a;
     --color-page-edge:   #221a14;
+    --color-well:        #1f1812;
     --color-quill:       #e8dcc8;
     --color-quill-soft:  #b4a288;
     --color-quill-faint: #7a6a54;
@@ -158,6 +136,7 @@
     --color-rule-strong: #6e5a42;
     --color-credit:      #6fae86;
     --color-debit:       #d9705f;
+    --color-accent:      #d2a962;
     --color-head-1:      #7fa0cc;
     --color-head-2:      #c09468;
     --color-head-3:      #d9b06a;
@@ -194,24 +173,26 @@
     /* The desk shows through the safe-area inset, so the notch band matches
        the surface the book lies on rather than flashing a different colour. */
     background-color: var(--color-desk-b);
-    color: var(--color-ink-100);
-    font-family: var(--font-sans);
+    color: var(--color-quill);
+    font-family: var(--font-ledger);
     -webkit-font-smoothing: antialiased;
     /* safe-area padding for iPhone home-screen PWA */
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
       env(safe-area-inset-left);
   }
-  /* Ambient gradient on a fixed layer so it's anchored to the viewport and
-     never repeats or seams as the page scrolls. */
+  /* The lamp on the desk. A single warm pool falling from above-left, fixed to
+     the viewport so it never seams as the leaf scrolls. */
   body::before {
     content: "";
     position: fixed;
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background:
-      radial-gradient(1200px 600px at 80% -10%, rgba(127, 209, 185, 0.1), transparent 60%),
-      radial-gradient(900px 500px at -10% 10%, rgba(63, 114, 175, 0.14), transparent 55%);
+    background: radial-gradient(
+      1100px 700px at 22% -12%,
+      rgb(255 214 150 / 0.1),
+      transparent 62%
+    );
   }
   /* Native date inputs get an intrinsic min-width on iOS that makes them wider
      than sibling fields — normalise so they size like every other input. */
@@ -244,11 +225,36 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(127, 209, 185, 0.08),
+      color-mix(in oklab, var(--color-quill) 7%, transparent),
       transparent
     );
     animation: shimmer 1.5s infinite;
   }
+  /* Ink settling on paper: a block arrives a beat after the page it's on.
+     Transform and opacity only, so it costs nothing to run. */
+  @keyframes settle {
+    from {
+      opacity: 0;
+      transform: translateY(7px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .settle {
+    animation: settle 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  /* Second and third blocks trail the first, so a page reads top-down rather
+     than appearing all at once. Anything past the third is already below the
+     fold on a phone. */
+  .settle-2 {
+    animation-delay: 0.07s;
+  }
+  .settle-3 {
+    animation-delay: 0.13s;
+  }
+
   /* Respect the OS "reduce motion" setting as a global safety net: animation
      opt-ins (nav pill, sheets, shimmer) still fall back to instant states. */
   @media (prefers-reduced-motion: reduce) {

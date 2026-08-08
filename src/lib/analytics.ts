@@ -10,6 +10,7 @@ import {
 import type { Category, Transaction } from "./types";
 import { convert, type RateMap } from "./fx";
 import { reimbursementLinks } from "./reimbursements";
+import { FALLBACK_HEAD } from "@/lib/constants";
 
 /** Convert to base currency, dropping anything we can't (no rate set). */
 function inBase(
@@ -212,7 +213,7 @@ export function spendingByCategory(
         id: key,
         name: cat?.name ?? "Uncategorised",
         value: amount,
-        color: cat?.color ?? "#4d6175",
+        color: cat?.color ?? FALLBACK_HEAD,
       });
     }
   }
@@ -264,7 +265,7 @@ export function breakdownByCategory(
         id: key,
         name: cat?.name ?? "Uncategorised",
         value: amount,
-        color: cat?.color ?? "#4d6175",
+        color: cat?.color ?? FALLBACK_HEAD,
       });
   }
   return [...slices.values()].sort((a, b) => b.value - a.value);
@@ -308,7 +309,7 @@ export function stackedCategoryByMonth(
   const topNames = new Set(top.map((t) => t.name));
   const keys = top.map((t) => ({ name: t.name, color: t.color }));
   const hasOther = all.length > top.length;
-  if (hasOther) keys.push({ name: "Other", color: "#4d6175" });
+  if (hasOther) keys.push({ name: "Other", color: FALLBACK_HEAD });
 
   const data = months.map<StackedMonth>((mk) => {
     const from = `${mk}-01`;
@@ -602,7 +603,7 @@ export function buildMoneyFlow(
   const fold = (cats: CategorySlice[]) => {
     const top = cats.slice(0, topN);
     const rest = cats.slice(topN).reduce((s, c) => s + c.value, 0);
-    if (rest > 0) top.push({ id: "other", name: "Other", value: rest, color: "#4d6175" });
+    if (rest > 0) top.push({ id: "other", name: "Other", value: rest, color: FALLBACK_HEAD });
     return top.filter((c) => c.value > 0.005);
   };
 

@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, useLocation, useOutlet } from "react-router-dom";
 import { BarChart3, LayoutDashboard, ListPlus, Settings, Wallet } from "lucide-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/cn";
-import { paperSettle, pressDown, useReducedMotion } from "@/lib/motion";
+import { paperSettle, paperTurn, pressDown, useReducedMotion } from "@/lib/motion";
 import { LeafScrollProvider } from "@/components/leaf-scroll";
 import { BackToTop } from "@/components/BackToTop";
 
@@ -32,12 +32,21 @@ const NAV: NavItem[] = [
 const PILL_STRIDE = 52;
 
 /**
+ * How far a tab tucks behind the cover when the bookmarks are closed. The tab
+ * is 44px wide, so 24px stays proud — enough to read as a stack of bookmarks,
+ * not enough to fit a word.
+ */
+const TAB_TUCK = 24;
+/** The tab you're on is never fully tucked; it stands out of the stack. */
+const TAB_TUCK_ACTIVE = 10;
+
+/**
  * The book.
  *
  * One bound volume lying on a desk: leather cover, a ribbon in the gutter,
  * brass at the corners, and the leaf you actually read. The leaf is the only
  * thing that scrolls — cover and tabs never move — which is both how a book
- * behaves and what lets a page turn cleanly later.
+ * behaves and what lets a page turn cleanly.
  *
  * On a phone the book fills the screen; on a large display it sits on the desk
  * with room around it.
@@ -45,7 +54,9 @@ const PILL_STRIDE = 52;
 export function AppShell() {
   const reduce = useReducedMotion();
   const { pathname } = useLocation();
+  const outlet = useOutlet();
   const leafRef = useRef<HTMLElement | null>(null);
+  const [tabsOpen, setTabsOpen] = useState(false);
 
   // Turning to a new section always starts at the head of the leaf.
   useEffect(() => {
@@ -57,6 +68,10 @@ export function AppShell() {
   const activeIndex = NAV.findIndex((n) =>
     n.end ? pathname === n.to : pathname === n.to || pathname.startsWith(`${n.to}/`),
   );
+
+  // The leaf turns when you change *section*, not when a filter changes the
+  // query string — so the key is the first path segment alone.
+  const section = pathname.split("/")[1] ?? "";
 
   return (
     <div
@@ -77,29 +92,65 @@ export function AppShell() {
           <main
             ref={leafRef}
             className="surface-leaf relative min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-[2px]"
+            style={{ perspective: "1400px" }}
           >
             {/* max-w-5xl on a spread: two pages need the width one didn't.
                 The deep bottom padding is clearance for the dock and the add
                 button, which would otherwise sit on top of the last entry. */}
-            <div className="mx-auto w-full max-w-md pb-32 pl-9 pr-4 pt-6 lg:max-w-5xl lg:py-6 lg:pl-16 lg:pr-10">
-              <Outlet />
-            </div>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={section}
+                // The leaf is hinged at the gutter, so it swings from its left
+                // edge — a rigid page turning, not a card crossfading.
+                style={{ transformOrigin: "left center" }}
+                initial={
+                  reduce
+                    ? { opacity: 0 }
+                    : { opacity: 0, rotateY: -9, x: -14 }
+                }
+                animate={{ opacity: 1, rotateY: 0, x: 0 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, rotateY: 4, x: 10 }}
+                transition={
+                  reduce ? { duration: 0.12 } : { ...paperTurn, duration: 0.3 }
+                }
+                className="mx-auto w-full max-w-md pb-32 pl-9 pr-4 pt-6 lg:max-w-5xl lg:py-6 lg:pl-16 lg:pr-10"
+              >
+                {outlet}
+              </motion.div>
+            </AnimatePresence>
           </main>
 
           <BackToTop />
         </LeafScrollProvider>
 
-        {/* Fore-edge tabs — desktop only; a thumb can't reach a screen edge. */}
+        {/* Fore-edge tabs — desktop only; a thumb can't reach a screen edge.
+            They lie tucked behind the cover and pull out like bookmarks when
+            you reach for them. Only `transform` moves, so nothing reflows. */}
         <nav
           aria-label="Sections"
-          className="relative z-20 ml-1.5 hidden w-10 shrink-0 flex-col gap-1.5 lg:flex lg:w-11"
+          onPointerEnter={() => setTabsOpen(true)}
+          onPointerLeave={() => setTabsOpen(false)}
+          onFocus={() => setTabsOpen(true)}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node))
+              setTabsOpen(false);
+          }}
+          className="relative z-20 ml-1.5 hidden w-11 shrink-0 flex-col gap-1.5 lg:flex"
         >
           {NAV.map(({ to, label, end }) => (
             <NavLink key={to} to={to} end={end} className="group block flex-1">
               {({ isActive }) => (
                 <motion.span
-                  whileTap={reduce ? undefined : { scale: 0.97, x: 2 }}
-                  transition={pressDown}
+                  initial={false}
+                  animate={{
+                    x: tabsOpen || reduce
+                      ? 0
+                      : isActive
+                        ? TAB_TUCK_ACTIVE
+                        : TAB_TUCK,
+                  }}
+                  whileTap={reduce ? undefined : { scale: 0.97 }}
+                  transition={paperSettle}
                   className={cn(
                     "flex h-full items-center justify-center rounded-r-[4px]",
                     "shadow-[1px_1px_3px_rgb(0_0_0/0.4)] transition-colors",
@@ -108,12 +159,15 @@ export function AppShell() {
                       : "bg-page-edge text-quill/75 group-hover:text-quill",
                   )}
                 >
-                  <span
+                  <motion.span
+                    initial={false}
+                    animate={{ opacity: tabsOpen || reduce ? 1 : 0 }}
+                    transition={{ duration: 0.16 }}
                     className="text-[0.68rem] tracking-[0.16em] lg:text-xs"
                     style={{ writingMode: "vertical-rl", fontVariant: "small-caps" }}
                   >
                     {label}
-                  </span>
+                  </motion.span>
                 </motion.span>
               )}
             </NavLink>
@@ -130,12 +184,18 @@ export function AppShell() {
           }}
         />
 
-        {/* Silk ribbon, lying in the gutter. Draggable once months can turn. */}
-        <span
+        {/* Silk ribbon, lying in the gutter. It swings a little as the leaf
+            turns — the one thing in the book that isn't pinned down. */}
+        <motion.span
           aria-hidden
+          key={`ribbon-${section}`}
+          initial={reduce ? false : { rotate: -1.4, y: -6 }}
+          animate={{ rotate: 0, y: 0 }}
+          transition={{ duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
           className="pointer-events-none absolute top-0 z-20 h-2/3 w-2.5"
           style={{
             left: "1.15rem",
+            transformOrigin: "top center",
             background:
               "linear-gradient(90deg, #6d1420, #a8283a 35%, #c4485a 50%, #8a1b2a 70%, #5c0f1a)",
             boxShadow: "1px 0 4px rgb(0 0 0 / 0.55)",

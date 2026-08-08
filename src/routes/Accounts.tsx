@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { GripVertical, MoreHorizontal, Plus, Wallet } from "lucide-react";
 import { Reorder, useDragControls } from "motion/react";
@@ -25,7 +25,7 @@ import type { Account, AccountType } from "@/lib/types";
 import type { Transaction } from "@/lib/types";
 
 const inputCls =
-  "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
+  "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
 const ACCOUNT_TYPES: AccountType[] = [
   "checking",
@@ -171,7 +171,6 @@ function AccountRow({
   onCommit: () => void;
 }) {
   const controls = useDragControls();
-  const col = ACCOUNT_TYPE_COLORS[a.type];
   const balances = accountBalancesByCurrency(a, txns, overrides);
   const multi = a.is_multi_currency || isMultiCurrency(balances);
   const isCredit = a.type === "credit";
@@ -187,13 +186,8 @@ function AccountRow({
   const lastCheck = checks.find((r) => r.account_id === a.id);
 
   // A Zenith-valued account has no local movement to trace — its worth is
-  // whatever the snapshot last said, so a line drawn from transactions would
-  // be a flat lie.
+  // whatever the snapshot last said.
   const externallyValued = overrides.has(a.id);
-  const series = useMemo(
-    () => (externallyValued ? [] : dailyBalances(a, txns, 30)),
-    [a, txns, externallyValued],
-  );
 
   return (
     <Reorder.Item
@@ -263,11 +257,6 @@ function AccountRow({
               </p>
             )}
           </div>
-
-          {/* A flat line says "no movement" less clearly than nothing does. */}
-          {series.length > 1 && Math.min(...series) !== Math.max(...series) && (
-            <Sparkline points={series} className={col.text} />
-          )}
         </div>
 
         <p className="mt-1.5 text-xs italic text-quill-faint">
@@ -283,80 +272,6 @@ function AccountRow({
         </p>
       </section>
     </Reorder.Item>
-  );
-}
-
-/**
- * Daily closing balance for the last `days` days, in the account's own
- * currency. Walks forward from the opening balance so each day records where
- * the account actually stood.
- */
-function dailyBalances(account: Account, txns: Transaction[], days: number): number[] {
-  const effect = (t: Transaction): number => {
-    if (t.destination_account_id === account.id && t.type === "transfer")
-      return t.destination_amount ?? t.amount;
-    if (t.account_id !== account.id) return 0;
-    if (t.type === "income" || t.type === "adjustment") return t.amount;
-    return -t.amount;
-  };
-
-  const mine = txns
-    .filter((t) => t.account_id === account.id || t.destination_account_id === account.id)
-    .sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
-
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  const cutoffISO = cutoff.toISOString().slice(0, 10);
-
-  // Everything before the window collapses into the opening figure.
-  let running = account.opening_balance;
-  const byDay = new Map<string, number>();
-  for (const t of mine) {
-    running += effect(t);
-    if (t.date >= cutoffISO) byDay.set(t.date, running);
-  }
-
-  const out: number[] = [];
-  let last = account.opening_balance;
-  for (const t of mine) {
-    if (t.date >= cutoffISO) break;
-    last += effect(t);
-  }
-  for (let i = 0; i <= days; i++) {
-    const d = new Date(cutoff);
-    d.setDate(d.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
-    if (byDay.has(iso)) last = byDay.get(iso)!;
-    out.push(last);
-  }
-  return out;
-}
-
-/** A plain polyline — no chart library, so nothing can fail to animate in. */
-function Sparkline({ points, className }: { points: number[]; className?: string }) {
-  const w = 96;
-  const h = 26;
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const span = max - min || 1;
-  const d = points
-    .map((v, i) => {
-      const x = (i / (points.length - 1)) * w;
-      const y = h - ((v - min) / span) * (h - 2) - 1;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-
-  return (
-    <svg
-      width={w}
-      height={h}
-      viewBox={`0 0 ${w} ${h}`}
-      className={cn("shrink-0 overflow-visible", className)}
-      aria-hidden
-    >
-      <path d={d} fill="none" stroke="currentColor" strokeWidth="1.25" opacity="0.75" />
-    </svg>
   );
 }
 
@@ -382,7 +297,7 @@ function TypePicker({
               type="button"
               onClick={() => onChange(t)}
               className={cn(
-                "h-9 rounded-xl border text-xs font-medium transition-colors",
+                "h-9 rounded-[2px] border text-xs font-medium transition-colors",
                 active
                   ? cn(col.border, col.bg, col.text)
                   : "border-rule text-quill-soft hover:border-rule",
@@ -411,7 +326,7 @@ function MultiCurrencyToggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-rule/60 bg-ink-950/30 p-3">
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[2px] border border-rule/60 bg-well p-3">
       <div>
         <p className="text-sm font-medium text-quill">Multi-currency account</p>
         <p className="text-xs text-quill-faint">
@@ -425,12 +340,12 @@ function MultiCurrencyToggle({
         onClick={() => onChange(!value)}
         className={cn(
           "relative h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors",
-          value ? "bg-teal-500" : "bg-ink-700",
+          value ? "bg-accent" : "bg-rule",
         )}
       >
         <span
           className={cn(
-            "block h-4 w-4 rounded-full bg-white shadow transition-transform",
+            "block h-4 w-4 rounded-full bg-page shadow transition-transform",
             value ? "translate-x-5" : "translate-x-0.5",
           )}
         />
@@ -462,7 +377,7 @@ function EditAccountSheet({
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   const smInput =
-    "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
+    "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -490,7 +405,7 @@ function EditAccountSheet({
   return (
     <Sheet title="Edit account" onClose={onClose}>
         {isLinked && (
-          <p className="mb-3 rounded-xl bg-violet-500/10 px-3 py-2 text-xs text-violet-300">
+          <p className="mb-3 rounded-[2px] bg-head-5/10 px-3 py-2 text-xs text-head-5">
             Synced from Zenith — the balance mirrors your live portfolio value,
             and the name follows Zenith's. Transfers you record here move the
             other account's cash only.
@@ -563,7 +478,7 @@ function EditAccountSheet({
           </label>
 
           {update.isError && (
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-debit">
               Couldn't save. {(update.error as Error).message}
             </p>
           )}
@@ -599,7 +514,7 @@ function EditAccountSheet({
             <button
               type="button"
               onClick={() => setConfirmArchive(true)}
-              className="flex w-full items-center justify-center gap-2 text-xs text-quill-faint transition-colors hover:text-red-400"
+              className="flex w-full items-center justify-center gap-2 text-xs text-quill-faint transition-colors hover:text-debit"
             >
               Archive account
             </button>
@@ -651,7 +566,7 @@ function ReconcileSection({ account }: { account: Account }) {
           <p
             className={cn(
               "tnum text-xs",
-              Math.abs(shown.difference) < 0.005 ? "text-teal-400" : "text-amber-400",
+              Math.abs(shown.difference) < 0.005 ? "text-accent" : "text-head-3",
             )}
           >
             {formatDate(shown.date)} ·{" "}
@@ -669,7 +584,7 @@ function ReconcileSection({ account }: { account: Account }) {
           value={stated}
           onChange={(e) => setStated(e.target.value)}
           placeholder={`Bank shows… (${account.currency})`}
-          className="tnum h-9 flex-1 rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none"
+          className="tnum h-9 flex-1 rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none"
         />
         <Button
           size="sm"
@@ -788,7 +703,7 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
           </label>
 
           {create.isError && (
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-debit">
               Couldn't save. {(create.error as Error).message}
             </p>
           )}

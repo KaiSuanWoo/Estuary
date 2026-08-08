@@ -27,7 +27,7 @@ export function Admin() {
       <header className="mb-5 flex items-center gap-2">
         <Link
           to="/settings"
-          className="flex size-8 items-center justify-center rounded-lg text-quill-soft hover:text-quill"
+          className="flex size-8 items-center justify-center rounded-[2px] text-quill-soft hover:text-quill"
           aria-label="Back to settings"
         >
           <ChevronLeft className="size-5" />
@@ -88,7 +88,7 @@ export function Admin() {
                 {approved.map((p) => (
                   <Row key={p.id} profile={p}>
                     {p.is_admin ? (
-                      <span className="rounded-full bg-teal-500/12 px-2.5 py-1 text-xs font-medium text-teal-300">
+                      <span className="rounded-[2px] bg-accent/12 px-2.5 py-1 text-xs font-medium text-accent">
                         Admin
                       </span>
                     ) : (

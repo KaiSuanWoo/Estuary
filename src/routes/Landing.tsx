@@ -102,14 +102,14 @@ export function Landing() {
       {/* ── Hero ────────────────────────────────────────────────────────── */}
       <section className="mx-auto grid max-w-5xl items-center gap-10 px-5 pb-8 pt-8 sm:px-8 lg:grid-cols-2 lg:gap-12 lg:pt-16">
         <motion.div {...fadeUp(0)}>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-rule/70 bg-ink-900/60 px-3 py-1 text-xs font-medium text-quill-soft">
-            <span className="size-1.5 rounded-full bg-teal-400" />
+          <span className="inline-flex items-center gap-1.5 rounded-[2px] border border-rule/70 bg-page-edge px-3 py-1 text-xs font-medium text-quill-soft">
+            <span className="size-1.5 rounded-full bg-accent" />
             Installable web app · no app store
           </span>
           <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-tight text-quill sm:text-5xl">
             From many streams,
             <br />
-            <span className="font-serif font-medium text-teal-300">one flow.</span>
+            <span className="font-serif font-medium text-accent">one flow.</span>
           </h1>
           <p className="mt-4 max-w-md text-base leading-relaxed text-quill-soft sm:text-lg">
             Estuary is a calm, dual-currency tracker for every account you own —
@@ -156,7 +156,7 @@ export function Landing() {
         </motion.div>
 
         {installed ? (
-          <div className="mt-6 flex items-center gap-3 rounded-2xl border border-teal-500/30 bg-teal-500/10 p-4 text-sm text-teal-200">
+          <div className="mt-6 flex items-center gap-3 rounded-[2px] border border-accent/30 bg-accent/10 p-4 text-sm text-accent">
             <Check className="size-5 shrink-0" />
             Estuary is installed on this device — you're all set.
           </div>
@@ -274,24 +274,24 @@ function InstallCard({
   return (
     <div
       className={cn(
-        "flex flex-col rounded-2xl border p-4 transition-colors",
+        "flex flex-col rounded-[2px] border p-4 transition-colors",
         active
-          ? "border-teal-500/40 bg-teal-500/[0.06]"
-          : "border-rule/80 bg-ink-900/40",
+          ? "border-accent/40 bg-accent/[0.06]"
+          : "border-rule/80 bg-page-edge",
       )}
     >
       <div className="flex items-center gap-2.5">
         <span
           className={cn(
-            "flex size-9 items-center justify-center rounded-xl",
-            active ? "bg-teal-500/15 text-teal-300" : "bg-ink-800 text-quill-soft",
+            "flex size-9 items-center justify-center rounded-[2px]",
+            active ? "bg-accent/15 text-accent" : "bg-page-edge text-quill-soft",
           )}
         >
           {icon}
         </span>
         <h3 className="text-sm font-semibold text-quill">{title}</h3>
         {active && (
-          <span className="ml-auto rounded-full bg-teal-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-teal-300">
+          <span className="ml-auto rounded-[2px] bg-accent/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
             You
           </span>
         )}
@@ -312,8 +312,8 @@ function Feature({
   body: string;
 }) {
   return (
-    <div className="rounded-2xl border border-rule/80 bg-ink-900/40 p-4">
-      <span className="flex size-9 items-center justify-center rounded-xl bg-ink-800 text-teal-300">
+    <div className="rounded-[2px] border border-rule/80 bg-page-edge p-4">
+      <span className="flex size-9 items-center justify-center rounded-[2px] bg-page-edge text-accent">
         {icon}
       </span>
       <h3 className="mt-3 text-sm font-semibold text-quill">{title}</h3>
@@ -325,15 +325,15 @@ function Feature({
 /** A lightweight, on-brand phone mock showing a stylised dashboard. */
 function PhoneMockup() {
   return (
-    <div className="relative w-[230px] shrink-0 rounded-[2.2rem] border border-rule/70 bg-ink-950 p-2.5 shadow-[var(--shadow-float)] sm:w-[260px]">
-      <div className="overflow-hidden rounded-[1.7rem] border border-rule/80 bg-ink-900/80">
+    <div className="relative w-[230px] shrink-0 rounded-[2.2rem] border border-rule/70 bg-well p-2.5 shadow-[var(--shadow-float)] sm:w-[260px]">
+      <div className="overflow-hidden rounded-[1.7rem] border border-rule/80 bg-page-edge">
         {/* status strip */}
         <div className="flex items-center justify-between px-4 pt-3 text-[10px] text-quill-faint">
           <span>9:41</span>
           <span className="flex gap-1">
-            <span className="size-1 rounded-full bg-ink-600" />
-            <span className="size-1 rounded-full bg-ink-600" />
-            <span className="size-1 rounded-full bg-ink-600" />
+            <span className="size-1 rounded-full bg-rule" />
+            <span className="size-1 rounded-full bg-rule" />
+            <span className="size-1 rounded-full bg-rule" />
           </span>
         </div>
         <div className="px-4 pb-5 pt-2">
@@ -350,11 +350,11 @@ function PhoneMockup() {
             {[40, 62, 35, 78, 52, 68].map((h, i) => (
               <div key={i} className="flex flex-1 flex-col justify-end gap-0.5">
                 <div
-                  className="rounded-sm bg-teal-400/80"
+                  className="rounded-sm bg-accent/80"
                   style={{ height: `${h}%` }}
                 />
                 <div
-                  className="rounded-sm bg-rose-400/70"
+                  className="rounded-sm bg-debit/70"
                   style={{ height: `${h * 0.5}%` }}
                 />
               </div>
@@ -368,7 +368,7 @@ function PhoneMockup() {
             ].map(([name, amt]) => (
               <div
                 key={name}
-                className="flex items-center justify-between rounded-xl bg-ink-800/60 px-3 py-2"
+                className="flex items-center justify-between rounded-[2px] bg-page-edge px-3 py-2"
               >
                 <span className="text-[11px] text-quill-soft">{name}</span>
                 <span className="tnum text-[11px] font-medium text-quill">
@@ -393,12 +393,12 @@ function MiniStat({
   tone: "up" | "down";
 }) {
   return (
-    <div className="rounded-xl bg-ink-800/50 px-2.5 py-2">
+    <div className="rounded-[2px] bg-page-edge px-2.5 py-2">
       <p className="text-[10px] text-quill-faint">{label}</p>
       <p
         className={cn(
           "tnum text-sm font-semibold",
-          tone === "up" ? "text-teal-300" : "text-rose-300",
+          tone === "up" ? "text-accent" : "text-debit",
         )}
       >
         {value}

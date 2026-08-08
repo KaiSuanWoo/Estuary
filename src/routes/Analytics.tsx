@@ -73,6 +73,7 @@ import { cn } from "@/lib/cn";
 import { Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
 import { useLedgerInk, type Ink } from "@/components/ledger";
 import type { Transaction } from "@/lib/types";
+import { FALLBACK_HEAD } from "@/lib/constants";
 
 const WIDE = { from: "0000-01-01", to: "9999-12-31" };
 
@@ -309,7 +310,7 @@ export function Analytics() {
           return {
             id: b.id,
             name: b.name,
-            color: b.color ?? "#4d6175",
+            color: b.color ?? FALLBACK_HEAD,
             spent: Math.max(0, spent),
             amount: b.amount,
             catIds,
@@ -363,28 +364,28 @@ export function Analytics() {
       {/* ── Period controls ─────────────────────────────────────────────── */}
       <Card className="mb-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1 rounded-xl border border-rule/60 bg-ink-950/50 p-1">
+          <div className="flex items-center gap-1 rounded-[2px] border border-rule/60 bg-well p-1">
             {(["range", "months"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
                 className={cn(
-                  "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-colors",
-                  mode === m ? "bg-ink-700 text-quill" : "text-quill-faint hover:text-quill-soft",
+                  "rounded-[2px] px-3 py-1 text-xs font-medium capitalize transition-colors",
+                  mode === m ? "bg-rule text-quill" : "text-quill-faint hover:text-quill-soft",
                 )}
               >
                 {m === "range" ? "Range" : "Pick months"}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1 rounded-xl border border-rule/60 bg-ink-950/50 p-1">
+          <div className="flex items-center gap-1 rounded-[2px] border border-rule/60 bg-well p-1">
             {(["gross", "net"] as CashflowMode[]).map((mo) => (
               <button
                 key={mo}
                 onClick={() => setTxnMode(mo)}
                 className={cn(
-                  "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-colors",
-                  txnMode === mo ? "bg-ink-700 text-quill" : "text-quill-faint hover:text-quill-soft",
+                  "rounded-[2px] px-3 py-1 text-xs font-medium capitalize transition-colors",
+                  txnMode === mo ? "bg-rule text-quill" : "text-quill-faint hover:text-quill-soft",
                 )}
               >
                 {mo}
@@ -401,9 +402,9 @@ export function Analytics() {
                   key={p.id}
                   onClick={() => setPreset(p.id)}
                   className={cn(
-                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                    "rounded-[2px] border px-3 py-1 text-xs font-medium transition-colors",
                     preset === p.id
-                      ? "border-teal-500 bg-teal-500/10 text-teal-300"
+                      ? "border-accent bg-accent/10 text-accent"
                       : "border-rule text-quill-soft hover:border-rule",
                   )}
                 >
@@ -420,7 +421,7 @@ export function Analytics() {
                     value={customFrom}
                     max={customTo}
                     onChange={(e) => setCustomFrom(e.target.value)}
-                    className="h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill focus:border-teal-500 focus:outline-none"
+                    className="h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill focus:border-accent focus:outline-none"
                   />
                 </label>
                 <label className="block">
@@ -430,7 +431,7 @@ export function Analytics() {
                     value={customTo}
                     min={customFrom}
                     onChange={(e) => setCustomTo(e.target.value)}
-                    className="h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill focus:border-teal-500 focus:outline-none"
+                    className="h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill focus:border-accent focus:outline-none"
                   />
                 </label>
               </div>
@@ -447,9 +448,9 @@ export function Analytics() {
                   key={m.key}
                   onClick={() => toggleMonth(m.key)}
                   className={cn(
-                    "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                    "rounded-[2px] border px-2.5 py-1 text-xs font-medium transition-colors",
                     on
-                      ? "border-teal-500 bg-teal-500/15 text-teal-300"
+                      ? "border-accent bg-accent/15 text-accent"
                       : "border-rule text-quill-soft hover:border-rule",
                   )}
                 >
@@ -496,7 +497,7 @@ export function Analytics() {
                   nodePadding={28}
                   margin={{ top: 12, right: 8, bottom: 12, left: 8 }}
                   node={(p: unknown) => <FlowNode {...(p as FlowNodeProps)} base={base} />}
-                  link={{ stroke: "#4d6175", strokeOpacity: 0.28 }}
+                  link={{ stroke: FALLBACK_HEAD, strokeOpacity: 0.28 }}
                 >
                   <Tooltip
                     contentStyle={tooltipStyle(ink)}
@@ -650,7 +651,7 @@ export function Analytics() {
                 merchant at a steady interval.
               </p>
             ) : (
-              <ul className="divide-y divide-ink-800/60">
+              <ul className="divide-y divide-rule">
                 {view.recurring.slice(0, 8).map((r) => (
                   <li key={r.merchant} className="flex items-center gap-3 py-2 text-sm">
                     <RefreshCcw className="size-3.5 shrink-0 text-quill-faint" />
@@ -659,7 +660,7 @@ export function Analytics() {
                       <p className="text-xs text-quill-faint">
                         {r.cadence} · ×{r.count} ·{" "}
                         {r.maybeStopped ? (
-                          <span className="text-amber-400">
+                          <span className="text-head-3">
                             no charge since {format(parseISO(r.lastDate), "d MMM")} — stopped?
                           </span>
                         ) : (
@@ -719,7 +720,7 @@ export function Analytics() {
                         <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
                         <span className="truncate text-quill">{m.name}</span>
                       </span>
-                      <span className={cn("tnum flex shrink-0 items-center gap-1 font-medium", m.delta > 0 ? "text-rose-400" : "text-teal-400")}>
+                      <span className={cn("tnum flex shrink-0 items-center gap-1 font-medium", m.delta > 0 ? "text-debit" : "text-accent")}>
                         {m.delta > 0 ? <ArrowUpRight className="size-3.5" /> : <ArrowDownRight className="size-3.5" />}
                         {formatMoney(Math.abs(m.delta), base)}
                       </span>
@@ -745,8 +746,8 @@ export function Analytics() {
                           </span>
                         </span>
                       </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-ink-800">
-                        <div className="h-full rounded-full bg-teal-500" style={{ width: `${view.exposureTotal > 0 ? (e.base / view.exposureTotal) * 100 : 0}%` }} />
+                      <div className="h-1.5 overflow-hidden rounded-full bg-page-edge">
+                        <div className="h-full rounded-full bg-accent" style={{ width: `${view.exposureTotal > 0 ? (e.base / view.exposureTotal) * 100 : 0}%` }} />
                       </div>
                     </li>
                   ))}
@@ -790,10 +791,10 @@ function CategoryBreakdown({
         const isOpen = open === s.id;
         const pct = (s.value / total) * 100;
         return (
-          <li key={s.id} className={cn("rounded-xl transition-colors", isOpen && "bg-ink-950/40")}>
+          <li key={s.id} className={cn("rounded-[2px] transition-colors", isOpen && "bg-well")}>
             <button
               onClick={() => setOpen(isOpen ? null : s.id)}
-              className="block w-full rounded-xl px-2 py-2 text-left transition-colors hover:bg-ink-800/40"
+              className="block w-full rounded-[2px] px-2 py-2 text-left transition-colors hover:bg-page-edge"
             >
               <div className="mb-1.5 flex items-center justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
@@ -808,7 +809,7 @@ function CategoryBreakdown({
                   <span className="ml-1.5 text-xs text-quill-faint">{Math.round(pct)}%</span>
                 </span>
               </div>
-              <div className="ml-6 h-2 overflow-hidden rounded-full bg-ink-800">
+              <div className="ml-6 h-2 overflow-hidden rounded-full bg-page-edge">
                 <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: s.color }} />
               </div>
             </button>
@@ -916,7 +917,7 @@ function CategoryDetail({
         <p className="mb-1 text-xs font-medium text-quill-faint">
           Largest {kind === "expense" ? "expenses" : "income"} · {catTxns.length} entr{catTxns.length === 1 ? "y" : "ies"}
         </p>
-        <ul className="divide-y divide-ink-800/60">
+        <ul className="divide-y divide-rule">
           {catTxns.slice(0, 6).map(({ t, v }) => (
             <li key={t.id} className="flex items-center gap-3 py-1.5 text-sm">
               <span className="tnum w-14 shrink-0 text-xs text-quill-faint">
@@ -965,10 +966,10 @@ function BudgetsDetail({
         const crossed = over ? series.find((p) => p.cum > b.amount) : undefined;
 
         return (
-          <li key={b.id} className={cn("rounded-xl transition-colors", isOpen && "bg-ink-950/40")}>
+          <li key={b.id} className={cn("rounded-[2px] transition-colors", isOpen && "bg-well")}>
             <button
               onClick={() => setOpen(isOpen ? null : b.id)}
-              className="block w-full rounded-xl px-2 py-2 text-left transition-colors hover:bg-ink-800/40"
+              className="block w-full rounded-[2px] px-2 py-2 text-left transition-colors hover:bg-page-edge"
             >
               <div className="mb-1 flex items-center justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
@@ -978,25 +979,25 @@ function BudgetsDetail({
                   <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
                   <span className="truncate text-quill">{b.name}</span>
                 </span>
-                <span className={cn("tnum shrink-0", over ? "text-rose-400" : "text-quill-soft")}>
+                <span className={cn("tnum shrink-0", over ? "text-debit" : "text-quill-soft")}>
                   {formatMoney(b.spent, base)}
                   <span className="text-quill-faint"> / {formatMoney(b.amount, base)}</span>
                 </span>
               </div>
-              <div className="ml-6 flex h-2 overflow-hidden rounded-full bg-ink-800">
+              <div className="ml-6 flex h-2 overflow-hidden rounded-full bg-page-edge">
                 {over ? (
                   <>
-                    <div className="h-full bg-amber-500" style={{ width: `${(b.amount / b.spent) * 100}%` }} />
-                    <div className="h-full bg-rose-500" style={{ width: `${100 - (b.amount / b.spent) * 100}%` }} />
+                    <div className="h-full bg-head-3" style={{ width: `${(b.amount / b.spent) * 100}%` }} />
+                    <div className="h-full bg-debit" style={{ width: `${100 - (b.amount / b.spent) * 100}%` }} />
                   </>
                 ) : (
                   <div
-                    className={cn("h-full rounded-full", ratio > 0.85 ? "bg-amber-500" : "bg-teal-500")}
+                    className={cn("h-full rounded-full", ratio > 0.85 ? "bg-head-3" : "bg-accent")}
                     style={{ width: `${Math.min(100, ratio * 100)}%` }}
                   />
                 )}
               </div>
-              <p className={cn("tnum ml-6 mt-1 text-xs", over ? "text-rose-400" : "text-quill-faint")}>
+              <p className={cn("tnum ml-6 mt-1 text-xs", over ? "text-debit" : "text-quill-faint")}>
                 {over
                   ? `Over by ${formatMoney(b.spent - b.amount, base)}${crossed ? ` · crossed the limit on ${crossed.label}` : ""}`
                   : `${formatMoney(b.amount - b.spent, base)} left · ${Math.round(ratio * 100)}% used`}
@@ -1069,7 +1070,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: "up"
         className={cn(
           "tnum mt-1 break-words font-semibold leading-tight tracking-tight",
           size,
-          tone === "up" ? "text-teal-400" : tone === "down" ? "text-rose-400" : "text-quill",
+          tone === "up" ? "text-accent" : tone === "down" ? "text-debit" : "text-quill",
         )}
       >
         {value}
@@ -1149,7 +1150,7 @@ function Insights({ view, base }: { view: AnalyticsView; base: string }) {
       <ul className="space-y-1 text-sm text-quill-soft">
         {items.map((t, i) => (
           <li key={i} className="flex gap-2">
-            <span className="text-teal-400">•</span>
+            <span className="text-accent">•</span>
             <span>{t}</span>
           </li>
         ))}
@@ -1208,13 +1209,13 @@ function FixedVsDiscretionary({
   const fixedPct = (fixedTotal / total) * 100;
   return (
     <div className="space-y-3">
-      <div className="flex h-3 overflow-hidden rounded-full bg-ink-800">
-        <div className="h-full bg-sky-500/80" style={{ width: `${fixedPct}%` }} />
-        <div className="h-full bg-amber-500/80" style={{ width: `${100 - fixedPct}%` }} />
+      <div className="flex h-3 overflow-hidden rounded-full bg-page-edge">
+        <div className="h-full bg-head-1/80" style={{ width: `${fixedPct}%` }} />
+        <div className="h-full bg-head-3/80" style={{ width: `${100 - fixedPct}%` }} />
       </div>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>
-          <p className="text-xs font-medium text-sky-300">
+          <p className="text-xs font-medium text-head-1">
             Fixed · {Math.round(fixedPct)}%
           </p>
           <p className="tnum font-semibold text-quill">{formatMoney(fixedTotal, base)}</p>
@@ -1225,7 +1226,7 @@ function FixedVsDiscretionary({
           </p>
         </div>
         <div>
-          <p className="text-xs font-medium text-amber-300">
+          <p className="text-xs font-medium text-head-3">
             Discretionary · {Math.round(100 - fixedPct)}%
           </p>
           <p className="tnum font-semibold text-quill">{formatMoney(discTotal, base)}</p>
@@ -1244,7 +1245,7 @@ function FixedVsDiscretionary({
 
 function ChartEmpty({ label }: { label: string }) {
   return (
-    <div className="flex h-[180px] items-center justify-center rounded-xl border border-dashed border-rule text-center text-sm text-quill-faint">
+    <div className="flex h-[180px] items-center justify-center rounded-[2px] border border-dashed border-rule text-center text-sm text-quill-faint">
       {label}
     </div>
   );

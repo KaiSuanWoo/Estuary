@@ -845,7 +845,7 @@ export function Import() {
       <header className="mb-5 flex items-center gap-2">
         <Link
           to="/settings"
-          className="flex size-8 items-center justify-center rounded-lg text-quill-soft hover:text-quill"
+          className="flex size-8 items-center justify-center rounded-[2px] text-quill-soft hover:text-quill"
         >
           <ChevronLeft className="size-5" />
         </Link>
@@ -882,9 +882,9 @@ export function Import() {
             onDragLeave={() => setDragging(false)}
             onClick={() => fileRef.current?.click()}
             className={cn(
-              "flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed py-14 transition-colors",
+              "flex cursor-pointer flex-col items-center gap-3 rounded-[2px] border-2 border-dashed py-14 transition-colors",
               dragging
-                ? "border-teal-500 bg-teal-500/5"
+                ? "border-accent bg-accent/5"
                 : "border-rule hover:border-rule",
             )}
           >
@@ -910,9 +910,9 @@ export function Import() {
 
         {/* Loaded a file but parsed nothing usable */}
         {emptyParse && !isDone && (
-          <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
-            <AlertCircle className="size-4 shrink-0 text-amber-400" />
-            <span className="text-sm text-amber-200">
+          <div className="flex items-center gap-2.5 rounded-[2px] border border-head-3/30 bg-head-3/10 px-3 py-2.5">
+            <AlertCircle className="size-4 shrink-0 text-head-3" />
+            <span className="text-sm text-head-3">
               Couldn't read any rows from{" "}
               <span className="font-medium">{fileName}</span>. Make sure it's a
               CSV file with a row per transaction.
@@ -950,7 +950,7 @@ export function Import() {
                   <select
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    className="h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill focus:border-teal-500 focus:outline-none"
+                    className="h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill focus:border-accent focus:outline-none"
                   >
                     <option value="" disabled>
                       Select account…
@@ -1000,14 +1000,14 @@ export function Import() {
             </Card>
 
             {/* Transaction preview */}
-            <Card className="divide-y divide-ink-800/70 py-0">
+            <Card className="divide-y divide-rule py-0">
               <div className="flex items-center justify-between gap-3 py-2">
                 <div className="flex items-center gap-3 text-xs font-medium text-quill-faint">
                   <span className="w-10 shrink-0">Date</span>
                   <span className="flex-1">Description</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-ink-800 px-2 py-0.5 text-xs font-medium text-quill-soft">
+                  <span className="rounded-[2px] bg-page-edge px-2 py-0.5 text-xs font-medium text-quill-soft">
                     {FORMAT_LABELS[format]}
                   </span>
                   <span className="tnum w-20 shrink-0 text-right text-xs font-medium text-quill-faint">
@@ -1023,9 +1023,9 @@ export function Import() {
                 const amtCls = row.type === "transfer"
                   ? "text-quill-faint"
                   : row.type === "adjustment"
-                    ? "text-sky-400/70"
+                    ? "text-head-1/70"
                     : row.type === "income"
-                      ? "text-teal-400"
+                      ? "text-accent"
                       : "text-quill-soft";
 
                 return (
@@ -1087,7 +1087,7 @@ export function Import() {
             {/* Summary stats */}
             <div className="grid grid-cols-2 gap-2">
               {/* Date range */}
-              <div className="rounded-xl bg-ink-900/80 p-3">
+              <div className="rounded-[2px] bg-page-edge p-3">
                 <p className="text-xs text-quill-faint">Date range</p>
                 {sortedDates.length > 0 && (
                   <p className="mt-1 text-xs font-medium text-quill-soft">
@@ -1104,7 +1104,7 @@ export function Import() {
               </div>
 
               {/* Format + total count */}
-              <div className="rounded-xl bg-ink-900/80 p-3">
+              <div className="rounded-[2px] bg-page-edge p-3">
                 <p className="text-xs text-quill-faint">Source</p>
                 <p className="mt-1 text-sm font-semibold text-quill">
                   {FORMAT_LABELS[format]}
@@ -1113,7 +1113,7 @@ export function Import() {
               </div>
 
               {/* Expenses */}
-              <div className="rounded-xl bg-ink-900/80 p-3">
+              <div className="rounded-[2px] bg-page-edge p-3">
                 <p className="text-xs text-quill-faint">Expenses</p>
                 <p className="mt-1 text-sm font-semibold text-quill">
                   {expenseCount}
@@ -1126,9 +1126,9 @@ export function Import() {
               </div>
 
               {/* Income */}
-              <div className="rounded-xl bg-ink-900/80 p-3">
+              <div className="rounded-[2px] bg-page-edge p-3">
                 <p className="text-xs text-quill-faint">Income</p>
-                <p className="mt-1 text-sm font-semibold text-teal-400">
+                <p className="mt-1 text-sm font-semibold text-accent">
                   {incomeCount}
                 </p>
                 {acct && incomeTotal > 0 && (
@@ -1141,7 +1141,7 @@ export function Import() {
 
             {/* Transfer notice — shown only when transfers were detected */}
             {transferCount > 0 && (
-              <div className="flex items-center gap-2.5 rounded-xl border border-rule/50 bg-ink-900/60 px-3 py-2.5">
+              <div className="flex items-center gap-2.5 rounded-[2px] border border-rule/50 bg-page-edge px-3 py-2.5">
                 <ArrowLeftRight className="size-4 shrink-0 text-quill-faint" />
                 <div className="min-w-0">
                   <span className="text-sm font-medium text-quill-soft">
@@ -1156,8 +1156,8 @@ export function Import() {
 
             {/* Auto-categorisation notice */}
             {categorizedCount > 0 && (
-              <div className="flex items-center gap-2.5 rounded-xl border border-teal-500/20 bg-teal-500/5 px-3 py-2.5">
-                <Wand2 className="size-4 shrink-0 text-teal-400/80" />
+              <div className="flex items-center gap-2.5 rounded-[2px] border border-accent/20 bg-accent/5 px-3 py-2.5">
+                <Wand2 className="size-4 shrink-0 text-accent/80" />
                 <span className="text-sm font-medium text-quill-soft">
                   {categorizedCount} auto-categorised by rules
                 </span>
@@ -1166,9 +1166,9 @@ export function Import() {
 
             {/* Duplicate-transfer warning */}
             {flaggedCount > 0 && (
-              <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
-                <Flag className="size-4 shrink-0 text-amber-400" />
-                <span className="text-sm font-medium text-amber-200">
+              <div className="flex items-center gap-2.5 rounded-[2px] border border-head-3/30 bg-head-3/10 px-3 py-2.5">
+                <Flag className="size-4 shrink-0 text-head-3" />
+                <span className="text-sm font-medium text-head-3">
                   {flaggedCount} flagged as a possible duplicate transfer — review
                   in Activity (flag filter) after importing.
                 </span>
@@ -1176,7 +1176,7 @@ export function Import() {
             )}
 
             {bulk.isError && (
-              <div className="flex items-center gap-2 rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">
+              <div className="flex items-center gap-2 rounded-[2px] border border-debit/50 bg-debit/30 px-4 py-3 text-sm text-debit">
                 <AlertCircle className="size-4 shrink-0" />
                 {(bulk.error as Error).message}
               </div>
@@ -1207,7 +1207,7 @@ export function Import() {
         {/* ── Success state ─────────────────────────────────────────────────── */}
         {isDone && (
           <Card className="flex flex-col items-center gap-4 py-10">
-            <CheckCircle2 className="size-10 text-teal-400" />
+            <CheckCircle2 className="size-10 text-accent" />
             <div className="text-center">
               <p className="font-semibold text-quill">
                 {bulk.data?.count === 0
@@ -1251,7 +1251,7 @@ export function Import() {
             </div>
 
             {deleteBatch.isError && (
-              <p className="text-xs text-red-400">
+              <p className="text-xs text-debit">
                 {(deleteBatch.error as Error).message}
               </p>
             )}
@@ -1264,7 +1264,7 @@ export function Import() {
             <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-quill-faint">
               Recent imports
             </h2>
-            <Card className="divide-y divide-ink-800/70 py-0">
+            <Card className="divide-y divide-rule py-0">
               {batches.map((batch) =>
                 deletingId === batch.id ? (
                   <div
@@ -1282,7 +1282,7 @@ export function Import() {
                       <button
                         onClick={() => setDeletingId(null)}
                         disabled={deleteBatch.isPending}
-                        className="rounded-lg px-2 py-1 text-xs text-quill-faint hover:text-quill disabled:opacity-40"
+                        className="rounded-[2px] px-2 py-1 text-xs text-quill-faint hover:text-quill disabled:opacity-40"
                       >
                         Cancel
                       </button>
@@ -1292,7 +1292,7 @@ export function Import() {
                           setDeletingId(null);
                         }}
                         disabled={deleteBatch.isPending}
-                        className="rounded-lg bg-red-950/60 px-2 py-1 text-xs font-medium text-red-400 transition-colors hover:bg-red-900/60 disabled:opacity-50"
+                        className="rounded-[2px] bg-debit/60 px-2 py-1 text-xs font-medium text-debit transition-colors hover:bg-debit/60 disabled:opacity-50"
                       >
                         {deleteBatch.isPending ? "Deleting…" : "Delete"}
                       </button>
@@ -1302,7 +1302,7 @@ export function Import() {
                   <div key={batch.id} className="flex items-center gap-3 py-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="shrink-0 rounded-full bg-ink-800 px-2 py-0.5 text-[10px] font-medium text-quill-soft">
+                        <span className="shrink-0 rounded-[2px] bg-page-edge px-2 py-0.5 text-[10px] font-medium text-quill-soft">
                           {SOURCE_LABELS[batch.source ?? ""] ?? batch.source ?? "CSV"}
                         </span>
                         <span className="truncate text-sm text-quill-soft">
@@ -1319,7 +1319,7 @@ export function Import() {
                     <button
                       onClick={() => setDeletingId(batch.id)}
                       aria-label="Delete import"
-                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-quill-faint transition-colors hover:bg-red-950/40 hover:text-red-400"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-[2px] text-quill-faint transition-colors hover:bg-debit/40 hover:text-debit"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -1337,7 +1337,7 @@ export function Import() {
 // ─── generic column-mapper UI ─────────────────────────────────────────────────
 
 const mapSelectCls =
-  "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-2 text-sm text-quill focus:border-teal-500 focus:outline-none";
+  "h-9 w-full rounded-[2px] border border-rule bg-well px-2 text-sm text-quill focus:border-accent focus:outline-none";
 
 function guessCol(headers: string[], re: RegExp, fallback = -1): number {
   const i = headers.findIndex((h) => re.test(h));
@@ -1491,9 +1491,9 @@ function ColumnMapper({
               type="button"
               onClick={() => setAmountMode(mode)}
               className={cn(
-                "h-9 rounded-xl border text-xs font-medium transition-colors",
+                "h-9 rounded-[2px] border text-xs font-medium transition-colors",
                 amountMode === mode
-                  ? "border-teal-500 bg-teal-500/10 text-teal-300"
+                  ? "border-accent bg-accent/10 text-accent"
                   : "border-rule text-quill-soft",
               )}
             >
@@ -1506,7 +1506,7 @@ function ColumnMapper({
       {amountMode === "single" ? (
         <div className="grid grid-cols-2 gap-2">
           <ColumnSelect label="Amount" value={amountCol} onChange={setAmountCol} headers={headers} />
-          <label className="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-rule/60 bg-ink-950/30 px-3">
+          <label className="flex cursor-pointer items-center justify-between gap-2 rounded-[2px] border border-rule/60 bg-well px-3">
             <span className="text-xs text-quill-soft">Positive = spent</span>
             <button
               type="button"
@@ -1515,12 +1515,12 @@ function ColumnMapper({
               onClick={() => setInvert((v) => !v)}
               className={cn(
                 "relative h-5 w-9 shrink-0 rounded-full transition-colors",
-                invert ? "bg-teal-500" : "bg-ink-700",
+                invert ? "bg-accent" : "bg-rule",
               )}
             >
               <span
                 className={cn(
-                  "block size-3.5 rounded-full bg-white transition-transform",
+                  "block size-3.5 rounded-full bg-page transition-transform",
                   invert ? "translate-x-4" : "translate-x-0.5",
                 )}
               />
@@ -1534,7 +1534,7 @@ function ColumnMapper({
         </div>
       )}
 
-      <div className="rounded-xl border border-rule bg-ink-950/40 p-2">
+      <div className="rounded-[2px] border border-rule bg-well p-2">
         <p className="mb-1 px-1 text-xs font-medium text-quill-faint">
           Preview · {built.length} row{built.length === 1 ? "" : "s"} parsed
         </p>
@@ -1543,7 +1543,7 @@ function ColumnMapper({
             Nothing parsed yet — adjust the columns above.
           </p>
         ) : (
-          <ul className="divide-y divide-ink-800/70">
+          <ul className="divide-y divide-rule">
             {preview.map((r, i) => (
               <li key={i} className="flex items-center gap-3 px-1 py-1.5 text-xs">
                 <span className="tnum w-16 shrink-0 text-quill-faint">{r.date}</span>
@@ -1553,7 +1553,7 @@ function ColumnMapper({
                 <span
                   className={cn(
                     "tnum shrink-0",
-                    r.type === "income" ? "text-teal-400" : "text-quill-soft",
+                    r.type === "income" ? "text-accent" : "text-quill-soft",
                   )}
                 >
                   {r.type === "expense" ? "−" : "+"}
@@ -1565,7 +1565,7 @@ function ColumnMapper({
         )}
       </div>
 
-      {error && <p className="text-xs text-rose-400">{error}</p>}
+      {error && <p className="text-xs text-debit">{error}</p>}
 
       <Button size="sm" className="w-full" onClick={apply} disabled={built.length === 0}>
         Use these columns · {built.length}

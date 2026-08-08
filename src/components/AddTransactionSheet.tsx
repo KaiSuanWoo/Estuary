@@ -15,7 +15,7 @@ import { convert } from "@/lib/fx";
 import type { TransactionType } from "@/lib/types";
 
 const inputCls =
-  "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
+  "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
 type SheetType = Extract<
   TransactionType,
@@ -214,9 +214,9 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                   type="button"
                   onClick={() => setType(t)}
                   className={cn(
-                    "h-9 rounded-xl border text-xs font-medium transition-colors",
+                    "h-9 rounded-[2px] border text-xs font-medium transition-colors",
                     type === t
-                      ? "border-teal-500 bg-teal-500/10 text-teal-300"
+                      ? "border-accent bg-accent/10 text-accent"
                       : "border-rule text-quill-soft",
                   )}
                 >
@@ -267,7 +267,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                       </select>
                     ) : (
                       from && (
-                        <span className="flex h-9 shrink-0 items-center rounded-xl border border-rule bg-ink-950/40 px-3 text-sm text-quill-faint">
+                        <span className="flex h-9 shrink-0 items-center rounded-[2px] border border-rule bg-well px-3 text-sm text-quill-faint">
                           {from.currency}
                         </span>
                       )
@@ -325,7 +325,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                     )}
 
                     {showRate ? (
-                      <div className="space-y-3 rounded-xl border border-rule/70 bg-ink-950/40 p-3">
+                      <div className="space-y-3 rounded-[2px] border border-rule/70 bg-well p-3">
                         <div className="flex items-center gap-2 text-xs text-quill-soft">
                           {fromCurrency}
                           <ArrowRight className="size-3.5" />
@@ -385,8 +385,8 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                   </>
                 ) : isAdjustment ? (
                   <>
-                    <div className="flex gap-2.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2.5 text-xs text-violet-200">
-                      <SlidersHorizontal className="mt-0.5 size-4 shrink-0 text-violet-400" />
+                    <div className="flex gap-2.5 rounded-[2px] border border-head-5/30 bg-head-5/10 px-3 py-2.5 text-xs text-head-5">
+                      <SlidersHorizontal className="mt-0.5 size-4 shrink-0 text-head-5" />
                       <span>
                         Balance adjustment — raises this account's balance
                         without counting as income or expense (e.g. a transfer
@@ -449,7 +449,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
 
                 {/* Reimbursable toggle — only for expenses */}
                 {type === "expense" && (
-                  <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-rule/60 bg-ink-950/30 p-3">
+                  <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[2px] border border-rule/60 bg-well p-3">
                     <div>
                       <p className="text-sm font-medium text-quill">
                         Reimbursable
@@ -465,12 +465,12 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                       onClick={() => setIsReimbursable((v) => !v)}
                       className={cn(
                         "relative h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors",
-                        isReimbursable ? "bg-teal-500" : "bg-ink-700",
+                        isReimbursable ? "bg-accent" : "bg-rule",
                       )}
                     >
                       <span
                         className={cn(
-                          "block h-4 w-4 rounded-full bg-white shadow transition-transform",
+                          "block h-4 w-4 rounded-full bg-page shadow transition-transform",
                           isReimbursable ? "translate-x-5" : "translate-x-0.5",
                         )}
                       />
@@ -479,13 +479,13 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                 )}
 
                 {create.isError && (
-                  <p className="text-xs text-red-400">
+                  <p className="text-xs text-debit">
                     Couldn't save. {(create.error as Error).message}
                   </p>
                 )}
 
                 {addedCount > 0 && (
-                  <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-teal-300">
+                  <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-accent">
                     <Check className="size-3.5" strokeWidth={3} />
                     Added {addedCount} — same date &amp; account kept for the next one.
                   </p>

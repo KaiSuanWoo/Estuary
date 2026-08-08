@@ -9,7 +9,7 @@ import { Logo } from "@/components/Logo";
 type Mode = "signin" | "signup" | "reset";
 
 const inputCls =
-  "mt-1.5 h-11 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none";
+  "mt-1.5 h-11 w-full rounded-[2px] border border-rule bg-well px-3 text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
 export function Login() {
   const {
@@ -86,7 +86,7 @@ export function Login() {
         {sent ? (
           <Card>
             <div className="flex flex-col items-center py-4 text-center">
-              <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-teal-500/12 text-teal-300">
+              <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-accent/12 text-accent">
                 <MailCheck className="size-6" />
               </div>
               <p className="font-medium text-quill">
@@ -134,7 +134,7 @@ export function Login() {
                   className={inputCls}
                 />
               </label>
-              {error && <p className="text-sm text-red-400">{error}</p>}
+              {error && <p className="text-sm text-debit">{error}</p>}
               <Button type="submit" className="w-full" disabled={busy !== null}>
                 {busy === "form" ? "Sending…" : "Send reset link"}
               </Button>
@@ -143,16 +143,16 @@ export function Login() {
         ) : (
           <Card>
             {/* Mode toggle */}
-            <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl border border-rule/60 bg-ink-950/40 p-1">
+            <div className="mb-4 grid grid-cols-2 gap-1 rounded-[2px] border border-rule/60 bg-well p-1">
               {(["signin", "signup"] as Mode[]).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => switchMode(m)}
                   className={cn(
-                    "h-9 rounded-lg text-sm font-medium transition-colors",
+                    "h-9 rounded-[2px] text-sm font-medium transition-colors",
                     mode === m
-                      ? "bg-ink-700 text-quill"
+                      ? "bg-rule text-quill"
                       : "text-quill-soft hover:text-quill",
                   )}
                 >
@@ -165,10 +165,10 @@ export function Login() {
               type="button"
               onClick={onGoogle}
               disabled={busy !== null}
-              className="flex h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-rule bg-ink-50 text-sm font-medium text-ink-950 transition-colors hover:bg-white disabled:opacity-60"
+              className="flex h-11 w-full items-center justify-center gap-2.5 rounded-[2px] border border-rule-strong bg-well text-sm font-medium text-quill transition-colors hover:border-brass disabled:opacity-60"
             >
               {busy === "google" ? (
-                <Spinner className="size-4 border-rule border-t-ink-900" />
+                <Spinner className="size-4" />
               ) : (
                 <GoogleGlyph />
               )}
@@ -176,9 +176,9 @@ export function Login() {
             </button>
 
             <div className="my-4 flex items-center gap-3 text-xs text-quill-faint">
-              <span className="h-px flex-1 bg-ink-800" />
+              <span className="h-px flex-1 bg-rule" />
               or
-              <span className="h-px flex-1 bg-ink-800" />
+              <span className="h-px flex-1 bg-rule" />
             </div>
 
             <form onSubmit={onSubmit} className="space-y-3">
@@ -204,7 +204,7 @@ export function Login() {
                     <button
                       type="button"
                       onClick={() => switchMode("reset")}
-                      className="text-xs font-medium text-teal-400 hover:text-teal-300"
+                      className="text-xs font-medium text-accent hover:text-accent"
                     >
                       Forgot?
                     </button>
@@ -222,7 +222,7 @@ export function Login() {
                   className={inputCls}
                 />
               </div>
-              {error && <p className="text-sm text-red-400">{error}</p>}
+              {error && <p className="text-sm text-debit">{error}</p>}
               <Button type="submit" className="w-full" disabled={busy !== null}>
                 {busy === "form"
                   ? mode === "signup"
@@ -243,7 +243,7 @@ export function Login() {
             <button
               type="button"
               onClick={() => switchMode("signin")}
-              className="text-teal-400 hover:text-teal-300"
+              className="text-accent hover:text-accent"
             >
               ← Back to sign in
             </button>

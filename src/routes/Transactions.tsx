@@ -165,12 +165,12 @@ function FilterChip({
     <button
       onClick={onClick}
       className={cn(
-        "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+        "flex h-8 shrink-0 items-center gap-1.5 rounded-[2px] border px-3 text-xs font-medium transition-colors",
         open
-          ? "border-teal-500 bg-teal-500/10 text-teal-300"
+          ? "border-accent bg-accent/10 text-accent"
           : active
-            ? "border-teal-500/50 bg-teal-500/5 text-teal-400"
-            : "border-rule text-quill-soft hover:border-rule hover:text-quill",
+            ? "border-accent/50 bg-accent/5 text-accent"
+            : "border-rule text-quill-soft hover:border-rule-strong hover:text-quill",
       )}
     >
       {dotColor && (
@@ -201,10 +201,10 @@ function OptionChip({
     <button
       onClick={onClick}
       className={cn(
-        "flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+        "flex h-8 items-center gap-1.5 rounded-[2px] border px-3 text-xs font-medium transition-colors",
         selected
-          ? "border-teal-500 bg-teal-500/10 text-teal-300"
-          : "border-rule text-quill-soft hover:border-rule hover:text-quill",
+          ? "border-accent bg-accent/10 text-accent"
+          : "border-rule text-quill-soft hover:border-rule-strong hover:text-quill",
       )}
     >
       {dotColor && (
@@ -234,7 +234,7 @@ function Pager({
   for (let i = start; i < end; i++) nums.push(i);
 
   const navBtn =
-    "flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+    "flex h-9 min-w-9 items-center justify-center rounded-[2px] border px-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
     <nav
@@ -245,7 +245,7 @@ function Pager({
         onClick={() => onPage(page - 1)}
         disabled={page === 0}
         aria-label="Previous page"
-        className={cn(navBtn, "border-rule text-quill-soft hover:border-rule hover:text-quill")}
+        className={cn(navBtn, "border-rule text-quill-soft hover:border-rule-strong hover:text-quill")}
       >
         <ChevronLeft className="size-4" />
       </button>
@@ -258,8 +258,8 @@ function Pager({
           className={cn(
             navBtn,
             n === page
-              ? "border-teal-500 bg-teal-500/10 text-teal-300"
-              : "border-rule text-quill-soft hover:border-rule hover:text-quill",
+              ? "border-accent bg-accent/10 text-accent"
+              : "border-rule text-quill-soft hover:border-rule-strong hover:text-quill",
           )}
         >
           {n + 1}
@@ -270,7 +270,7 @@ function Pager({
         onClick={() => onPage(page + 1)}
         disabled={page >= pageCount - 1}
         aria-label="Next page"
-        className={cn(navBtn, "border-rule text-quill-soft hover:border-rule hover:text-quill")}
+        className={cn(navBtn, "border-rule text-quill-soft hover:border-rule-strong hover:text-quill")}
       >
         <ChevronRight className="size-4" />
       </button>
@@ -287,7 +287,7 @@ function ListSkeleton() {
           <div className="mb-1 h-3 w-24 px-1">
             <div className="skeleton h-3 w-24 rounded" />
           </div>
-          <Card className="divide-y divide-ink-800/70 py-0">
+          <Card className="divide-y divide-rule py-0">
             {[0, 1, 2].map((r) => (
               <SkeletonRow key={r} />
             ))}
@@ -600,7 +600,7 @@ export function Transactions() {
   }
 
   const dateInputCls =
-    "h-9 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill focus:border-teal-500 focus:outline-none";
+    "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill focus:border-accent focus:outline-none";
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -626,7 +626,7 @@ export function Transactions() {
               placeholder="Search transactions…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-10 w-full rounded-xl border border-rule bg-ink-900/60 pl-9 pr-9 text-sm text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none"
+              className="h-10 w-full rounded-[2px] border border-rule bg-well pl-9 pr-9 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none"
             />
             {search && (
               <button
@@ -686,7 +686,7 @@ export function Transactions() {
               <button
                 onClick={clearAll}
                 aria-label="Clear all filters"
-                className="flex size-8 shrink-0 items-center justify-center rounded-full border border-rule text-quill-faint transition-colors hover:border-rule hover:text-quill"
+                className="flex size-8 shrink-0 items-center justify-center rounded-full border border-rule text-quill-faint transition-colors hover:border-rule-strong hover:text-quill"
               >
                 <X className="size-3.5" />
               </button>
@@ -696,7 +696,7 @@ export function Transactions() {
           {/* ── Active filter panel ── */}
 
           {activePanel === "type" && (
-            <div className="rounded-xl border border-rule/60 bg-ink-900/90 p-3">
+            <div className="rounded-[2px] border border-rule/60 bg-page-edge p-3">
               <div className="flex flex-wrap gap-2">
                 <OptionChip
                   label="All"
@@ -716,7 +716,7 @@ export function Transactions() {
           )}
 
           {activePanel === "account" && accounts.length > 1 && (
-            <div className="rounded-xl border border-rule/60 bg-ink-900/90 p-3">
+            <div className="rounded-[2px] border border-rule/60 bg-page-edge p-3">
               <div className="flex flex-wrap gap-2">
                 <OptionChip
                   label="All accounts"
@@ -737,7 +737,7 @@ export function Transactions() {
           )}
 
           {activePanel === "date" && (
-            <div className="space-y-3 rounded-xl border border-rule/60 bg-ink-900/90 p-3">
+            <div className="space-y-3 rounded-[2px] border border-rule/60 bg-page-edge p-3">
               <div className="flex flex-wrap gap-2">
                 {DATE_MODES.map(({ value, label }) => (
                   <OptionChip
@@ -776,7 +776,7 @@ export function Transactions() {
           )}
 
           {activePanel === "category" && visibleCategories.length > 0 && (
-            <div className="rounded-xl border border-rule/60 bg-ink-900/90 p-3">
+            <div className="rounded-[2px] border border-rule/60 bg-page-edge p-3">
               <div className="flex flex-wrap gap-2">
                 <OptionChip
                   label="All categories"
@@ -796,7 +796,7 @@ export function Transactions() {
           )}
 
           {activePanel === "tag" && tags.length > 0 && (
-            <div className="rounded-xl border border-rule/60 bg-ink-900/90 p-3">
+            <div className="rounded-[2px] border border-rule/60 bg-page-edge p-3">
               <div className="flex flex-wrap gap-2">
                 <OptionChip
                   label="All tags"
@@ -844,7 +844,7 @@ export function Transactions() {
           {hasFilters && (
             <button
               onClick={clearAll}
-              className="mt-3 w-full text-center text-sm text-teal-400 hover:text-teal-300"
+              className="mt-3 w-full text-center text-sm text-accent hover:text-accent"
             >
               Clear all filters
             </button>
@@ -902,7 +902,7 @@ export function Transactions() {
           ) : (
             <div ref={sentinelRef} className="pt-2">
               {infinite.isFetchingNextPage && (
-                <Card className="divide-y divide-ink-800/70 py-0">
+                <Card className="divide-y divide-rule py-0">
                   <SkeletonRow />
                   <SkeletonRow />
                 </Card>
@@ -925,8 +925,8 @@ export function Transactions() {
           tabIndex={scrolled ? 0 : -1}
           className={cn(
             "fixed bottom-56 left-5 z-30 flex size-11 items-center justify-center rounded-full",
-            "border border-rule bg-ink-900/90 text-quill shadow-lg shadow-ink-950/40 backdrop-blur",
-            "transition-all hover:bg-ink-800 hover:text-quill",
+            "border border-rule bg-page-edge text-quill shadow-lg shadow-black/40",
+            "transition-all hover:bg-page-edge hover:text-quill",
             "lg:bottom-40 lg:left-auto lg:right-8",
             scrolled
               ? "opacity-100"
@@ -945,11 +945,11 @@ export function Transactions() {
           aria-label="Show only what I'm owed (unsettled reimbursable)"
           title="What I'm owed"
           className={cn(
-            "fixed bottom-24 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-ink-950/40 backdrop-blur transition-colors",
+            "fixed bottom-24 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-black/40 transition-colors",
             "lg:bottom-8 lg:left-auto lg:right-8",
             owedOnly
-              ? "border border-teal-500/60 bg-teal-500/15 text-teal-300 hover:bg-teal-500/25"
-              : "border border-rule bg-ink-900/90 text-quill hover:bg-ink-800 hover:text-quill",
+              ? "border border-accent/60 bg-accent/15 text-accent hover:bg-accent/25"
+              : "border border-rule bg-page-edge text-quill hover:bg-page-edge hover:text-quill",
           )}
         >
           <Receipt className="size-5" />
@@ -963,11 +963,11 @@ export function Transactions() {
           aria-pressed={flaggedOnly}
           aria-label="Show flagged only"
           className={cn(
-            "fixed bottom-40 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-ink-950/40 backdrop-blur transition-colors",
+            "fixed bottom-40 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-black/40 transition-colors",
             "lg:bottom-24 lg:left-auto lg:right-8",
             flaggedOnly
-              ? "border border-amber-500/60 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
-              : "border border-rule bg-ink-900/90 text-quill hover:bg-ink-800 hover:text-quill",
+              ? "border border-head-3/60 bg-head-3/15 text-head-3 hover:bg-head-3/25"
+              : "border border-rule bg-page-edge text-quill hover:bg-page-edge hover:text-quill",
           )}
         >
           <Flag className="size-5" />
@@ -1046,9 +1046,9 @@ function SearchOverlay({
       <button
         aria-label="Close"
         onClick={onClose}
-        className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/55"
       />
-      <div className="relative flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-3xl border border-rule bg-ink-900 shadow-2xl shadow-ink-950/40 lg:max-w-lg">
+      <div className="relative flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-[2px] border border-rule bg-page-edge shadow-2xl shadow-black/40 lg:max-w-lg">
         {/* Search input */}
         <div className="flex items-center gap-2 border-b border-rule px-4 py-3">
           <Search className="size-4 shrink-0 text-quill-faint" />
@@ -1076,7 +1076,7 @@ function SearchOverlay({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex size-7 shrink-0 items-center justify-center rounded-full bg-ink-800 text-quill-soft transition-colors hover:bg-ink-700 hover:text-quill"
+            className="flex size-7 shrink-0 items-center justify-center rounded-full bg-page-edge text-quill-soft transition-colors hover:bg-rule hover:text-quill"
           >
             <X className="size-3.5" />
           </button>
@@ -1093,7 +1093,7 @@ function SearchOverlay({
                 : "Type to search your transactions."}
             </p>
           ) : (
-            <div className="divide-y divide-ink-800/70">
+            <div className="divide-y divide-rule">
               {results.slice(0, 50).map((tx) => {
                 const cat = tx.category_id
                   ? categories.get(tx.category_id)

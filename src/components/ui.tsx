@@ -52,7 +52,7 @@ export function Button({
         variant === "outline" &&
           "border border-rule-strong text-quill hover:border-brass hover:text-brass-lo",
         variant === "ghost" &&
-          "border border-transparent text-quill-soft hover:border-rule hover:text-quill",
+          "border border-transparent text-quill-soft hover:border-rule-strong hover:text-quill",
         variant === "danger" && "bg-debit text-page hover:brightness-110",
         className,
       )}
@@ -125,7 +125,7 @@ export function Spinner({ className }: { className?: string }) {
 export function Skeleton({ className }: { className?: string }) {
   return (
     <div
-      className={cn("skeleton rounded-md", className)}
+      className={cn("skeleton rounded-[2px]", className)}
       aria-hidden="true"
     />
   );

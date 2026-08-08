@@ -52,10 +52,10 @@ export function SetPassword() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 6 characters"
-                className="mt-1.5 h-11 w-full rounded-xl border border-rule bg-ink-950/60 px-3 text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none"
+                className="mt-1.5 h-11 w-full rounded-[2px] border border-rule bg-well px-3 text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none"
               />
             </label>
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p className="text-sm text-debit">{error}</p>}
             <Button type="submit" className="w-full" disabled={busy}>
               {busy ? "Saving…" : "Save password"}
             </Button>

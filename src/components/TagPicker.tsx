@@ -45,9 +45,9 @@ export function TagPicker({
           type="button"
           onClick={() => toggle(t.id)}
           className={cn(
-            "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+            "rounded-[2px] border px-2.5 py-1 text-xs font-medium transition-colors",
             value.includes(t.id)
-              ? "border-teal-500 bg-teal-500/15 text-teal-300"
+              ? "border-accent bg-accent/15 text-accent"
               : "border-rule text-quill-soft hover:border-rule",
           )}
         >
@@ -71,13 +71,13 @@ export function TagPicker({
               }
             }}
             placeholder="New tag"
-            className="h-7 w-24 rounded-full border border-rule bg-ink-950/60 px-2.5 text-xs text-quill placeholder:text-quill-faint focus:border-teal-500 focus:outline-none"
+            className="h-7 w-24 rounded-[2px] border border-rule bg-well px-2.5 text-xs text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none"
           />
           <button
             type="button"
             onClick={addTag}
             aria-label="Add tag"
-            className="flex size-6 items-center justify-center rounded-full bg-teal-500 text-ink-950"
+            className="flex size-6 items-center justify-center rounded-full bg-accent text-page"
           >
             <Check className="size-3.5" />
           </button>
@@ -86,7 +86,7 @@ export function TagPicker({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="inline-flex items-center gap-1 rounded-full border border-dashed border-rule px-2.5 py-1 text-xs text-quill-faint transition-colors hover:border-rule hover:text-quill-soft"
+          className="inline-flex items-center gap-1 rounded-[2px] border border-dashed border-rule px-2.5 py-1 text-xs text-quill-faint transition-colors hover:border-rule-strong hover:text-quill-soft"
         >
           <Plus className="size-3" /> Tag
         </button>

@@ -34,7 +34,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       return (
         <div className="flex min-h-full flex-col items-center justify-center px-6 text-center">
-          <div className="w-full max-w-sm rounded-2xl border border-rule/80 bg-ink-900/60 p-6">
+          <div className="w-full max-w-sm rounded-[2px] border border-rule/80 bg-page-edge p-6">
             <h1 className="text-lg font-semibold text-quill">
               Something went wrong
             </h1>
@@ -44,12 +44,12 @@ export class ErrorBoundary extends Component<Props, State> {
             </p>
             <button
               onClick={this.handleReload}
-              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-xl bg-teal-500 text-sm font-medium text-ink-950 transition-colors hover:bg-teal-400"
+              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-[2px] bg-accent text-sm font-medium text-page transition-colors hover:bg-accent"
             >
               Reload Estuary
             </button>
             {import.meta.env.DEV && (
-              <pre className="mt-4 max-h-40 overflow-auto rounded-lg bg-ink-950/60 p-3 text-left text-[11px] leading-relaxed text-rose-300">
+              <pre className="mt-4 max-h-40 overflow-auto rounded-[2px] bg-well p-3 text-left text-[11px] leading-relaxed text-debit">
                 {this.state.error.message}
               </pre>
             )}

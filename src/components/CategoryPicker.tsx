@@ -108,7 +108,7 @@ export function CategoryPicker({
         onClick={() => setOpen(true)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex h-9 w-full items-center justify-between gap-2 rounded-xl border border-rule bg-ink-950/60 px-3 text-sm text-quill transition-colors hover:border-rule focus:border-teal-500 focus:outline-none"
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-[2px] border border-rule bg-well px-3 text-sm text-quill transition-colors hover:border-rule-strong focus:border-accent focus:outline-none"
       >
         <span className="flex min-w-0 items-center gap-2.5">
           <CategoryIcon
@@ -133,9 +133,9 @@ export function CategoryPicker({
           <button
             aria-label="Close"
             onClick={close}
-            className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/55"
           />
-          <div className="relative flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-3xl border border-rule bg-ink-900 shadow-2xl shadow-ink-950/40 lg:max-w-md">
+          <div className="relative flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-[2px] border border-rule bg-page-edge shadow-2xl shadow-black/40 lg:max-w-md">
             {/* Search */}
             <div className="flex items-center gap-2 border-b border-rule px-4 py-3">
               <Search className="size-4 shrink-0 text-quill-faint" />
@@ -152,7 +152,7 @@ export function CategoryPicker({
                 type="button"
                 onClick={close}
                 aria-label="Close"
-                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-ink-800 text-quill-soft transition-colors hover:bg-ink-700 hover:text-quill"
+                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-page-edge text-quill-soft transition-colors hover:bg-rule hover:text-quill"
               >
                 <X className="size-3.5" />
               </button>
@@ -173,7 +173,7 @@ export function CategoryPicker({
                     onClick={() => choose(o.id)}
                     className={cn(
                       "flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm transition-colors",
-                      i === active ? "bg-ink-800/70" : "hover:bg-ink-800/40",
+                      i === active ? "bg-page-edge" : "hover:bg-page-edge",
                     )}
                   >
                     <CategoryIcon icon={o.icon} color={o.color} size="sm" />
@@ -186,7 +186,7 @@ export function CategoryPicker({
                       {o.name}
                     </span>
                     {o.id === value && (
-                      <Check className="size-4 shrink-0 text-teal-400" />
+                      <Check className="size-4 shrink-0 text-accent" />
                     )}
                   </button>
                 </li>
