@@ -58,17 +58,21 @@ import {
   type CategorySlice,
 } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
+
+/** Tooltips sit on the page, in its ink. */
+function tooltipStyle(ink: Ink) {
+  return {
+    background: ink["--color-page"],
+    border: `1px solid ${ink["--color-rule-strong"]}`,
+    borderRadius: 2,
+    fontSize: 12,
+    color: ink["--color-quill"],
+  } as const;
+}
 import { cn } from "@/lib/cn";
 import { Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
+import { useLedgerInk, type Ink } from "@/components/ledger";
 import type { Transaction } from "@/lib/types";
-
-const TOOLTIP_STYLE = {
-  background: "#111a24",
-  border: "1px solid #2b3947",
-  borderRadius: 12,
-  fontSize: 12,
-  color: "#e9eef4",
-} as const;
 
 const WIDE = { from: "0000-01-01", to: "9999-12-31" };
 
@@ -163,6 +167,7 @@ function cumulativeSpendSeries(
 }
 
 export function Analytics() {
+  const ink = useLedgerInk();
   const [params] = useSearchParams();
 
   // Deep-link seeds: ?month=YYYY-MM → single-month; ?from&to → custom range.
@@ -494,9 +499,9 @@ export function Analytics() {
                   link={{ stroke: "#4d6175", strokeOpacity: 0.28 }}
                 >
                   <Tooltip
-                    contentStyle={TOOLTIP_STYLE}
-                    itemStyle={{ color: "#eef4fa" }}
-                    labelStyle={{ color: "#eef4fa" }}
+                    contentStyle={tooltipStyle(ink)}
+                    itemStyle={{ color: ink["--color-quill"] }}
+                    labelStyle={{ color: ink["--color-quill"] }}
                     formatter={(v: number) => formatMoney(Number(v), base)}
                   />
                 </Sankey>
@@ -513,23 +518,23 @@ export function Analytics() {
                 <AreaChart data={view.cumulative} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
                   <defs>
                     <linearGradient id="cumSpend" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#fb7185" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#fb7185" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor={ink["--color-debit"]} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={ink["--color-debit"]} stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid vertical={false} stroke="#1c2632" />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} minTickGap={24} />
-                  <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: "#6f8499", fontSize: 11 }} tickFormatter={(v) => compact(v, base)} />
+                  <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} minTickGap={24} />
+                  <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} tickFormatter={(v) => compact(v, base)} />
                   <Tooltip
-                    contentStyle={TOOLTIP_STYLE}
-                    itemStyle={{ color: "#eef4fa" }}
-                    labelStyle={{ color: "#eef4fa" }}
+                    contentStyle={tooltipStyle(ink)}
+                    itemStyle={{ color: ink["--color-quill"] }}
+                    labelStyle={{ color: ink["--color-quill"] }}
                     formatter={(v: number) => [formatMoney(v, base), "Spent so far"]}
                   />
                   <Area
                     type="monotone"
                     dataKey="cum"
-                    stroke="#fb7185"
+                    stroke={ink["--color-debit"]}
                     strokeWidth={2}
                     fill="url(#cumSpend)"
                     isAnimationActive={false}
@@ -549,26 +554,26 @@ export function Analytics() {
               ) : (
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={view.savingsTrend} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
-                    <CartesianGrid vertical={false} stroke="#1c2632" />
-                    <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} />
+                    <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} />
                     <YAxis
                       tickLine={false}
                       axisLine={false}
                       width={38}
-                      tick={{ fill: "#6f8499", fontSize: 11 }}
+                      tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }}
                       tickFormatter={(v) => `${v}%`}
                     />
                     <Tooltip
-                      contentStyle={TOOLTIP_STYLE}
-                      itemStyle={{ color: "#eef4fa" }}
-                      labelStyle={{ color: "#eef4fa" }}
+                      contentStyle={tooltipStyle(ink)}
+                      itemStyle={{ color: ink["--color-quill"] }}
+                      labelStyle={{ color: ink["--color-quill"] }}
                       formatter={(v: number) => [`${Math.round(v)}%`, "Savings rate"]}
                     />
-                    <ReferenceLine y={0} stroke="#fb7185" strokeDasharray="4 3" />
+                    <ReferenceLine y={0} stroke={ink["--color-debit"]} strokeDasharray="4 3" />
                     <Line
                       type="monotone"
                       dataKey="rate"
-                      stroke="#7fd1b9"
+                      stroke={ink["--color-credit"]}
                       strokeWidth={2}
                       dot={{ r: 3 }}
                       connectNulls={false}
@@ -846,6 +851,7 @@ function CategoryDetail({
   reimbursed: Map<string, number>;
   mode: CashflowMode;
 }) {
+  const ink = useLedgerInk();
   const inCategory = (t: Transaction) =>
     slice.id === "uncategorised" ? !t.category_id : t.category_id === slice.id;
 
@@ -887,12 +893,12 @@ function CategoryDetail({
       {months.length > 1 && (
         <ResponsiveContainer width="100%" height={130}>
           <BarChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-            <CartesianGrid vertical={false} stroke="#1c2632" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} />
+            <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} />
             <YAxis hide />
             <Tooltip
               cursor={{ fill: "rgba(255,255,255,0.03)" }}
-              contentStyle={TOOLTIP_STYLE}
+              contentStyle={tooltipStyle(ink)}
               formatter={(v: number) => [formatMoney(v, base), slice.name]}
             />
             <Bar
@@ -945,6 +951,7 @@ function BudgetsDetail({
   reimbursed: Map<string, number>;
   mode: CashflowMode;
 }) {
+  const ink = useLedgerInk();
   const [open, setOpen] = useState<string | null>(null);
 
   return (
@@ -1009,20 +1016,20 @@ function BudgetsDetail({
                           <stop offset="100%" stopColor={b.color} stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid vertical={false} stroke="#1c2632" />
-                      <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} minTickGap={20} />
-                      <YAxis tickLine={false} axisLine={false} width={44} tick={{ fill: "#6f8499", fontSize: 11 }} tickFormatter={(v) => compact(v, base)} domain={[0, (dataMax: number) => Math.max(dataMax, b.amount) * 1.1]} />
+                      <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} minTickGap={20} />
+                      <YAxis tickLine={false} axisLine={false} width={44} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} tickFormatter={(v) => compact(v, base)} domain={[0, (dataMax: number) => Math.max(dataMax, b.amount) * 1.1]} />
                       <Tooltip
-                        contentStyle={TOOLTIP_STYLE}
-                        itemStyle={{ color: "#eef4fa" }}
-                        labelStyle={{ color: "#eef4fa" }}
+                        contentStyle={tooltipStyle(ink)}
+                        itemStyle={{ color: ink["--color-quill"] }}
+                        labelStyle={{ color: ink["--color-quill"] }}
                         formatter={(v: number) => [formatMoney(v, base), "Spent so far"]}
                       />
                       <ReferenceLine
                         y={b.amount}
-                        stroke="#fb7185"
+                        stroke={ink["--color-debit"]}
                         strokeDasharray="5 4"
-                        label={{ value: "Budget", position: "insideTopRight", fill: "#fb7185", fontSize: 11 }}
+                        label={{ value: "Budget", position: "insideTopRight", fill: ink["--color-debit"], fontSize: 11 }}
                       />
                       <Area
                         type="stepAfter"
@@ -1166,16 +1173,17 @@ interface FlowNodeProps {
  * (unreliable) containerWidth from recharts.
  */
 function FlowNode({ x, y, width, height, payload, base }: FlowNodeProps & { base: string }) {
+  const ink = useLedgerInk();
   const toRight = payload.side === "in";
   const labelX = toRight ? x + width + 8 : x - 8;
   const anchor = toRight ? "start" : "end";
   return (
     <g>
       <rect x={x} y={y} width={width} height={height} fill={payload.color} rx={2} fillOpacity={0.9} />
-      <text x={labelX} y={y + height / 2 - 2} textAnchor={anchor} fill="#c6d3df" fontSize={12}>
+      <text x={labelX} y={y + height / 2 - 2} textAnchor={anchor} fill={ink["--color-quill"]} fontSize={12}>
         {payload.name}
       </text>
-      <text x={labelX} y={y + height / 2 + 12} textAnchor={anchor} fill="#6f8499" fontSize={11} className="tnum">
+      <text x={labelX} y={y + height / 2 + 12} textAnchor={anchor} fill={ink["--color-quill-faint"]} fontSize={11} className="tnum">
         {formatMoney(payload.value, base)}
       </text>
     </g>
