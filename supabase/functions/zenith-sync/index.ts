@@ -108,6 +108,35 @@ Deno.serve(async (req: Request) => {
   );
   if (snapErr) return json(500, { error: snapErr.message });
 
+  // 4b. Append today's value to the history, plus whatever back history Zenith
+  //     sends. Keyed on the date, so repeated pushes in a day settle on the
+  //     last one rather than piling up.
+  const asOfDate = as_of.slice(0, 10);
+  const points = new Map<string, number>([[asOfDate, total]]);
+  if (Array.isArray(payload.history)) {
+    for (const h of payload.history) {
+      const r = (h ?? {}) as Record<string, unknown>;
+      const d = typeof r.date === "string" ? r.date.slice(0, 10) : "";
+      const v = Number(r.total);
+      // Today's live value wins over any historical row for the same date.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d) && Number.isFinite(v) && d !== asOfDate) {
+        points.set(d, v);
+      }
+    }
+  }
+  const { error: histErr } = await admin.from("investment_history").upsert(
+    [...points].map(([date, value]) => ({
+      user_id: userId,
+      source: "zenith",
+      date,
+      total: value,
+      base_currency,
+      updated_at: new Date().toISOString(),
+    })),
+    { onConflict: "user_id,source,date" },
+  );
+  if (histErr) return json(500, { error: histErr.message });
+
   // 5. Materialise investment accounts. Only sync-owned columns are written,
   //    so user customisations (color, icon, order, notes) survive re-pushes.
   if (accounts.length > 0) {

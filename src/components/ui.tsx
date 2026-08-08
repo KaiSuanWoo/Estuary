@@ -7,9 +7,9 @@ import {
 import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/cn";
-import { easeStandard, springSoft, useReducedMotion } from "@/lib/motion";
+import { easeStandard, paperSettle, useReducedMotion } from "@/lib/motion";
 
-/** A surface card with the app's signature dark, slightly-translucent panel. */
+/** A block of entries ruled onto the leaf. */
 export function Card({
   className,
   interactive = false,
@@ -18,9 +18,9 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-ink-800/80 bg-ink-900/60 p-4 backdrop-blur",
+        "leaf-panel p-4",
         interactive &&
-          "cursor-pointer transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-ink-700 hover:shadow-[var(--shadow-float)]",
+          "cursor-pointer transition-[transform,border-color] duration-200 hover:-translate-y-px hover:border-rule-strong",
         className,
       )}
       {...props}
@@ -42,19 +42,18 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-xl font-medium",
-        "transition-[transform,background-color,border-color,color] duration-150 active:scale-[0.97]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/60",
+        "inline-flex items-center justify-center gap-2 rounded-[3px] font-medium",
+        "transition-[transform,background-color,border-color,color] duration-150 active:scale-[0.98]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass",
         "disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
         size === "md" ? "h-11 px-4 text-sm" : "h-9 px-3 text-sm",
-        variant === "primary" && "bg-teal-500 text-ink-950 hover:bg-teal-400",
-        // outline = "Add"-style action: same teal family as primary "New", but
-        // hollow so the two are instantly distinguishable.
+        // Primary actions are the book's hardware: brass.
+        variant === "primary" && "brass-face hover:brightness-110",
         variant === "outline" &&
-          "border border-teal-500/40 text-teal-300 hover:border-teal-400/70 hover:bg-teal-500/10",
+          "border border-rule-strong text-quill hover:border-brass hover:text-brass-lo",
         variant === "ghost" &&
-          "bg-ink-800/60 text-ink-100 hover:bg-ink-700/60",
-        variant === "danger" && "bg-red-500/90 text-white hover:bg-red-500",
+          "border border-transparent text-quill-soft hover:border-rule-strong hover:text-quill",
+        variant === "danger" && "bg-debit text-page hover:brightness-110",
         className,
       )}
       {...props}
@@ -73,14 +72,20 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="mb-5 flex items-end justify-between gap-3">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-ink-50">
-          {title}
-        </h1>
-        {subtitle && <p className="mt-1 text-sm text-ink-400">{subtitle}</p>}
+    <header className="mb-5">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h1
+            className="text-3xl tracking-[0.02em] text-quill"
+            style={{ fontVariant: "small-caps" }}
+          >
+            {title}
+          </h1>
+          {subtitle && <p className="mt-1 text-sm text-quill-soft">{subtitle}</p>}
+        </div>
+        {action}
       </div>
-      {action}
+      <hr className="brass-rule mt-2" />
     </header>
   );
 }
@@ -95,10 +100,10 @@ export function EmptyState({
   hint?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-ink-700/70 px-6 py-12 text-center">
-      {icon && <div className="mb-3 text-ink-500">{icon}</div>}
-      <p className="font-medium text-ink-200">{title}</p>
-      {hint && <p className="mt-1 max-w-xs text-sm text-ink-500">{hint}</p>}
+    <div className="flex flex-col items-center justify-center rounded-[2px] border border-dashed border-rule px-6 py-12 text-center">
+      {icon && <div className="mb-3 text-quill-faint">{icon}</div>}
+      <p className="font-medium text-quill">{title}</p>
+      {hint && <p className="mt-1 max-w-xs text-sm text-quill-soft">{hint}</p>}
     </div>
   );
 }
@@ -107,7 +112,7 @@ export function Spinner({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "size-5 animate-spin rounded-full border-2 border-ink-600 border-t-teal-400",
+        "size-5 animate-spin rounded-full border-2 border-rule border-t-brass",
         className,
       )}
       role="status"
@@ -120,7 +125,7 @@ export function Spinner({ className }: { className?: string }) {
 export function Skeleton({ className }: { className?: string }) {
   return (
     <div
-      className={cn("skeleton rounded-md", className)}
+      className={cn("skeleton rounded-[2px]", className)}
       aria-hidden="true"
     />
   );
@@ -163,6 +168,8 @@ export function Sheet({
   const [open, setOpen] = useState(true);
   const close = () => setOpen(false);
 
+  // A loose card slid into the book: it comes up, tilts level, and settles.
+  // Paper has no rebound, so there is no overshoot on the way in.
   const panelMotion = reduce
     ? {
         initial: { opacity: 0 },
@@ -171,10 +178,10 @@ export function Sheet({
         transition: { duration: 0.12 },
       }
     : {
-        initial: { opacity: 0, y: 24, scale: 0.98 },
-        animate: { opacity: 1, y: 0, scale: 1 },
-        exit: { opacity: 0, y: 24, scale: 0.98 },
-        transition: springSoft,
+        initial: { opacity: 0, y: 40, rotate: -0.6 },
+        animate: { opacity: 1, y: 0, rotate: 0 },
+        exit: { opacity: 0, y: 32, rotate: -0.4 },
+        transition: paperSettle,
       };
 
   return (
@@ -184,28 +191,34 @@ export function Sheet({
           <motion.button
             aria-label="Close"
             onClick={close}
-            className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/55"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={easeStandard}
           />
           <motion.div
-            className="relative max-h-full w-full max-w-md overflow-y-auto rounded-3xl border border-ink-800 bg-ink-900 px-5 pb-5 pt-4 lg:max-w-2xl"
-            style={{ boxShadow: "var(--shadow-sheet)" }}
+            className="surface-leaf relative max-h-full w-full max-w-md overflow-y-auto rounded-[3px] px-5 pb-5 pt-4 lg:max-w-2xl"
+            style={{ boxShadow: "var(--shadow-book)" }}
             {...panelMotion}
           >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-ink-50">{title}</h2>
+            <div className="mb-3 flex items-center justify-between">
+              <h2
+                className="text-lg tracking-[0.04em] text-quill"
+                style={{ fontVariant: "small-caps" }}
+              >
+                {title}
+              </h2>
               <button
                 type="button"
                 onClick={close}
                 aria-label="Close"
-                className="flex size-8 items-center justify-center rounded-full bg-ink-800 text-ink-300 transition-colors hover:bg-ink-700 hover:text-ink-100"
+                className="flex size-8 items-center justify-center rounded-full border border-rule text-quill-soft transition-colors hover:border-rule-strong hover:text-quill"
               >
                 <X className="size-4" />
               </button>
             </div>
+            <hr className="brass-rule mb-4" />
             {children}
           </motion.div>
         </div>

@@ -12,7 +12,8 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useReimbursedAmountMap } from "@/hooks/useTransactions";
+import { useLeafScroll } from "@/components/leaf-scroll";
+import { useReimbursedAmountMap, useTransactions } from "@/hooks/useTransactions";
 import {
   PAGE_SIZE,
   useInfiniteTransactions,
@@ -164,12 +165,12 @@ function FilterChip({
     <button
       onClick={onClick}
       className={cn(
-        "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+        "flex h-8 shrink-0 items-center gap-1.5 rounded-[2px] border px-3 text-xs font-medium transition-colors",
         open
-          ? "border-teal-500 bg-teal-500/10 text-teal-300"
+          ? "border-accent bg-accent/10 text-accent"
           : active
-            ? "border-teal-500/50 bg-teal-500/5 text-teal-400"
-            : "border-ink-700 text-ink-400 hover:border-ink-600 hover:text-ink-200",
+            ? "border-accent/50 bg-accent/5 text-accent"
+            : "border-rule text-quill-soft hover:border-rule-strong hover:text-quill",
       )}
     >
       {dotColor && (
@@ -200,10 +201,10 @@ function OptionChip({
     <button
       onClick={onClick}
       className={cn(
-        "flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+        "flex h-8 items-center gap-1.5 rounded-[2px] border px-3 text-xs font-medium transition-colors",
         selected
-          ? "border-teal-500 bg-teal-500/10 text-teal-300"
-          : "border-ink-700 text-ink-400 hover:border-ink-600 hover:text-ink-200",
+          ? "border-accent bg-accent/10 text-accent"
+          : "border-rule text-quill-soft hover:border-rule-strong hover:text-quill",
       )}
     >
       {dotColor && (
@@ -233,7 +234,7 @@ function Pager({
   for (let i = start; i < end; i++) nums.push(i);
 
   const navBtn =
-    "flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+    "flex h-9 min-w-9 items-center justify-center rounded-[2px] border px-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
     <nav
@@ -244,11 +245,11 @@ function Pager({
         onClick={() => onPage(page - 1)}
         disabled={page === 0}
         aria-label="Previous page"
-        className={cn(navBtn, "border-ink-700 text-ink-300 hover:border-ink-600 hover:text-ink-100")}
+        className={cn(navBtn, "border-rule text-quill-soft hover:border-rule-strong hover:text-quill")}
       >
         <ChevronLeft className="size-4" />
       </button>
-      {start > 0 && <span className="px-1 text-sm text-ink-600">…</span>}
+      {start > 0 && <span className="px-1 text-sm text-quill-faint">…</span>}
       {nums.map((n) => (
         <button
           key={n}
@@ -257,19 +258,19 @@ function Pager({
           className={cn(
             navBtn,
             n === page
-              ? "border-teal-500 bg-teal-500/10 text-teal-300"
-              : "border-ink-700 text-ink-300 hover:border-ink-600 hover:text-ink-100",
+              ? "border-accent bg-accent/10 text-accent"
+              : "border-rule text-quill-soft hover:border-rule-strong hover:text-quill",
           )}
         >
           {n + 1}
         </button>
       ))}
-      {end < pageCount && <span className="px-1 text-sm text-ink-600">…</span>}
+      {end < pageCount && <span className="px-1 text-sm text-quill-faint">…</span>}
       <button
         onClick={() => onPage(page + 1)}
         disabled={page >= pageCount - 1}
         aria-label="Next page"
-        className={cn(navBtn, "border-ink-700 text-ink-300 hover:border-ink-600 hover:text-ink-100")}
+        className={cn(navBtn, "border-rule text-quill-soft hover:border-rule-strong hover:text-quill")}
       >
         <ChevronRight className="size-4" />
       </button>
@@ -286,7 +287,7 @@ function ListSkeleton() {
           <div className="mb-1 h-3 w-24 px-1">
             <div className="skeleton h-3 w-24 rounded" />
           </div>
-          <Card className="divide-y divide-ink-800/70 py-0">
+          <Card className="divide-y divide-rule py-0">
             {[0, 1, 2].map((r) => (
               <SkeletonRow key={r} />
             ))}
@@ -314,12 +315,7 @@ export function Transactions() {
   const [page, setPage] = useState(0);
 
   // Reveal the floating search button once the top search bar has scrolled away.
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 500);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  useLeafScroll((y) => setScrolled(y > 500));
 
   // Multi-select filters — empty Set means "all" (no restriction)
   const [typeFilters, setTypeFilters] = useState<Set<TransactionType>>(new Set());
@@ -349,6 +345,9 @@ export function Transactions() {
   const rates = useRateMap();
 
   const debouncedSearch = useDebouncedValue(search, 300);
+  // The whole ledger, for the running balance: a figure derived from one page
+  // of results would be wrong as soon as you scrolled.
+  const { data: allTxns = [] } = useTransactions();
   const bounds = getDateBounds(dateMode, customFrom, customTo);
 
   const tagMap = useMemo(
@@ -483,6 +482,61 @@ export function Transactions() {
 
   const groups = groupByDay(rows);
 
+  /**
+   * Running balance after each entry.
+   *
+   * Only computed when the figure would actually be true: a single account, in
+   * date order, with nothing filtered out. Any filter or a second account and
+   * the column is dropped rather than shown as plausible-looking nonsense.
+   *
+   * It walks the account's FULL ledger — a balance derived from one page would
+   * be wrong the moment you scrolled.
+   */
+  const balances = useMemo(() => {
+    const onlyAccount = accountFilters.size === 1 ? [...accountFilters][0]! : null;
+    const unfiltered =
+      typeFilters.size === 0 &&
+      categoryFilters.size === 0 &&
+      tagFilters.size === 0 &&
+      dateMode === "all" &&
+      !debouncedSearch.trim();
+    if (!onlyAccount || !unfiltered) return null;
+
+    const account = accounts.find((a) => a.id === onlyAccount);
+    if (!account) return null;
+
+    const mine = allTxns
+      .filter(
+        (t) => t.account_id === onlyAccount || t.destination_account_id === onlyAccount,
+      )
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    // Forward from the opening balance, so each entry records the balance as it
+    // stood immediately after it was posted.
+    const map = new Map<string, number>();
+    let running = account.opening_balance;
+    for (const t of mine) {
+      if (t.destination_account_id === onlyAccount && t.type === "transfer") {
+        running += t.destination_amount ?? t.amount;
+      } else if (t.type === "income" || t.type === "adjustment") {
+        running += t.amount;
+      } else {
+        running -= t.amount;
+      }
+      map.set(t.id, running);
+    }
+    return map;
+  }, [
+    accountFilters,
+    typeFilters,
+    categoryFilters,
+    tagFilters,
+    dateMode,
+    debouncedSearch,
+    accounts,
+    allTxns,
+  ]);
+
   // Dot colour for the account FilterChip when exactly one account is selected
   const singleAccountDot =
     accountFilters.size === 1
@@ -546,7 +600,7 @@ export function Transactions() {
   }
 
   const dateInputCls =
-    "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 focus:border-teal-500 focus:outline-none";
+    "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill focus:border-accent focus:outline-none";
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -566,19 +620,19 @@ export function Transactions() {
         <div className="mb-4 space-y-2">
           {/* ── Search ── */}
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-quill-faint" />
             <input
               type="search"
               placeholder="Search transactions…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-10 w-full rounded-xl border border-ink-700 bg-ink-900/60 pl-9 pr-9 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none"
+              className="h-10 w-full rounded-[2px] border border-rule bg-well pl-9 pr-9 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none"
             />
             {search && (
               <button
                 onClick={() => setSearch("")}
                 aria-label="Clear search"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-500 hover:text-ink-200"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-quill-faint hover:text-quill"
               >
                 <X className="size-4" />
               </button>
@@ -632,7 +686,7 @@ export function Transactions() {
               <button
                 onClick={clearAll}
                 aria-label="Clear all filters"
-                className="flex size-8 shrink-0 items-center justify-center rounded-full border border-ink-700 text-ink-500 transition-colors hover:border-ink-600 hover:text-ink-200"
+                className="flex size-8 shrink-0 items-center justify-center rounded-full border border-rule text-quill-faint transition-colors hover:border-rule-strong hover:text-quill"
               >
                 <X className="size-3.5" />
               </button>
@@ -642,7 +696,7 @@ export function Transactions() {
           {/* ── Active filter panel ── */}
 
           {activePanel === "type" && (
-            <div className="rounded-xl border border-ink-700/60 bg-ink-900/90 p-3">
+            <div className="rounded-[2px] border border-rule/60 bg-page-edge p-3">
               <div className="flex flex-wrap gap-2">
                 <OptionChip
                   label="All"
@@ -662,7 +716,7 @@ export function Transactions() {
           )}
 
           {activePanel === "account" && accounts.length > 1 && (
-            <div className="rounded-xl border border-ink-700/60 bg-ink-900/90 p-3">
+            <div className="rounded-[2px] border border-rule/60 bg-page-edge p-3">
               <div className="flex flex-wrap gap-2">
                 <OptionChip
                   label="All accounts"
@@ -683,7 +737,7 @@ export function Transactions() {
           )}
 
           {activePanel === "date" && (
-            <div className="space-y-3 rounded-xl border border-ink-700/60 bg-ink-900/90 p-3">
+            <div className="space-y-3 rounded-[2px] border border-rule/60 bg-page-edge p-3">
               <div className="flex flex-wrap gap-2">
                 {DATE_MODES.map(({ value, label }) => (
                   <OptionChip
@@ -697,7 +751,7 @@ export function Transactions() {
               {dateMode === "custom" && (
                 <div className="flex gap-2">
                   <label className="flex-1">
-                    <span className="mb-1 block text-xs text-ink-600">From</span>
+                    <span className="mb-1 block text-xs text-quill-faint">From</span>
                     <input
                       type="date"
                       value={customFrom}
@@ -707,7 +761,7 @@ export function Transactions() {
                     />
                   </label>
                   <label className="flex-1">
-                    <span className="mb-1 block text-xs text-ink-600">To</span>
+                    <span className="mb-1 block text-xs text-quill-faint">To</span>
                     <input
                       type="date"
                       value={customTo}
@@ -722,7 +776,7 @@ export function Transactions() {
           )}
 
           {activePanel === "category" && visibleCategories.length > 0 && (
-            <div className="rounded-xl border border-ink-700/60 bg-ink-900/90 p-3">
+            <div className="rounded-[2px] border border-rule/60 bg-page-edge p-3">
               <div className="flex flex-wrap gap-2">
                 <OptionChip
                   label="All categories"
@@ -742,7 +796,7 @@ export function Transactions() {
           )}
 
           {activePanel === "tag" && tags.length > 0 && (
-            <div className="rounded-xl border border-ink-700/60 bg-ink-900/90 p-3">
+            <div className="rounded-[2px] border border-rule/60 bg-page-edge p-3">
               <div className="flex flex-wrap gap-2">
                 <OptionChip
                   label="All tags"
@@ -763,7 +817,7 @@ export function Transactions() {
 
           {/* Result count — visible when any filter is active */}
           {hasFilters && !isLoading && (
-            <p className="text-right text-xs text-ink-600">
+            <p className="text-right text-xs text-quill-faint">
               {rows.length >= count
                 ? `${count} transactions`
                 : `${rows.length} of ${count} transactions`}
@@ -790,7 +844,7 @@ export function Transactions() {
           {hasFilters && (
             <button
               onClick={clearAll}
-              className="mt-3 w-full text-center text-sm text-teal-400 hover:text-teal-300"
+              className="mt-3 w-full text-center text-sm text-accent hover:text-quill"
             >
               Clear all filters
             </button>
@@ -809,10 +863,13 @@ export function Transactions() {
                 key={day}
                 variants={reduce ? undefined : listItemVariants}
               >
-                <h2 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                <h2
+                  className="mb-1 border-b border-rule pb-1 text-xs tracking-[0.14em] text-quill-soft"
+                  style={{ fontVariant: "small-caps" }}
+                >
                   {dayLabel(day)}
                 </h2>
-                <Card className="divide-y divide-ink-800/70 py-0">
+                <div>
                   {txns.map((tx) => {
                     const cat = tx.category_id
                       ? categories.get(tx.category_id)
@@ -822,8 +879,6 @@ export function Transactions() {
                         key={tx.id}
                         tx={tx}
                         categoryName={cat?.name}
-                        categoryIcon={cat?.icon}
-                        categoryColor={cat?.color}
                         accountName={accountMap.get(tx.account_id)}
                         toAccountName={
                           tx.destination_account_id
@@ -831,11 +886,12 @@ export function Transactions() {
                             : undefined
                         }
                         reimbursedAmount={reimbursedInTxCurrency.get(tx.id)}
+                        balance={balances?.get(tx.id)}
                         onClick={() => setEditing(tx)}
                       />
                     );
                   })}
-                </Card>
+                </div>
               </motion.section>
             ))}
           </motion.div>
@@ -846,13 +902,13 @@ export function Transactions() {
           ) : (
             <div ref={sentinelRef} className="pt-2">
               {infinite.isFetchingNextPage && (
-                <Card className="divide-y divide-ink-800/70 py-0">
+                <Card className="divide-y divide-rule py-0">
                   <SkeletonRow />
                   <SkeletonRow />
                 </Card>
               )}
               {!infinite.hasNextPage && count > PAGE_SIZE && (
-                <p className="py-4 text-center text-xs text-ink-600">
+                <p className="py-4 text-center text-xs text-quill-faint">
                   You’re all caught up
                 </p>
               )}
@@ -869,8 +925,8 @@ export function Transactions() {
           tabIndex={scrolled ? 0 : -1}
           className={cn(
             "fixed bottom-56 left-5 z-30 flex size-11 items-center justify-center rounded-full",
-            "border border-ink-700 bg-ink-900/90 text-ink-200 shadow-lg shadow-ink-950/40 backdrop-blur",
-            "transition-all hover:bg-ink-800 hover:text-ink-50",
+            "border border-rule-strong bg-page text-quill-soft shadow-[0_3px_10px_rgb(0_0_0/0.4)]",
+            "transition-all hover:text-quill",
             "lg:bottom-40 lg:left-auto lg:right-8",
             scrolled
               ? "opacity-100"
@@ -889,11 +945,11 @@ export function Transactions() {
           aria-label="Show only what I'm owed (unsettled reimbursable)"
           title="What I'm owed"
           className={cn(
-            "fixed bottom-24 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-ink-950/40 backdrop-blur transition-colors",
-            "lg:bottom-8 lg:left-auto lg:right-8",
+            "fixed bottom-24 left-5 z-30 flex size-11 items-center justify-center rounded-full transition-colors",
+            "shadow-[0_3px_10px_rgb(0_0_0/0.4)] lg:bottom-8 lg:left-auto lg:right-8",
             owedOnly
-              ? "border border-teal-500/60 bg-teal-500/15 text-teal-300 hover:bg-teal-500/25"
-              : "border border-ink-700 bg-ink-900/90 text-ink-200 hover:bg-ink-800 hover:text-ink-50",
+              ? "brass-face"
+              : "border border-rule-strong bg-page text-quill-soft hover:text-quill",
           )}
         >
           <Receipt className="size-5" />
@@ -907,11 +963,11 @@ export function Transactions() {
           aria-pressed={flaggedOnly}
           aria-label="Show flagged only"
           className={cn(
-            "fixed bottom-40 left-5 z-30 flex size-11 items-center justify-center rounded-full shadow-lg shadow-ink-950/40 backdrop-blur transition-colors",
-            "lg:bottom-24 lg:left-auto lg:right-8",
+            "fixed bottom-40 left-5 z-30 flex size-11 items-center justify-center rounded-full transition-colors",
+            "shadow-[0_3px_10px_rgb(0_0_0/0.4)] lg:bottom-24 lg:left-auto lg:right-8",
             flaggedOnly
-              ? "border border-amber-500/60 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
-              : "border border-ink-700 bg-ink-900/90 text-ink-200 hover:bg-ink-800 hover:text-ink-50",
+              ? "brass-face"
+              : "border border-rule-strong bg-page text-quill-soft hover:text-quill",
           )}
         >
           <Flag className="size-5" />
@@ -990,12 +1046,12 @@ function SearchOverlay({
       <button
         aria-label="Close"
         onClick={onClose}
-        className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/55"
       />
-      <div className="relative flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-3xl border border-ink-800 bg-ink-900 shadow-2xl shadow-ink-950/40 lg:max-w-lg">
+      <div className="relative flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-[2px] border border-rule bg-page-edge shadow-2xl shadow-black/40 lg:max-w-lg">
         {/* Search input */}
-        <div className="flex items-center gap-2 border-b border-ink-800 px-4 py-3">
-          <Search className="size-4 shrink-0 text-ink-500" />
+        <div className="flex items-center gap-2 border-b border-rule px-4 py-3">
+          <Search className="size-4 shrink-0 text-quill-faint" />
           <input
             autoFocus
             value={search}
@@ -1003,7 +1059,7 @@ function SearchOverlay({
             onKeyDown={(e) => e.key === "Escape" && onClose()}
             placeholder="Search transactions…"
             aria-label="Search transactions"
-            className="w-full bg-transparent text-sm text-ink-50 placeholder:text-ink-600 focus:outline-none"
+            className="w-full bg-transparent text-sm text-quill placeholder:text-quill-faint focus:outline-none"
           />
           {loading && <Spinner className="size-4" />}
           {search && (
@@ -1011,7 +1067,7 @@ function SearchOverlay({
               type="button"
               onClick={() => onSearch("")}
               aria-label="Clear search"
-              className="text-ink-500 transition-colors hover:text-ink-200"
+              className="text-quill-faint transition-colors hover:text-quill"
             >
               <X className="size-4" />
             </button>
@@ -1020,7 +1076,7 @@ function SearchOverlay({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex size-7 shrink-0 items-center justify-center rounded-full bg-ink-800 text-ink-300 transition-colors hover:bg-ink-700 hover:text-ink-100"
+            className="flex size-7 shrink-0 items-center justify-center rounded-full bg-page-edge text-quill-soft transition-colors hover:bg-rule hover:text-quill"
           >
             <X className="size-3.5" />
           </button>
@@ -1029,7 +1085,7 @@ function SearchOverlay({
         {/* Results */}
         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
           {results.length === 0 ? (
-            <p className="px-2 py-10 text-center text-sm text-ink-500">
+            <p className="px-2 py-10 text-center text-sm text-quill-faint">
               {search.trim()
                 ? loading
                   ? "Searching…"
@@ -1037,7 +1093,7 @@ function SearchOverlay({
                 : "Type to search your transactions."}
             </p>
           ) : (
-            <div className="divide-y divide-ink-800/70">
+            <div className="divide-y divide-rule">
               {results.slice(0, 50).map((tx) => {
                 const cat = tx.category_id
                   ? categories.get(tx.category_id)
@@ -1047,8 +1103,6 @@ function SearchOverlay({
                     key={tx.id}
                     tx={tx}
                     categoryName={cat?.name}
-                    categoryIcon={cat?.icon}
-                    categoryColor={cat?.color}
                     accountName={accountMap.get(tx.account_id)}
                     toAccountName={
                       tx.destination_account_id
@@ -1061,7 +1115,7 @@ function SearchOverlay({
                 );
               })}
               {results.length >= 50 && (
-                <p className="py-3 text-center text-xs text-ink-500">
+                <p className="py-3 text-center text-xs text-quill-faint">
                   Showing the first 50 — refine your search
                 </p>
               )}

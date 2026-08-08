@@ -31,30 +31,35 @@ export const easeStandard: Transition = {
   ease: [0.22, 1, 0.36, 1],
 };
 
+/* ══ Paper ═══════════════════════════════════════════════════════════════
+   The ledger's motion. Paper has weight but no rebound — it comes to rest
+   rather than springing back, so none of these are springs. The presets
+   above belong to the outgoing UI and go with it.
+
+   Two rules for anything using these: animate only `transform` and
+   `opacity`, and turn a snapshot rather than a mounted list of a thousand
+   rows. Both are what keep the illusion at 60fps on a phone.              */
+
+/** Turning to another month. The signature move; long enough to read. */
+export const paperTurn: Transition = {
+  duration: 0.52,
+  ease: [0.32, 0.72, 0.24, 1],
+};
+
+/** A sheet or card coming to rest — sliding in, settling, no overshoot. */
+export const paperSettle: Transition = {
+  duration: 0.34,
+  ease: [0.2, 0.8, 0.2, 1],
+};
+
+/** A tab depressing under a thumb. Immediate, barely there. */
+export const pressDown: Transition = {
+  duration: 0.12,
+  ease: [0.4, 0, 0.2, 1],
+};
+
 /** Re-export so callers import motion helpers from one place. */
 export { useReducedMotion };
-
-/**
- * Collapse a variants object to opacity-only when the user prefers reduced
- * motion: strip transforms (x/y/scale) and swap springs for an instant fade.
- * Pass the result straight to a `<motion.*>` `variants` prop.
- */
-export function withReducedMotion(
-  variants: Variants,
-  reduced: boolean | null,
-): Variants {
-  if (!reduced) return variants;
-  const out: Variants = {};
-  for (const [key, value] of Object.entries(variants)) {
-    if (value && typeof value === "object") {
-      const opacity = (value as { opacity?: number }).opacity ?? 1;
-      out[key] = { opacity, transition: { duration: 0.12 } };
-    } else {
-      out[key] = value;
-    }
-  }
-  return out;
-}
 
 /** Standard list-item entrance (used with a staggered parent). */
 export const listItemVariants: Variants = {

@@ -7,6 +7,7 @@ import { linkedInvestmentValues, type BalanceOverride } from "@/lib/investments"
 import type {
   Account,
   InvestmentAccount,
+  InvestmentHistoryPoint,
   InvestmentSnapshot,
   InvestmentSnapshotInsert,
 } from "@/lib/types";
@@ -152,6 +153,30 @@ export function useClearInvestmentSnapshot() {
     onSuccess: () => {
       client.setQueryData(qk.investmentSnapshot, null);
       void client.invalidateQueries({ queryKey: qk.accounts });
+    },
+  });
+}
+
+/**
+ * Portfolio value over time, oldest first. Appended by the Zenith sync — one
+ * point per day — so the series only ever grows.
+ */
+export function useInvestmentHistory(source = "zenith") {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: qk.investmentHistory,
+    enabled: !!user,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+    queryFn: async (): Promise<InvestmentHistoryPoint[]> => {
+      const { data, error } = await supabase
+        .from("investment_history")
+        .select("*")
+        .eq("source", source)
+        .order("date", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
     },
   });
 }

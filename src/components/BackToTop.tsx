@@ -1,35 +1,30 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ChevronUp } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useLeafScroll, useLeafTop } from "@/components/leaf-scroll";
 
 /**
- * Floating "scroll to top" button. Fades/slides in from the top once the page
- * is scrolled past a threshold; centred at the top of the screen (clearing the
- * sticky header on desktop), so it never collides with bottom content.
+ * Back to the head of the leaf. Appears once you've read a long way down and
+ * sits centred at the top, clear of everything else.
  */
 export function BackToTop() {
   const [show, setShow] = useState(false);
+  const toTop = useLeafTop();
 
-  useEffect(() => {
-    const onScroll = () => setShow(window.scrollY > 1200);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  // Roughly a screenful. The old 1200 was tuned for a scrolling window; a leaf
+  // is only ever as tall as its own content and often never reaches that.
+  useLeafScroll((y) => setShow(y > 600));
 
   return (
     <button
       type="button"
-      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      onClick={() => toTop()}
       aria-label="Back to top"
       tabIndex={show ? 0 : -1}
-      style={{ top: "calc(env(safe-area-inset-top) + 0.9rem)" }}
       className={cn(
-        "fixed left-1/2 z-40 flex size-10 -translate-x-1/2 items-center justify-center rounded-full",
-        "border border-ink-700/60 bg-ink-950/70 text-ink-200 backdrop-blur-xl",
-        "shadow-[var(--shadow-float)] transition-all duration-200 hover:text-ink-50",
-        // Desktop: sit just below the sticky top nav bar (h-16).
-        "lg:!top-20",
+        "absolute left-1/2 top-4 z-30 flex size-9 -translate-x-1/2 items-center justify-center",
+        "rounded-full border border-rule bg-page text-quill-soft",
+        "shadow-[0_2px_8px_rgb(0_0_0/0.35)] transition-all duration-200 hover:text-quill",
         show
           ? "translate-y-0 opacity-100"
           : "pointer-events-none -translate-y-3 opacity-0",

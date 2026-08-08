@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { format, subMonths } from "date-fns";
-import { ChevronDown, ChevronLeft, ChevronRight, Plane, Plus, Target } from "lucide-react";
+import { format, parseISO, subMonths } from "date-fns";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -11,6 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useLeafScroll } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useCategories } from "@/hooks/useCategories";
@@ -25,46 +29,57 @@ import {
   goalFunding,
   groupLinks,
   groupTxnLinks,
-  periodLabel,
 } from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import {
+  useInvestmentHistory,
   useInvestmentOverrides,
   useInvestmentSnapshot,
 } from "@/hooks/useInvestmentSnapshot";
 import { investmentTotalInBase } from "@/lib/investments";
 import { balancesByCurrency } from "@/lib/balances";
-import { ACCOUNT_TYPE_COLORS } from "@/lib/account-colors";
-import { totalInBase } from "@/lib/fx";
+import { readShowHomeBudgets } from "@/lib/ledger";
+import { convert, totalInBase, type RateMap } from "@/lib/fx";
 import {
   cashflowForRange,
   monthBounds,
-  monthLabel,
   monthlyCashflow,
+  monthLabel,
   spendingByCategory,
   type CashflowMode,
   type MonthlyPoint,
 } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { Button, Card, EmptyState, Spinner } from "@/components/ui";
+import { useReducedMotion } from "@/lib/motion";
+import { Spinner } from "@/components/ui";
+import {
+  ChartEmpty,
+  headInk,
+  LeadFigure,
+  MarginLink,
+  PacingBar,
+  PageHead,
+  Plate,
+  Register,
+  Spread,
+  Statement,
+  tooltipStyle,
+  useLedgerInk,
+  type Ink,
+} from "@/components/ledger";
 import { HoverDonut } from "@/components/HoverDonut";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
-import type { Budget, InvestmentSnapshot } from "@/lib/types";
-
-const TOOLTIP_STYLE = {
-  background: "#111a24",
-  border: "1px solid #2b3947",
-  borderRadius: 12,
-  fontSize: 12,
-  color: "#e9eef4",
-} as const;
+import type { Budget, InvestmentHistoryPoint } from "@/lib/types";
 
 export function Dashboard() {
   const [adding, setAdding] = useState(false);
   // monthBack: 0 = current month, 1 = last month, etc.
   const [monthBack, setMonthBack] = useState(0);
+  // +1 when you turned back through the book, -1 when you turned forward. Only
+  // the sign is used, to point the month transition the right way.
+  const [turned, setTurned] = useState(1);
   const [cashflowMode, setCashflowMode] = useState<CashflowMode>("net");
   // "" = all accounts; otherwise scope the whole overview to one account.
   const [accountFilter, setAccountFilter] = useState<string>("");
@@ -81,6 +96,13 @@ export function Dashboard() {
   const { data: budgetTxnLinks = [] } = useBudgetTransactionLinks();
   const reimbursedMap = useReimbursedAmountMap();
   const { data: investSnapshot } = useInvestmentSnapshot();
+  const { data: investHistory = [] } = useInvestmentHistory();
+
+  // Must sit with the other hooks: an early return below would otherwise make
+  // the hook count differ between the loading and loaded renders.
+  const ink = useLedgerInk();
+  const reduce = useReducedMotion();
+  const showBudgets = readShowHomeBudgets();
 
   const accounts = accountsQ.data ?? [];
   const txns = allTxnsQ.data ?? [];
@@ -132,7 +154,8 @@ export function Dashboard() {
   // Each of these sums a scoped slice but resolves reimbursements against the
   // full ledger (`txns`) — a repayment in another month or account still counts.
   const month = cashflowForRange(scopedTxns, baseCurrency, rates, from, to, cashflowMode, txns);
-  // Trend carries each bar's yyyy-MM so a click can deep-link into Analytics.
+  // Six months of received-vs-expended; each bar carries its yyyy-MM so a click
+  // can open that month in Analytics.
   const trend = useMemo(
     () =>
       monthlyCashflow(scopedTxns, baseCurrency, rates, 6, undefined, cashflowMode, txns).map(
@@ -140,6 +163,7 @@ export function Dashboard() {
       ),
     [scopedTxns, txns, baseCurrency, rates, cashflowMode],
   );
+
   const categorySlices = spendingByCategory(
     scopedTxns,
     categoriesQ.data ?? [],
@@ -152,7 +176,7 @@ export function Dashboard() {
   );
 
   // ── Budgets — recurring use a period window; goals are transaction-funded ────
-  const { expenseRows, savingRows, goalRows, expenseTotals } = useMemo(() => {
+  const { expenseRows, expenseTotals } = useMemo(() => {
     const links = groupLinks(budgetLinks);
     const txnLinks = groupTxnLinks(budgetTxnLinks);
     const recurring = budgets.filter((b) => b.type !== "goal");
@@ -207,82 +231,31 @@ export function Dashboard() {
     );
   }
 
-  return (
-    <div>
-      <header className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
-            Overview
-          </h1>
-          <div className="mt-0.5 flex items-center gap-0.5">
-            <button
-              onClick={() => setMonthBack((m) => m + 1)}
-              className="flex size-6 items-center justify-center rounded-md text-ink-500 hover:bg-ink-800 hover:text-ink-200 transition-colors"
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <span className="min-w-[7rem] text-center text-sm text-ink-400">
-              {monthLabel(refDate)}
-            </span>
-            <button
-              onClick={() => setMonthBack((m) => Math.max(m - 1, 0))}
-              disabled={monthBack === 0}
-              className="flex size-6 items-center justify-center rounded-md text-ink-500 hover:bg-ink-800 hover:text-ink-200 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
-              aria-label="Next month"
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
-        </div>
+  const asAt = format(new Date(), "d MMMM yyyy");
+  const periodNote = monthBack === 0 ? "this month" : monthLabel(refDate);
 
-        {/* Cashflow mode toggle */}
-        <div className="flex items-center gap-1 rounded-xl border border-ink-700/60 bg-ink-900/60 p-1">
-          {(["gross", "net"] as CashflowMode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => setCashflowMode(m)}
-              className={cn(
-                "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-colors",
-                cashflowMode === m
-                  ? "bg-ink-700 text-ink-100"
-                  : "text-ink-500 hover:text-ink-300",
-              )}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-        <Button
-          className="hidden lg:inline-flex"
-          onClick={() => setAdding(true)}
-        >
-          <Plus className="size-4" /> New transaction
-        </Button>
-      </header>
+  const cashflowPlate = (
+    <Plate caption="Cashflow" note="Last 6 months · tap a month for detail">
+      <CashflowBars
+        data={trend}
+        base={baseCurrency}
+        onMonthClick={(mk) => navigate(`/analytics?month=${mk}`)}
+      />
+    </Plate>
+  );
 
-      {/* Account scope filter — a compact dropdown (mobile-friendly) */}
-      {accounts.length > 1 && (
-        <div className="mb-4">
-          <div className="relative w-full sm:max-w-xs">
-            {accountFilter && (
-              <span
-                className={cn(
-                  "pointer-events-none absolute left-3 top-1/2 size-2.5 -translate-y-1/2 rounded-full",
-                  ACCOUNT_TYPE_COLORS[
-                    accounts.find((a) => a.id === accountFilter)?.type ?? "checking"
-                  ].dot,
-                )}
-              />
-            )}
+  const verso = (
+    <>
+      <PageHead
+        title="The position"
+        note={`As at ${asAt}`}
+        action={
+          accounts.length > 1 ? (
             <select
-              aria-label="Filter overview by account"
+              aria-label="Scope the book to one account"
               value={accountFilter}
               onChange={(e) => setAccountFilter(e.target.value)}
-              className={cn(
-                "h-9 w-full appearance-none rounded-xl border border-ink-700 bg-ink-900/60 pr-9 text-sm font-medium text-ink-100 focus:border-teal-500 focus:outline-none",
-                accountFilter ? "pl-8" : "pl-3",
-              )}
+              className="max-w-[7.5rem] truncate border-0 border-b border-rule bg-transparent pb-0.5 text-xs text-quill-soft focus:border-brass focus:outline-none"
             >
               <option value="">All accounts</option>
               {accounts.map((a) => (
@@ -291,505 +264,200 @@ export function Dashboard() {
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-ink-500" />
-          </div>
-        </div>
+          ) : undefined
+        }
+      />
+
+      <LeadFigure
+        label={accountFilter ? "Balance" : "Net worth"}
+        value={formatMoney(combinedNetWorth, baseCurrency)}
+      />
+
+      {/* An unconverted currency means the figure above is understated, so the
+          caveat belongs with it rather than beside a currency list. */}
+      {missing.length > 0 && (
+        <p className="-mt-1 mb-1 text-xs italic text-debit">
+          {missing.join(", ")} not converted —{" "}
+          <Link to="/settings" className="underline">
+            set a rate
+          </Link>
+        </p>
       )}
 
-      {/* Stat row */}
-      {(() => {
-        const subLabel = monthBack === 0 ? "this month" : monthLabel(refDate);
-        return (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat
-              label={accountFilter ? "Balance" : "Net worth"}
-              sub={showInvest ? "cash + invest" : undefined}
-              value={formatMoney(combinedNetWorth, baseCurrency)}
-              accent
-            />
-            <Stat
-              label="Income"
-              sub={subLabel}
-              value={formatMoney(month.income, baseCurrency)}
-              tone="up"
-            />
-            <Stat
-              label="Expenses"
-              sub={subLabel}
-              value={formatMoney(month.expense, baseCurrency)}
-              tone="down"
-            />
-            <Stat
-              label="Net"
-              sub={subLabel}
-              value={formatMoney(month.net, baseCurrency)}
-              tone={month.net >= 0 ? "up" : "down"}
-            />
-          </div>
-        );
-      })()}
 
       {showInvest && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-ink-800/70 px-2.5 py-1 text-ink-300">
-            Cash{" "}
-            <span className="tnum text-ink-100">
-              {formatMoney(combinedNetWorth - investBase, baseCurrency)}
-            </span>
-          </span>
-          <span className="rounded-full bg-violet-500/12 px-2.5 py-1 text-violet-300">
-            Investments{" "}
-            <span className="tnum">{formatMoney(investBase, baseCurrency)}</span>
-          </span>
-        </div>
-      )}
-
-      {(byCurrency && Object.keys(byCurrency).length > 1) || missing.length > 0 ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {Object.entries(byCurrency).map(([c, v]) => (
-            <span
-              key={c}
-              className="tnum rounded-full bg-ink-800/70 px-2.5 py-1 text-xs text-ink-300"
-            >
-              {formatMoney(v, c)} <span className="text-ink-500">{c}</span>
-            </span>
-          ))}
-          {missing.length > 0 && (
-            <span className="text-xs text-amber-400/80">
-              {missing.join(", ")} not converted —{" "}
-              <Link to="/settings" className="underline">
-                set a rate
-              </Link>
-            </span>
-          )}
-        </div>
-      ) : null}
-
-      {/* Charts */}
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Widget title="Cashflow" hint="Last 6 months · tap a month for detail" className="lg:col-span-2">
-          <CashflowBars
-            data={trend}
-            base={baseCurrency}
-            onMonthClick={(mk) => navigate(`/analytics?month=${mk}`)}
+        <div className="mt-3">
+          <Statement
+            rows={[
+              {
+                label: "Held in cash",
+                value: formatMoney(combinedNetWorth - investBase, baseCurrency),
+              },
+              { label: "Held in investments", value: formatMoney(investBase, baseCurrency) },
+            ]}
           />
-        </Widget>
-        <Widget
-          title="Spending"
-          hint={`By category, ${monthBack === 0 ? "this month" : monthLabel(refDate)}`}
-          action={
-            <Link
-              to={`/analytics?month=${format(refDate, "yyyy-MM")}`}
-              className="text-sm text-teal-400"
-            >
-              More details
-            </Link>
-          }
-        >
-          {categorySlices.length === 0 ? (
-            <ChartEmpty label="No spending recorded this month" />
-          ) : (
-            <HoverDonut slices={categorySlices} base={baseCurrency} centerLabel="Spent" legendCount={5} />
-          )}
-        </Widget>
-      </div>
-
-      {/* Investments — pulled live from Zenith */}
-      {showInvest && investSnapshot && (
-        <div className="mt-4">
-          <Widget
-            title="Investments"
-            hint={
-              investSnapshot.as_of
-                ? `Zenith · as of ${new Date(investSnapshot.as_of).toLocaleDateString()}`
-                : "Zenith"
-            }
-            action={
-              <Link to="/settings" className="text-sm text-teal-400">
-                Manage
-              </Link>
-            }
-          >
-            <InvestmentsList
-              snapshot={investSnapshot}
-              base={baseCurrency}
-              investBase={investBase}
-            />
-          </Widget>
         </div>
       )}
 
-      {/* Budgets — expense (counts down) & savings (count up) */}
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Widget
-          title="Budget"
-          hint="Spending budgets"
-          action={
-            <Link to="/budgets" className="text-sm text-teal-400">
-              Manage
-            </Link>
-          }
-        >
-          {expenseRows.length === 0 ? (
-            <EmptyState
-              icon={<Target className="size-6" />}
-              title="No budgets yet"
-              hint="Create a budget to track spending."
-            />
-          ) : (
-            <div className="space-y-3">
-              {expenseRows.length > 1 && (
-                <BudgetSummaryRow
-                  spent={expenseTotals.spent}
-                  budget={expenseTotals.budget}
-                  base={baseCurrency}
-                />
-              )}
-              <ul className="space-y-3">
-                {expenseRows.slice(0, 4).map(({ b, spent, pacing }) => {
-                  const left = b.amount - spent;
-                  const ratio = b.amount > 0 ? spent / b.amount : 0;
-                  return (
-                    <li key={b.id}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-ink-100">
-                            {b.name}
-                          </p>
-                          <p className="text-xs text-ink-500">
-                            {periodLabel(b)}
-                            {pacing.daysLeft != null &&
-                              ` · ${pacing.daysLeft === 0 ? "ends today" : `${pacing.daysLeft}d left`}`}
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <span
-                            className={cn(
-                              "tnum text-sm font-medium",
-                              left < 0 ? "text-rose-400" : "text-ink-200",
-                            )}
-                          >
-                            {formatMoney(Math.abs(left), baseCurrency)}{" "}
-                            {left < 0 ? "over" : "left"}
-                          </span>
-                          <p className="tnum text-[11px] text-ink-500">
-                            {Math.round(ratio * 100)}% used
-                          </p>
-                        </div>
-                      </div>
-                      <MiniBar ratio={ratio} elapsed={pacing.elapsedRatio} />
-                      {left < 0 && (
-                        <p className="tnum mt-1 text-[11px] text-rose-400/80">
-                          {formatMoney(spent, baseCurrency)} of{" "}
-                          {formatMoney(b.amount, baseCurrency)} ·{" "}
-                          {formatMoney(-left, baseCurrency)} over
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-                {expenseRows.length > 4 && (
-                  <li>
-                    <Link
-                      to="/budgets"
-                      className="block pt-1 text-xs text-ink-500 hover:text-teal-300"
-                    >
-                      +{expenseRows.length - 4} more
-                    </Link>
-                  </li>
+      {showInvest && (
+        <Plate caption="Investments" note="Value over time">
+          <InvestmentsPlate
+            history={investHistory}
+            base={baseCurrency}
+            rates={rates}
+            ink={ink}
+          />
+        </Plate>
+      )}
+
+      {/* Six months of received-against-expended. It belongs on the verso: the
+          shape of the last half-year is part of where you stand, not part of
+          what happened this month. */}
+      {cashflowPlate}
+    </>
+  );
+
+  // ── Recto: the movement ───────────────────────────────────────────────────
+  const recto = (
+    <>
+      <PageHead
+        title={monthLabel(refDate)}
+        note={
+          <span className="inline-flex items-center gap-2">
+            {(["gross", "net"] as CashflowMode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setCashflowMode(m)}
+                className={cn(
+                  "tap capitalize transition-colors",
+                  cashflowMode === m
+                    ? "text-quill underline decoration-brass underline-offset-4"
+                    : "text-quill-faint hover:text-quill-soft",
                 )}
-              </ul>
-            </div>
-          )}
-        </Widget>
+              >
+                {m}
+              </button>
+            ))}
+          </span>
+        }
+        action={
+          <span className="flex items-center gap-1">
+            <button
+              onClick={() => {
+                setTurned(1);
+                setMonthBack((m) => m + 1);
+              }}
+              className="tap flex size-6 items-center justify-center text-quill-faint transition-colors hover:text-quill"
+              aria-label="Previous month"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <button
+              onClick={() => {
+                setTurned(-1);
+                setMonthBack((m) => Math.max(m - 1, 0));
+              }}
+              disabled={monthBack === 0}
+              className="tap flex size-6 items-center justify-center text-quill-faint transition-colors hover:text-quill disabled:cursor-not-allowed disabled:opacity-25"
+              aria-label="Next month"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </span>
+        }
+      />
 
-        <Widget
-          title="Goals & savings"
-          hint="Progress toward targets"
-          action={
-            <Link to="/budgets" className="text-sm text-teal-400">
-              Manage
-            </Link>
-          }
+      {/* The month's figures slide the way you turned. Back a month and they
+          come in from the left, the way an earlier page would. */}
+      <AnimatePresence mode="wait" initial={false} custom={turned}>
+        <motion.div
+          key={monthBack}
+          custom={turned}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, x: turned > 0 ? -24 : 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={reduce ? { opacity: 0 } : { opacity: 0, x: turned > 0 ? 24 : -24 }}
+          transition={{ duration: reduce ? 0.1 : 0.24, ease: [0.2, 0.8, 0.2, 1] }}
         >
-          {goalRows.length === 0 && savingRows.length === 0 ? (
-            <EmptyState
-              icon={<Plane className="size-6" />}
-              title="No goals yet"
-              hint="Create a one-time goal or a savings budget to track progress."
-            />
-          ) : (
-            <ul className="space-y-3">
-              {/* Goals first (transaction-funded, stacked bar) */}
-              {goalRows.slice(0, 4).map(({ b, funding }) => (
-                <li key={b.id}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink-100">
-                        {b.name}
-                      </p>
-                      <p className="text-xs text-ink-500">
-                        {funding.daysLeft == null
-                          ? "Goal"
-                          : funding.daysLeft < 0
-                            ? "Overdue"
-                            : `${funding.daysLeft}d left`}
-                      </p>
-                    </div>
-                    <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
-                      {formatMoney(funding.funded, baseCurrency)}
-                      <span className="text-ink-600">
-                        {" "}
-                        / {formatMoney(b.amount, baseCurrency)}
-                      </span>
-                    </span>
-                  </div>
-                  <MiniStackedBar
-                    spent={funding.spent}
-                    saved={funding.saved}
-                    target={b.amount}
-                  />
-                </li>
-              ))}
+          <Statement
+            rows={[
+              { label: "Received", value: formatMoney(month.income, baseCurrency), tone: "credit" },
+              { label: "Expended", value: formatMoney(month.expense, baseCurrency), tone: "debit" },
+            ]}
+            total={{
+              label: "Net",
+              value: formatMoney(month.net, baseCurrency),
+              tone: month.net >= 0 ? "credit" : "debit",
+            }}
+          />
+        </motion.div>
+      </AnimatePresence>
 
-              {/* Recurring savings fill any remaining slots */}
-              {savingRows
-                .slice(0, Math.max(0, 4 - goalRows.length))
-                .map(({ b, spent }) => {
-                  const ratio = b.amount > 0 ? spent / b.amount : 0;
-                  return (
-                    <li key={b.id}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-ink-100">
-                            {b.name}
-                          </p>
-                          <p className="text-xs text-ink-500">{periodLabel(b)}</p>
-                        </div>
-                        <span className="tnum shrink-0 text-sm font-medium text-emerald-400">
-                          {formatMoney(spent, baseCurrency)}
-                          <span className="text-ink-600">
-                            {" "}
-                            / {formatMoney(b.amount, baseCurrency)}
-                          </span>
-                        </span>
-                      </div>
-                      <MiniBar ratio={ratio} savings />
-                    </li>
-                  );
-                })}
 
-              {goalRows.length + savingRows.length > 4 && (
-                <li>
-                  <Link
-                    to="/budgets"
-                    className="block pt-1 text-xs text-ink-500 hover:text-teal-300"
-                  >
-                    +{goalRows.length + savingRows.length - 4} more
-                  </Link>
-                </li>
-              )}
-            </ul>
-          )}
-        </Widget>
-      </div>
+      <Plate
+        caption="Expenditure, by head"
+        note={periodNote}
+        action={
+          <Link to={`/analytics?month=${format(refDate, "yyyy-MM")}`}>
+            <MarginLink>more detail</MarginLink>
+          </Link>
+        }
+      >
+        {categorySlices.length === 0 ? (
+          <ChartEmpty label="Nothing expended this month" />
+        ) : (
+          <HoverDonut
+            slices={categorySlices.map((s, i) => ({ ...s, color: headInk(i, ink) }))}
+            base={baseCurrency}
+            centerLabel="Spent"
+            legendCount={5}
+            size={124}
+          />
+        )}
+      </Plate>
 
+      {/* A phone never opens the verso, so the plate is repeated here — hidden
+          the moment there is a left page to carry it. */}
+      <div className="lg:hidden">{cashflowPlate}</div>
+
+      {showBudgets && (
+      <Register
+        title="Budgets"
+        action={
+          <Link to="/analytics?view=budgets">
+            <MarginLink>manage</MarginLink>
+          </Link>
+        }
+      >
+        {expenseRows.length === 0 ? (
+          <p className="text-sm italic text-quill-faint">
+            No budgets set. Create one to track spending against a limit.
+          </p>
+        ) : (
+          <BudgetSummary
+            spent={expenseTotals.spent}
+            budget={expenseTotals.budget}
+            base={baseCurrency}
+          />
+        )}
+      </Register>
+      )}
+    </>
+  );
+
+  return (
+    <div>
+      <Spread verso={verso} recto={recto} />
       <FloatingAdd onClick={() => setAdding(true)} />
       {adding && <AddTransactionSheet onClose={() => setAdding(false)} />}
     </div>
   );
 }
 
+
 // --- building blocks -------------------------------------------------------
 
-function Stat({
-  label,
-  sub,
-  value,
-  tone,
-  accent,
-}: {
-  label: string;
-  sub?: string;
-  value: string;
-  tone?: "up" | "down";
-  accent?: boolean;
-}) {
-  // Adaptive size so big values (e.g. $12,345,678) don't overflow the card,
-  // including on 375px phones where the grid is two columns.
-  const size =
-    value.length > 14
-      ? "text-base lg:text-lg"
-      : value.length > 11
-        ? "text-lg lg:text-xl"
-        : "text-xl lg:text-2xl";
-
-  return (
-    <Card className="min-w-0 p-3.5 lg:p-4">
-      <p className="truncate text-xs font-medium text-ink-400">
-        {label} {sub && <span className="text-ink-600">· {sub}</span>}
-      </p>
-      <p
-        className={cn(
-          "tnum mt-1 break-words font-semibold leading-tight tracking-tight",
-          size,
-          accent
-            ? "text-ink-50"
-            : tone === "up"
-              ? "text-teal-400"
-              : tone === "down"
-                ? "text-rose-400"
-                : "text-ink-100",
-        )}
-      >
-        {value}
-      </p>
-    </Card>
-  );
-}
-
-function Widget({
-  title,
-  hint,
-  action,
-  className,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  action?: ReactNode;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Card className={cn("flex min-w-0 flex-col", className)}>
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-semibold text-ink-200">{title}</h2>
-          {hint && <p className="text-xs text-ink-500">{hint}</p>}
-        </div>
-        {action}
-      </div>
-      <div className="flex-1">{children}</div>
-    </Card>
-  );
-}
-
-/**
- * Slim progress bar for the Budget/Goals widgets. Colour signals within vs over
- * budget (teal → amber → rose); the optional `elapsed` tick marks an even pace.
- */
-function MiniBar({
-  ratio,
-  savings = false,
-  elapsed,
-}: {
-  ratio: number;
-  savings?: boolean;
-  elapsed?: number | null;
-}) {
-  // Over budget → two-tone: amber up to the limit, rose for the overspend.
-  if (!savings && ratio > 1) {
-    const budgetFrac = (1 / ratio) * 100;
-    return (
-      <div
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={100}
-        aria-label={`${Math.round(ratio * 100)}% of budget — over by ${Math.round((ratio - 1) * 100)}%`}
-        className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-ink-800"
-      >
-        <div className="h-full bg-amber-500" style={{ width: `${budgetFrac}%` }} />
-        <div
-          className="h-full bg-rose-500 ring-1 ring-inset ring-rose-300/30"
-          style={{ width: `${100 - budgetFrac}%` }}
-        />
-      </div>
-    );
-  }
-
-  const pct = Math.min(100, Math.max(0, ratio * 100));
-  const color = savings
-    ? "bg-emerald-500"
-    : ratio > 0.85
-      ? "bg-amber-500"
-      : "bg-teal-500";
-  const showMarker =
-    !savings && elapsed != null && elapsed > 0.02 && elapsed < 0.98;
-  return (
-    <div
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(pct)}
-      aria-label={`${Math.round(ratio * 100)}% of ${savings ? "target" : "budget"}`}
-      className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800"
-    >
-      <div
-        className={cn("h-full rounded-full transition-all", color)}
-        style={{ width: `${pct}%` }}
-      />
-      {showMarker && (
-        <span
-          aria-hidden
-          className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-ink-50/70 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
-          style={{ left: `${elapsed * 100}%` }}
-        />
-      )}
-    </div>
-  );
-}
-
-/** Zenith portfolio breakdown — total in base + each external account. */
-function InvestmentsList({
-  snapshot,
-  base,
-  investBase,
-}: {
-  snapshot: InvestmentSnapshot;
-  base: string;
-  investBase: number;
-}) {
-  return (
-    <div>
-      <div className="mb-3 flex items-end justify-between">
-        <span className="text-xs text-ink-500">Portfolio value</span>
-        <span className="tnum text-lg font-semibold text-violet-300">
-          {formatMoney(investBase, base)}
-        </span>
-      </div>
-      {snapshot.accounts.length > 0 ? (
-        <ul className="space-y-2">
-          {snapshot.accounts.map((a, i) => (
-            <li
-              key={`${a.name}-${i}`}
-              className="flex items-center justify-between gap-3 text-sm"
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="size-2 shrink-0 rounded-full bg-violet-400" />
-                <span className="truncate text-ink-200">{a.name}</span>
-              </span>
-              <span className="tnum shrink-0 text-ink-300">
-                {formatMoney(a.value, a.currency)}
-                {a.currency !== base && (
-                  <span className="ml-1 text-ink-600">{a.currency}</span>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-sm text-ink-500">
-          Portfolio total only — no per-account breakdown provided.
-        </p>
-      )}
-    </div>
-  );
-}
-
 /** Compact aggregate strip atop the Budget widget — all spending budgets combined. */
-function BudgetSummaryRow({
+function BudgetSummary({
   spent,
   budget,
   base,
@@ -801,13 +469,13 @@ function BudgetSummaryRow({
   const ratio = budget > 0 ? spent / budget : 0;
   const remaining = budget - spent;
   const tone =
-    ratio > 1 ? "text-rose-400" : ratio > 0.85 ? "text-amber-400" : "text-ink-200";
+    ratio > 1 ? "text-debit" : ratio > 0.85 ? "text-accent" : "text-quill";
   return (
-    <div className="rounded-xl border border-ink-800 bg-ink-950/40 p-3">
+    <div className="leaf-panel p-3">
       <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="font-medium text-ink-400">
+        <span className="font-medium text-quill-soft">
           All budgets{" "}
-          <span className="tnum text-ink-600">
+          <span className="tnum text-quill-faint">
             · {formatMoney(spent, base)} / {formatMoney(budget, base)}
           </span>
         </span>
@@ -817,38 +485,12 @@ function BudgetSummaryRow({
             : `${formatMoney(-remaining, base)} over`}
         </span>
       </div>
-      <MiniBar ratio={ratio} />
+      <PacingBar ratio={ratio} />
     </div>
   );
 }
 
-/** Two-segment slim bar for goals: spent then saved, toward the target. */
-function MiniStackedBar({
-  spent,
-  saved,
-  target,
-}: {
-  spent: number;
-  saved: number;
-  target: number;
-}) {
-  const t = target > 0 ? target : 1;
-  const spentPct = Math.min(100, (spent / t) * 100);
-  const savedPct = Math.min(100 - spentPct, (saved / t) * 100);
-  return (
-    <div
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(spentPct + savedPct)}
-      aria-label={`${Math.round(((spent + saved) / t) * 100)}% funded`}
-      className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-ink-800"
-    >
-      <div className="h-full bg-indigo-400 transition-all" style={{ width: `${spentPct}%` }} />
-      <div className="h-full bg-emerald-400 transition-all" style={{ width: `${savedPct}%` }} />
-    </div>
-  );
-}
+
 
 function CashflowBars({
   data,
@@ -859,11 +501,12 @@ function CashflowBars({
   base: string;
   onMonthClick?: (monthKey: string) => void;
 }) {
+  const ink = useLedgerInk();
   const hasData = data.some((d) => d.income > 0 || d.expense > 0);
   if (!hasData) return <ChartEmpty label="No activity in the last 6 months" />;
 
   return (
-    <ResponsiveContainer width="100%" height={220}>
+    <ResponsiveContainer width="100%" height={132}>
       <BarChart
         data={data}
         barGap={4}
@@ -878,32 +521,121 @@ function CashflowBars({
         }}
         className={onMonthClick ? "cursor-pointer" : undefined}
       >
-        <CartesianGrid vertical={false} stroke="#1c2632" />
+        <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
         <XAxis
           dataKey="label"
           tickLine={false}
           axisLine={false}
-          tick={{ fill: "#6f8499", fontSize: 12 }}
+          tick={{ fill: ink["--color-quill-faint"], fontSize: 12 }}
         />
         <YAxis hide />
         <Tooltip
-          cursor={{ fill: "rgba(255,255,255,0.03)" }}
-          contentStyle={TOOLTIP_STYLE}
-          itemStyle={{ color: "#eef4fa" }}
-          labelStyle={{ color: "#eef4fa" }}
+          cursor={{ fill: "rgb(0 0 0 / 0.04)" }}
+          {...tooltipStyle(ink)}
           formatter={(value) => formatMoney(Number(value), base)}
         />
-        <Bar dataKey="income" name="Income" fill="#7fd1b9" radius={[4, 4, 0, 0]} />
-        <Bar dataKey="expense" name="Expense" fill="#fb7185" radius={[4, 4, 0, 0]} />
+        <Bar
+          dataKey="income"
+          name="Received"
+          fill={ink["--color-credit"]}
+          radius={[2, 2, 0, 0]}
+          isAnimationActive={false}
+        />
+        <Bar
+          dataKey="expense"
+          name="Expended"
+          fill={ink["--color-debit"]}
+          radius={[2, 2, 0, 0]}
+          isAnimationActive={false}
+        />
       </BarChart>
     </ResponsiveContainer>
   );
 }
 
-function ChartEmpty({ label }: { label: string }) {
+
+
+/**
+ * Portfolio value over time. One ink, a hairline baseline, the last point
+ * marked and labelled — an engraved plate, not a dashboard sparkline.
+ */
+function InvestmentsPlate({
+  history,
+  base,
+  rates,
+  ink,
+}: {
+  history: InvestmentHistoryPoint[];
+  base: string;
+  rates: RateMap;
+  ink: Ink;
+}) {
+  const series = history.map((p) => ({
+    date: p.date,
+    label: format(parseISO(p.date), "d MMM"),
+    value: convert(p.total, p.base_currency, base, rates) ?? p.total,
+  }));
+
+  if (series.length < 2) {
+    return (
+      <p className="text-sm italic text-quill-faint">
+        Not enough history yet — the line starts once Zenith has recorded a few
+        days.
+      </p>
+    );
+  }
+
+  const first = series[0]!.value;
+  const last = series[series.length - 1]!.value;
+  const change = last - first;
+
   return (
-    <div className="flex h-[180px] items-center justify-center rounded-xl border border-dashed border-ink-800 text-center text-sm text-ink-500">
-      {label}
+    <div>
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <span className="tnum text-lg text-quill">{formatMoney(last, base)}</span>
+        <span className={cn("tnum text-sm", change >= 0 ? "text-credit" : "text-debit")}>
+          {change >= 0 ? "+" : "−"}
+          {formatMoney(Math.abs(change), base)}
+          <span className="text-quill-faint">
+            {" "}
+            since {series[0]!.label}
+          </span>
+        </span>
+      </div>
+      <ResponsiveContainer width="100%" height={132}>
+        <AreaChart data={series} margin={{ top: 4, right: 10, bottom: 0, left: 2 }}>
+          <defs>
+            <linearGradient id="investFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={ink["--color-head-1"]} stopOpacity={0.28} />
+              <stop offset="100%" stopColor={ink["--color-head-1"]} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <XAxis
+            dataKey="label"
+            tickLine={false}
+            axisLine={{ stroke: ink["--color-rule"] }}
+            tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }}
+            interval="preserveStartEnd"
+            minTickGap={40}
+          />
+          <YAxis hide domain={["dataMin", "dataMax"]} />
+          <Tooltip
+            cursor={{ stroke: ink["--color-rule-strong"], strokeWidth: 1 }}
+            {...tooltipStyle(ink)}
+            formatter={(v: number) => [formatMoney(v, base), "Value"]}
+          />
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke={ink["--color-head-1"]}
+            strokeWidth={1.75}
+            fill="url(#investFill)"
+            dot={false}
+            activeDot={{ r: 3, fill: ink["--color-head-1"], stroke: ink["--color-page"] }}
+            isAnimationActive={false}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -921,19 +653,14 @@ export function FloatingAdd({
   // `className` lets pages with their own floating stacks (Activity) slot it
   // higher so nothing overlaps.
   const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 300);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  useLeafScroll((y) => setScrolled(y > 300));
 
   return (
     <button
       onClick={onClick}
       aria-label="Add transaction"
       className={cn(
-        "fixed bottom-24 right-5 z-20 flex size-14 items-center justify-center rounded-full bg-teal-500 text-ink-950 shadow-lg shadow-teal-500/20 transition-all hover:bg-teal-400 active:scale-95 lg:bottom-8 lg:right-8",
+        "brass-face fixed bottom-6 right-16 z-20 flex size-14 items-center justify-center rounded-full shadow-[0_6px_18px_rgb(0_0_0/0.45)] transition-all active:scale-95 lg:right-24",
         !scrolled && "lg:pointer-events-none lg:translate-y-2 lg:opacity-0",
         className,
       )}

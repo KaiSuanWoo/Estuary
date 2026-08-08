@@ -24,7 +24,7 @@ import { Button, Spinner } from "@/components/ui";
 import { Logo } from "@/components/Logo";
 
 const inputCls =
-  "h-11 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
+  "h-11 w-full rounded-[2px] border border-rule bg-well px-3 text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
 type StepId = "welcome" | "currency" | "account" | "categories" | "done";
 const STEPS: StepId[] = ["welcome", "currency", "account", "categories", "done"];
@@ -104,24 +104,26 @@ export function Onboarding() {
       };
 
   return (
-    <div className="flex min-h-full flex-col px-5 py-6 sm:items-center sm:p-8">
+    <div
+      className="surface-leaf flex min-h-full flex-col px-5 py-6 sm:items-center sm:p-8"
+    >
       {/* Responsive panel: full-bleed column on phones, centered card on desktop.
           my-auto centers it vertically when it fits and lets the page scroll
           when the viewport is short, so the primary button is always reachable. */}
-      <div className="flex w-full flex-1 flex-col sm:my-auto sm:max-w-md sm:flex-none sm:min-h-[34rem] sm:rounded-[28px] sm:border sm:border-ink-800/70 sm:bg-ink-900/50 sm:p-8 sm:shadow-[var(--shadow-sheet)]">
+      <div className="flex w-full flex-1 flex-col sm:my-auto sm:max-w-md sm:flex-none sm:min-h-[34rem] sm:rounded-[28px] sm:border sm:border-rule/70 sm:bg-page-edge sm:p-8 sm:shadow-[var(--shadow-sheet)]">
         {/* Brand + progress */}
         <div className="w-full">
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-end">
               <Logo className="h-8 w-auto" />
-              <span className="-ml-1 font-serif text-2xl font-medium leading-none tracking-tight text-ink-50">
+              <span className="-ml-1 font-serif text-2xl font-medium leading-none tracking-tight text-quill">
                 stuary
               </span>
             </div>
             {step !== "welcome" && step !== "done" && (
               <button
                 onClick={finish}
-                className="text-xs font-medium text-ink-500 transition-colors hover:text-ink-300"
+                className="text-xs font-medium text-quill-faint transition-colors hover:text-quill-soft"
               >
                 Skip setup
               </button>
@@ -167,21 +169,21 @@ export function Onboarding() {
                       key={c}
                       onClick={() => setCurrency(c)}
                       className={cn(
-                        "flex flex-col items-start rounded-xl border px-3 py-2.5 text-left transition-colors",
+                        "flex flex-col items-start rounded-[2px] border px-3 py-2.5 text-left transition-colors",
                         currency === c
-                          ? "border-teal-500 bg-teal-500/10"
-                          : "border-ink-700 hover:border-ink-600",
+                          ? "border-accent bg-accent/10"
+                          : "border-rule hover:border-rule-strong",
                       )}
                     >
                       <span
                         className={cn(
                           "text-sm font-semibold",
-                          currency === c ? "text-teal-300" : "text-ink-100",
+                          currency === c ? "text-accent" : "text-quill",
                         )}
                       >
                         {c}
                       </span>
-                      <span className="truncate text-xs text-ink-500">
+                      <span className="truncate text-xs text-quill-faint">
                         {CURRENCY_LABELS[c] ?? ""}
                       </span>
                     </button>
@@ -199,7 +201,7 @@ export function Onboarding() {
               >
                 <div className="space-y-3">
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-ink-400">
+                    <span className="mb-1 block text-xs font-medium text-quill-soft">
                       Account name
                     </span>
                     <input
@@ -212,7 +214,7 @@ export function Onboarding() {
                   </label>
 
                   <div>
-                    <span className="mb-1 block text-xs font-medium text-ink-400">
+                    <span className="mb-1 block text-xs font-medium text-quill-soft">
                       Type
                     </span>
                     <div className="grid grid-cols-3 gap-2">
@@ -222,10 +224,10 @@ export function Onboarding() {
                           type="button"
                           onClick={() => setAcctType(t.value)}
                           className={cn(
-                            "h-9 rounded-xl border text-xs font-medium transition-colors",
+                            "h-9 rounded-[2px] border text-xs font-medium transition-colors",
                             acctType === t.value
-                              ? "border-teal-500 bg-teal-500/10 text-teal-300"
-                              : "border-ink-700 text-ink-400",
+                              ? "border-accent bg-accent/10 text-accent"
+                              : "border-rule text-quill-soft",
                           )}
                         >
                           {t.label}
@@ -236,7 +238,7 @@ export function Onboarding() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className="mb-1 block text-xs font-medium text-ink-400">
+                      <span className="mb-1 block text-xs font-medium text-quill-soft">
                         Currency
                       </span>
                       <select
@@ -252,7 +254,7 @@ export function Onboarding() {
                       </select>
                     </label>
                     <label className="block">
-                      <span className="mb-1 block text-xs font-medium text-ink-400">
+                      <span className="mb-1 block text-xs font-medium text-quill-soft">
                         Opening balance
                       </span>
                       <input
@@ -285,17 +287,17 @@ export function Onboarding() {
                   type="button"
                   onClick={() => setSeed((v) => !v)}
                   className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-xl border p-3.5 text-left transition-colors",
+                    "flex w-full items-center justify-between gap-3 rounded-[2px] border p-3.5 text-left transition-colors",
                     seed
-                      ? "border-teal-500 bg-teal-500/10"
-                      : "border-ink-700 hover:border-ink-600",
+                      ? "border-accent bg-accent/10"
+                      : "border-rule hover:border-rule-strong",
                   )}
                 >
                   <div>
-                    <p className="text-sm font-medium text-ink-100">
+                    <p className="text-sm font-medium text-quill">
                       Add {SEED_CATEGORIES.length} starter categories
                     </p>
-                    <p className="text-xs text-ink-500">
+                    <p className="text-xs text-quill-faint">
                       Recommended — a good base to edit
                     </p>
                   </div>
@@ -303,8 +305,8 @@ export function Onboarding() {
                     className={cn(
                       "flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                       seed
-                        ? "border-teal-400 bg-teal-500 text-ink-950"
-                        : "border-ink-600",
+                        ? "border-accent bg-accent text-page"
+                        : "border-rule",
                     )}
                   >
                     {seed && <Check className="size-3.5" strokeWidth={3} />}
@@ -329,7 +331,7 @@ export function Onboarding() {
                 }
               >
                 {error && (
-                  <p className="mb-3 text-sm text-red-400">{error}</p>
+                  <p className="mb-3 text-sm text-debit">{error}</p>
                 )}
                 <Button
                   className="w-full"
@@ -349,7 +351,7 @@ export function Onboarding() {
                 {!committing && (
                   <button
                     onClick={() => go(-1)}
-                    className="mt-3 w-full text-center text-xs text-ink-500 transition-colors hover:text-ink-300"
+                    className="mt-3 w-full text-center text-xs text-quill-faint transition-colors hover:text-quill-soft"
                   >
                     Back
                   </button>
@@ -361,7 +363,7 @@ export function Onboarding() {
 
         {/* Signed-in hint */}
         {user?.email && (
-          <p className="mt-6 w-full text-center text-xs text-ink-600">
+          <p className="mt-6 w-full text-center text-xs text-quill-faint">
             Signed in as {user.email}
           </p>
         )}
@@ -384,13 +386,13 @@ function StepShell({
   return (
     <div className="flex flex-1 flex-col">
       <div className="mb-5">
-        <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-teal-500/12 text-teal-300 ring-1 ring-inset ring-teal-400/20">
+        <div className="mb-4 flex size-14 items-center justify-center rounded-[2px] bg-accent/12 text-accent ring-1 ring-inset ring-accent/20">
           {icon}
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+        <h1 className="text-2xl font-semibold tracking-tight text-quill">
           {title}
         </h1>
-        <p className="mt-2 text-sm leading-relaxed text-ink-400">{blurb}</p>
+        <p className="mt-2 text-sm leading-relaxed text-quill-soft">{blurb}</p>
       </div>
       <div className="mt-auto space-y-4 pt-4">{children}</div>
     </div>
@@ -427,10 +429,10 @@ function Dots({ count, active }: { count: number; active: number }) {
           className={cn(
             "h-1.5 rounded-full transition-all duration-300",
             i === active
-              ? "w-6 bg-teal-400"
+              ? "w-6 bg-accent"
               : i < active
-                ? "w-1.5 bg-teal-500/50"
-                : "w-1.5 bg-ink-700",
+                ? "w-1.5 bg-accent/50"
+                : "w-1.5 bg-rule",
           )}
         />
       ))}

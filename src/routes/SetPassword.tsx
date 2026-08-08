@@ -27,22 +27,31 @@ export function SetPassword() {
   }
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center px-6 py-10">
-      <div className="w-full max-w-sm">
+    <div
+      className="flex min-h-full flex-col items-center justify-center px-6 py-10"
+      style={{
+        background:
+          "linear-gradient(170deg, var(--color-desk-a), var(--color-desk-b))",
+      }}
+    >
+      <div
+        className="surface-leaf w-full max-w-sm rounded-[3px] px-6 py-8"
+        style={{ boxShadow: "var(--shadow-book)" }}
+      >
         <div className="mb-8 flex items-end justify-center">
           <Logo className="h-12 w-auto" />
-          <span className="-ml-1 font-serif text-4xl font-medium leading-none tracking-tight text-ink-50">
+          <span className="-ml-1 font-serif text-4xl font-medium leading-none tracking-tight text-quill">
             stuary
           </span>
         </div>
 
         <Card>
-          <h1 className="text-lg font-semibold text-ink-50">Set your password</h1>
-          <p className="mt-1 text-sm text-ink-400">
+          <h1 className="text-lg font-semibold text-quill">Set your password</h1>
+          <p className="mt-1 text-sm text-quill-soft">
             Choose a password to finish securing your account.
           </p>
           <form onSubmit={onSubmit} className="mt-4 space-y-3">
-            <label className="block text-sm font-medium text-ink-300">
+            <label className="block text-sm font-medium text-quill-soft">
               New password
               <input
                 type="password"
@@ -52,10 +61,10 @@ export function SetPassword() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 6 characters"
-                className="mt-1.5 h-11 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none"
+                className="mt-1.5 h-11 w-full rounded-[2px] border border-rule bg-well px-3 text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none"
               />
             </label>
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p className="text-sm text-debit">{error}</p>}
             <Button type="submit" className="w-full" disabled={busy}>
               {busy ? "Saving…" : "Save password"}
             </Button>

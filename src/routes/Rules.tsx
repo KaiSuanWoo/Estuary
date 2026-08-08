@@ -22,9 +22,10 @@ import type {
   CategorizationRule,
 } from "@/lib/types";
 import type { RuleMatchField, RuleMatchOperator } from "@/lib/database.types";
+import { FALLBACK_HEAD } from "@/lib/constants";
 
 const inputCls =
-  "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
+  "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
 const FIELDS: RuleMatchField[] = ["merchant", "notes", "amount", "account"];
 
@@ -53,11 +54,11 @@ export function Rules() {
         <div className="flex items-center gap-2">
           <Link
             to="/categories"
-            className="flex size-8 items-center justify-center rounded-lg text-ink-400 hover:text-ink-200"
+            className="flex size-8 items-center justify-center rounded-[2px] text-quill-soft hover:text-quill"
           >
             <ChevronLeft className="size-5" />
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+          <h1 className="text-2xl font-semibold tracking-tight text-quill">
             Auto-categorise
           </h1>
         </div>
@@ -67,11 +68,11 @@ export function Rules() {
       </header>
 
       <Card className="mb-4 flex gap-3 py-3">
-        <Wand2 className="mt-0.5 size-4 shrink-0 text-ink-500" />
-        <p className="text-sm text-ink-400">
+        <Wand2 className="mt-0.5 size-4 shrink-0 text-quill-faint" />
+        <p className="text-sm text-quill-soft">
           Rules run top-to-bottom on each income/expense transaction — the first
           match sets the category. New imports are categorised automatically; use{" "}
-          <span className="text-ink-300">Apply now</span> to sweep existing
+          <span className="text-quill-soft">Apply now</span> to sweep existing
           uncategorised transactions.
         </p>
       </Card>
@@ -79,10 +80,10 @@ export function Rules() {
       {/* Apply to existing */}
       <Card className="mb-4 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-ink-200">
+          <p className="text-sm font-medium text-quill">
             Apply to existing transactions
           </p>
-          <p className="text-xs text-ink-500">
+          <p className="text-xs text-quill-faint">
             {apply.isSuccess
               ? `Categorised ${apply.data.updated} of ${apply.data.scanned} uncategorised.`
               : apply.isError
@@ -118,7 +119,7 @@ export function Rules() {
           hint="Add a rule like “Merchant contains Spotify → Subscriptions”."
         />
       ) : (
-        <Card className="divide-y divide-ink-800/70 py-0">
+        <Card className="divide-y divide-rule py-0">
           {rules.map((rule) => {
             const cat = rule.set_category_id
               ? categoryMap.get(rule.set_category_id)
@@ -147,35 +148,35 @@ export function Rules() {
                   }
                   className={cn(
                     "relative h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors",
-                    rule.is_enabled ? "bg-teal-500" : "bg-ink-700",
+                    rule.is_enabled ? "bg-accent" : "bg-rule",
                   )}
                   aria-label={rule.is_enabled ? "Disable rule" : "Enable rule"}
                 >
                   <span
                     className={cn(
-                      "block size-3.5 rounded-full bg-white shadow transition-transform",
+                      "block size-3.5 rounded-full bg-page shadow transition-transform",
                       rule.is_enabled ? "translate-x-4" : "translate-x-0.5",
                     )}
                   />
                 </button>
 
                 <div className="min-w-0 flex-1 text-sm">
-                  <p className="truncate text-ink-200">
-                    <span className="text-ink-400">
+                  <p className="truncate text-quill">
+                    <span className="text-quill-soft">
                       {FIELD_LABELS[rule.match_field]}
                     </span>{" "}
                     {OPERATOR_LABELS[rule.match_operator]}{" "}
-                    <span className="font-medium text-ink-100">
+                    <span className="font-medium text-quill">
                       {valueLabel}
                     </span>
                   </p>
-                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-500">
+                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-quill-faint">
                     →
                     {cat ? (
                       <>
                         <span
                           className="size-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: cat.color ?? "#4d6175" }}
+                          style={{ backgroundColor: cat.color ?? FALLBACK_HEAD }}
                         />
                         {cat.name}
                       </>
@@ -183,7 +184,7 @@ export function Rules() {
                       <span className="italic">no category</span>
                     )}
                     {rule.set_reimbursable && (
-                      <span className="ml-1 rounded-full bg-ink-800 px-1.5 py-px text-[10px] font-medium text-ink-400">
+                      <span className="ml-1 rounded-[2px] bg-page-edge px-1.5 py-px text-[10px] font-medium text-quill-soft">
                         reimbursable
                       </span>
                     )}
@@ -193,14 +194,14 @@ export function Rules() {
                 <button
                   onClick={() => setEditing(rule)}
                   aria-label="Edit rule"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-600 transition-colors hover:bg-ink-800 hover:text-ink-200"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-[2px] text-quill-faint transition-colors hover:bg-page-edge hover:text-quill"
                 >
                   <Pencil className="size-3.5" />
                 </button>
                 <button
                   onClick={() => del.mutate(rule.id)}
                   aria-label="Delete rule"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-600 transition-colors hover:text-red-400"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-[2px] text-quill-faint transition-colors hover:text-debit"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -286,7 +287,7 @@ function RuleSheet({
         <form onSubmit={onSubmit} className="space-y-3">
           {/* Field */}
           <div>
-            <span className="mb-1 block text-xs font-medium text-ink-400">When</span>
+            <span className="mb-1 block text-xs font-medium text-quill-soft">When</span>
             <div className="grid grid-cols-4 gap-1.5">
               {FIELDS.map((f) => (
                 <button
@@ -294,10 +295,10 @@ function RuleSheet({
                   type="button"
                   onClick={() => changeField(f)}
                   className={cn(
-                    "h-9 rounded-xl border text-xs font-medium transition-colors",
+                    "h-9 rounded-[2px] border text-xs font-medium transition-colors",
                     field === f
-                      ? "border-teal-500 bg-teal-500/10 text-teal-300"
-                      : "border-ink-700 text-ink-400",
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-rule text-quill-soft",
                   )}
                 >
                   {FIELD_LABELS[f]}
@@ -308,7 +309,7 @@ function RuleSheet({
 
           {/* Operator */}
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">Condition</span>
+            <span className="mb-1 block text-xs font-medium text-quill-soft">Condition</span>
             <select
               value={operator}
               onChange={(e) => setOperator(e.target.value as RuleMatchOperator)}
@@ -324,7 +325,7 @@ function RuleSheet({
 
           {/* Value */}
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">
+            <span className="mb-1 block text-xs font-medium text-quill-soft">
               {field === "amount" ? "Range or value" : "Value"}
             </span>
             {field === "account" ? (
@@ -355,17 +356,17 @@ function RuleSheet({
               />
             )}
             {field === "amount" && operator === "amountRange" && (
-              <span className="mt-1 block text-xs text-ink-600">
-                Formats: <span className="text-ink-400">10-50</span> (between),{" "}
-                <span className="text-ink-400">50-</span> (≥ 50),{" "}
-                <span className="text-ink-400">-50</span> (≤ 50)
+              <span className="mt-1 block text-xs text-quill-faint">
+                Formats: <span className="text-quill-soft">10-50</span> (between),{" "}
+                <span className="text-quill-soft">50-</span> (≥ 50),{" "}
+                <span className="text-quill-soft">-50</span> (≤ 50)
               </span>
             )}
           </label>
 
           {/* Category */}
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">
+            <span className="mb-1 block text-xs font-medium text-quill-soft">
               Set category
             </span>
             <select
@@ -396,12 +397,12 @@ function RuleSheet({
           </label>
 
           {/* Reimbursable */}
-          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-ink-700/60 bg-ink-950/30 p-3">
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[2px] border border-rule/60 bg-well p-3">
             <div>
-              <p className="text-sm font-medium text-ink-200">
+              <p className="text-sm font-medium text-quill">
                 Also mark reimbursable
               </p>
-              <p className="text-xs text-ink-500">
+              <p className="text-xs text-quill-faint">
                 Flags matching expenses as paid-back
               </p>
             </div>
@@ -412,12 +413,12 @@ function RuleSheet({
               onClick={() => setReimbursable((v) => !v)}
               className={cn(
                 "relative h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors",
-                reimbursable ? "bg-teal-500" : "bg-ink-700",
+                reimbursable ? "bg-accent" : "bg-rule",
               )}
             >
               <span
                 className={cn(
-                  "block h-4 w-4 rounded-full bg-white shadow transition-transform",
+                  "block h-4 w-4 rounded-full bg-page shadow transition-transform",
                   reimbursable ? "translate-x-5" : "translate-x-0.5",
                 )}
               />
@@ -425,7 +426,7 @@ function RuleSheet({
           </label>
 
           {(create.isError || update.isError) && (
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-debit">
               Couldn't save. {((create.error || update.error) as Error).message}
             </p>
           )}

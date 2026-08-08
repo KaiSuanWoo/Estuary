@@ -25,7 +25,7 @@ import type { Account, AccountType } from "@/lib/types";
 import type { Transaction } from "@/lib/types";
 
 const inputCls =
-  "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
+  "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
 const ACCOUNT_TYPES: AccountType[] = [
   "checking",
@@ -75,7 +75,7 @@ export function Accounts() {
       ) : (
         <>
           {accounts.length > 1 && (
-            <p className="mb-3 text-xs text-ink-500">
+            <p className="mb-3 text-xs text-quill-faint">
               Drag to reorder — the top account is your default for new
               transactions.
             </p>
@@ -151,6 +151,10 @@ function AccountList({
   );
 }
 
+/**
+ * A folio per account: its heading, what it holds, how it has moved, and when
+ * it was last checked against the bank. Ruled off rather than boxed.
+ */
 function AccountRow({
   account: a,
   txns,
@@ -167,20 +171,23 @@ function AccountRow({
   onCommit: () => void;
 }) {
   const controls = useDragControls();
-  const col = ACCOUNT_TYPE_COLORS[a.type];
   const balances = accountBalancesByCurrency(a, txns, overrides);
   const multi = a.is_multi_currency || isMultiCurrency(balances);
   const isCredit = a.type === "credit";
   const owed = isCredit ? -(balances[a.currency] ?? 0) : 0;
   const available =
     isCredit && a.credit_limit != null ? a.credit_limit - owed : null;
-  // Primary currency first, then the rest alphabetically.
   const currencies = [
     a.currency,
-    ...Object.keys(balances)
-      .filter((c) => c !== a.currency)
-      .sort(),
+    ...Object.keys(balances).filter((c) => c !== a.currency).sort(),
   ];
+
+  const { data: checks = [] } = useReconciliations();
+  const lastCheck = checks.find((r) => r.account_id === a.id);
+
+  // A Zenith-valued account has no local movement to trace — its worth is
+  // whatever the snapshot last said.
+  const externallyValued = overrides.has(a.id);
 
   return (
     <Reorder.Item
@@ -189,75 +196,81 @@ function AccountRow({
       dragControls={controls}
       onDragEnd={onCommit}
     >
-      <Card className="flex items-center gap-2.5">
-        {/* Drag handle — press and drag to reorder */}
-        <button
-          type="button"
-          aria-label={`Reorder ${a.name}`}
-          onPointerDown={(e) => controls.start(e)}
-          className="-ml-1 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-ink-600 transition-colors hover:text-ink-300 active:cursor-grabbing"
-        >
-          <GripVertical className="size-4" />
-        </button>
-
-        {/* Account-type colour dot */}
-        <span className={cn("size-2.5 shrink-0 rounded-full", col.dot)} />
-
-        <Link to={`/transactions?account=${a.id}`} className="group min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 font-medium text-ink-100 transition-colors group-hover:text-teal-300">
-            <span className="truncate">{a.name}</span>
+      <section className="border-b border-rule pb-4 pt-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="flex min-w-0 items-baseline gap-2">
+            <button
+              type="button"
+              aria-label={`Reorder ${a.name}`}
+              onPointerDown={(e) => controls.start(e)}
+              className="tap -ml-1 shrink-0 cursor-grab touch-none text-quill-faint transition-colors hover:text-quill active:cursor-grabbing"
+            >
+              <GripVertical className="size-4" />
+            </button>
+            <Link
+              to={`/transactions?account=${a.id}`}
+              className="tap truncate tracking-[0.08em] text-quill transition-colors hover:text-brass-lo"
+              style={{ fontVariant: "small-caps" }}
+            >
+              {a.name}
+            </Link>
+            <span className="shrink-0 text-xs italic text-quill-faint">
+              {ACCOUNT_TYPE_LABELS[a.type].toLowerCase()} · {a.currency}
+            </span>
             {isDefault && (
-              <span className="shrink-0 rounded-full bg-teal-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-teal-300">
-                Default
-              </span>
+              <span className="shrink-0 text-xs italic text-quill-faint">· default</span>
             )}
             {a.external_source === "zenith" && (
-              <span className="shrink-0 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-violet-300">
-                Zenith
-              </span>
+              <span className="shrink-0 text-xs italic text-head-5">· Zenith</span>
             )}
-          </p>
-          <p className="text-sm text-ink-500">
-            <span className={col.text}>{ACCOUNT_TYPE_LABELS[a.type]}</span>
-            {" · "}
-            {available != null
-              ? `${formatMoney(available, a.currency)} available`
-              : multi
-                ? "Multi-currency"
-                : a.currency}
-          </p>
-        </Link>
+          </h2>
+          <button
+            onClick={() => onEdit(a)}
+            aria-label={`Edit ${a.name}`}
+            className="tap shrink-0 text-quill-faint transition-colors hover:text-quill"
+          >
+            <MoreHorizontal className="size-4" />
+          </button>
+        </div>
 
-        <Link
-          to={`/transactions?account=${a.id}`}
-          className="group flex flex-col items-end gap-0.5 transition-colors"
-        >
-          {currencies.map((c, i) => (
-            <span
-              key={c}
-              className={cn(
-                "tnum font-semibold transition-colors group-hover:text-teal-300",
-                i === 0
-                  ? isCredit
-                    ? "text-lg text-rose-300"
-                    : "text-lg text-ink-50"
-                  : "text-xs text-ink-400",
-              )}
-            >
-              {formatMoney(balances[c] ?? 0, c)}
-              {multi && <span className="ml-1 text-ink-600">{c}</span>}
-            </span>
-          ))}
-        </Link>
+        <div className="mt-2 flex items-end justify-between gap-4">
+          <div>
+            {currencies.map((c, i) => (
+              <p
+                key={c}
+                className={cn(
+                  "tnum leading-tight",
+                  i === 0
+                    ? isCredit
+                      ? "text-2xl text-debit"
+                      : "text-2xl text-quill"
+                    : "text-sm text-quill-soft",
+                )}
+              >
+                {formatMoney(balances[c] ?? 0, c)}
+                {multi && <span className="ml-1 text-xs text-quill-faint">{c}</span>}
+              </p>
+            ))}
+            {available != null && (
+              <p className="text-xs italic text-quill-faint">
+                {formatMoney(available, a.currency)} available
+              </p>
+            )}
+          </div>
+        </div>
 
-        <button
-          onClick={() => onEdit(a)}
-          aria-label={`Edit ${a.name}`}
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
-        >
-          <MoreHorizontal className="size-4" />
-        </button>
-      </Card>
+        <p className="mt-1.5 text-xs italic text-quill-faint">
+          {externallyValued
+            ? "Valued by Zenith"
+            : lastCheck
+              ? `Reconciled ${formatDate(lastCheck.date)} · ${
+                  Math.abs(lastCheck.difference) < 0.005
+                    ? "matched"
+                    : `off by ${formatMoney(Math.abs(lastCheck.difference), a.currency)}`
+                }`
+              : "Never reconciled"}
+        </p>
+      </section>
     </Reorder.Item>
   );
 }
@@ -273,7 +286,7 @@ function TypePicker({
 }) {
   return (
     <div>
-      <span className="mb-1 block text-xs font-medium text-ink-400">Type</span>
+      <span className="mb-1 block text-xs font-medium text-quill-soft">Type</span>
       <div className="grid grid-cols-3 gap-1.5">
         {ACCOUNT_TYPES.map((t) => {
           const col = ACCOUNT_TYPE_COLORS[t];
@@ -284,10 +297,10 @@ function TypePicker({
               type="button"
               onClick={() => onChange(t)}
               className={cn(
-                "h-9 rounded-xl border text-xs font-medium transition-colors",
+                "h-9 rounded-[2px] border text-xs font-medium transition-colors",
                 active
                   ? cn(col.border, col.bg, col.text)
-                  : "border-ink-700 text-ink-400 hover:border-ink-600",
+                  : "border-rule text-quill-soft hover:border-rule-strong",
               )}
             >
               {t === "investmentCash"
@@ -313,10 +326,10 @@ function MultiCurrencyToggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-ink-700/60 bg-ink-950/30 p-3">
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-[2px] border border-rule/60 bg-well p-3">
       <div>
-        <p className="text-sm font-medium text-ink-200">Multi-currency account</p>
-        <p className="text-xs text-ink-500">
+        <p className="text-sm font-medium text-quill">Multi-currency account</p>
+        <p className="text-xs text-quill-faint">
           Holds balances in more than one currency (e.g. Wise)
         </p>
       </div>
@@ -327,12 +340,12 @@ function MultiCurrencyToggle({
         onClick={() => onChange(!value)}
         className={cn(
           "relative h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors",
-          value ? "bg-teal-500" : "bg-ink-700",
+          value ? "bg-accent" : "bg-rule",
         )}
       >
         <span
           className={cn(
-            "block h-4 w-4 rounded-full bg-white shadow transition-transform",
+            "block h-4 w-4 rounded-full bg-page shadow transition-transform",
             value ? "translate-x-5" : "translate-x-0.5",
           )}
         />
@@ -364,7 +377,7 @@ function EditAccountSheet({
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   const smInput =
-    "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none";
+    "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -392,7 +405,7 @@ function EditAccountSheet({
   return (
     <Sheet title="Edit account" onClose={onClose}>
         {isLinked && (
-          <p className="mb-3 rounded-xl bg-violet-500/10 px-3 py-2 text-xs text-violet-300">
+          <p className="mb-3 rounded-[2px] bg-head-5/10 px-3 py-2 text-xs text-head-5">
             Synced from Zenith — the balance mirrors your live portfolio value,
             and the name follows Zenith's. Transfers you record here move the
             other account's cash only.
@@ -401,7 +414,7 @@ function EditAccountSheet({
         <form onSubmit={onSubmit} className="space-y-3">
           <div className="grid grid-cols-[1fr_5rem] gap-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">Name</span>
+              <span className="mb-1 block text-xs font-medium text-quill-soft">Name</span>
               <input
                 required
                 value={name}
@@ -410,7 +423,7 @@ function EditAccountSheet({
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
                 {isMulti ? "Primary" : "Currency"}
               </span>
               <input
@@ -427,7 +440,7 @@ function EditAccountSheet({
 
           {type === "credit" ? (
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
                 Credit limit (optional)
               </span>
               <input
@@ -446,7 +459,7 @@ function EditAccountSheet({
           )}
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">
+            <span className="mb-1 block text-xs font-medium text-quill-soft">
               {type === "credit"
                 ? "Current balance (negative = owing)"
                 : isMulti
@@ -465,7 +478,7 @@ function EditAccountSheet({
           </label>
 
           {update.isError && (
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-debit">
               Couldn't save. {(update.error as Error).message}
             </p>
           )}
@@ -483,13 +496,13 @@ function EditAccountSheet({
         {/* Linked accounts are valued by Zenith — nothing local to reconcile. */}
         {!isLinked && <ReconcileSection account={account} />}
 
-        <div className="mt-3 border-t border-ink-800 pt-3">
+        <div className="mt-3 border-t border-rule pt-3">
           {confirmArchive ? (
             <div className="flex items-center gap-3">
-              <p className="flex-1 text-xs text-ink-400">Archive this account?</p>
+              <p className="flex-1 text-xs text-quill-soft">Archive this account?</p>
               <button
                 onClick={() => setConfirmArchive(false)}
-                className="text-xs text-ink-400 hover:text-ink-200"
+                className="text-xs text-quill-soft hover:text-quill"
               >
                 Cancel
               </button>
@@ -501,7 +514,7 @@ function EditAccountSheet({
             <button
               type="button"
               onClick={() => setConfirmArchive(true)}
-              className="flex w-full items-center justify-center gap-2 text-xs text-ink-500 transition-colors hover:text-red-400"
+              className="flex w-full items-center justify-center gap-2 text-xs text-quill-faint transition-colors hover:text-debit"
             >
               Archive account
             </button>
@@ -546,14 +559,14 @@ function ReconcileSection({ account }: { account: Account }) {
   }
 
   return (
-    <div className="mt-3 border-t border-ink-800 pt-3">
+    <div className="mt-3 border-t border-rule pt-3">
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <p className="text-xs font-medium text-ink-400">Reconcile with your bank</p>
+        <p className="text-xs font-medium text-quill-soft">Reconcile with your bank</p>
         {shown && (
           <p
             className={cn(
               "tnum text-xs",
-              Math.abs(shown.difference) < 0.005 ? "text-teal-400" : "text-amber-400",
+              Math.abs(shown.difference) < 0.005 ? "text-accent" : "text-accent",
             )}
           >
             {formatDate(shown.date)} ·{" "}
@@ -571,7 +584,7 @@ function ReconcileSection({ account }: { account: Account }) {
           value={stated}
           onChange={(e) => setStated(e.target.value)}
           placeholder={`Bank shows… (${account.currency})`}
-          className="tnum h-9 flex-1 rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 placeholder:text-ink-600 focus:border-teal-500 focus:outline-none"
+          className="tnum h-9 flex-1 rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none"
         />
         <Button
           size="sm"
@@ -583,7 +596,7 @@ function ReconcileSection({ account }: { account: Account }) {
           {create.isPending ? "Checking…" : "Check"}
         </Button>
       </div>
-      <p className="tnum mt-1.5 text-xs text-ink-600">
+      <p className="tnum mt-1.5 text-xs text-quill-faint">
         Estuary computes {formatMoney(computed, account.currency)}
         {stated.trim() !== "" && Number.isFinite(Number(stated)) && (
           <>
@@ -625,7 +638,7 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
         <form onSubmit={onSubmit} className="space-y-3">
           <div className="grid grid-cols-[1fr_5rem] gap-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">Name</span>
+              <span className="mb-1 block text-xs font-medium text-quill-soft">Name</span>
               <input
                 required
                 value={name}
@@ -635,7 +648,7 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
                 {isMulti ? "Primary" : "Currency"}
               </span>
               <input
@@ -652,7 +665,7 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
 
           {type === "credit" ? (
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-ink-400">
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
                 Credit limit (optional)
               </span>
               <input
@@ -671,7 +684,7 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
           )}
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-400">
+            <span className="mb-1 block text-xs font-medium text-quill-soft">
               {type === "credit"
                 ? "Current balance (negative = owing)"
                 : isMulti
@@ -690,7 +703,7 @@ function AddAccountSheet({ onClose }: { onClose: () => void }) {
           </label>
 
           {create.isError && (
-            <p className="text-xs text-red-400">
+            <p className="text-xs text-debit">
               Couldn't save. {(create.error as Error).message}
             </p>
           )}

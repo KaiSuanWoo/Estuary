@@ -845,11 +845,11 @@ export function Import() {
       <header className="mb-5 flex items-center gap-2">
         <Link
           to="/settings"
-          className="flex size-8 items-center justify-center rounded-lg text-ink-400 hover:text-ink-200"
+          className="flex size-8 items-center justify-center rounded-[2px] text-quill-soft hover:text-quill"
         >
           <ChevronLeft className="size-5" />
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink-50">
+        <h1 className="text-2xl font-semibold tracking-tight text-quill">
           Import transactions
         </h1>
       </header>
@@ -857,18 +857,18 @@ export function Import() {
       <div className="space-y-4">
         {/* How-to hint */}
         <Card className="flex gap-3 py-3">
-          <Info className="mt-0.5 size-4 shrink-0 text-ink-500" />
-          <div className="space-y-1 text-sm text-ink-400">
+          <Info className="mt-0.5 size-4 shrink-0 text-quill-faint" />
+          <div className="space-y-1 text-sm text-quill-soft">
             <p>
-              <span className="text-ink-300">CommBank:</span> My accounts →
+              <span className="text-quill-soft">CommBank:</span> My accounts →
               select account → Export → date range → CSV
             </p>
             <p>
-              <span className="text-ink-300">CIMB Clicks:</span> Account →
+              <span className="text-quill-soft">CIMB Clicks:</span> Account →
               Transaction History → Download → CSV
             </p>
             <p>
-              <span className="text-ink-300">Wise:</span> Statements → All →
+              <span className="text-quill-soft">Wise:</span> Statements → All →
               Download → CSV (transaction history)
             </p>
           </div>
@@ -882,18 +882,18 @@ export function Import() {
             onDragLeave={() => setDragging(false)}
             onClick={() => fileRef.current?.click()}
             className={cn(
-              "flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed py-14 transition-colors",
+              "flex cursor-pointer flex-col items-center gap-3 rounded-[2px] border-2 border-dashed py-14 transition-colors",
               dragging
-                ? "border-teal-500 bg-teal-500/5"
-                : "border-ink-700 hover:border-ink-600",
+                ? "border-accent bg-accent/5"
+                : "border-rule hover:border-rule-strong",
             )}
           >
-            <FileUp className="size-8 text-ink-500" />
+            <FileUp className="size-8 text-quill-faint" />
             <div className="text-center">
-              <p className="text-sm font-medium text-ink-300">
+              <p className="text-sm font-medium text-quill-soft">
                 Drop any bank CSV here
               </p>
-              <p className="mt-0.5 text-xs text-ink-600">
+              <p className="mt-0.5 text-xs text-quill-faint">
                 CommBank · CIMB · Wise · Nationwide auto-detected — any other CSV
                 maps by column · or tap to browse
               </p>
@@ -910,9 +910,9 @@ export function Import() {
 
         {/* Loaded a file but parsed nothing usable */}
         {emptyParse && !isDone && (
-          <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
-            <AlertCircle className="size-4 shrink-0 text-amber-400" />
-            <span className="text-sm text-amber-200">
+          <div className="flex items-center gap-2.5 rounded-[2px] border border-head-3/30 bg-head-3/10 px-3 py-2.5">
+            <AlertCircle className="size-4 shrink-0 text-accent" />
+            <span className="text-sm text-accent">
               Couldn't read any rows from{" "}
               <span className="font-medium">{fileName}</span>. Make sure it's a
               CSV file with a row per transaction.
@@ -944,13 +944,13 @@ export function Import() {
             <Card className="space-y-3">
               <div className="flex items-end gap-3">
                 <label className="block flex-1">
-                  <span className="mb-1 block text-xs font-medium text-ink-400">
+                  <span className="mb-1 block text-xs font-medium text-quill-soft">
                     Account
                   </span>
                   <select
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    className="h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 focus:border-teal-500 focus:outline-none"
+                    className="h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill focus:border-accent focus:outline-none"
                   >
                     <option value="" disabled>
                       Select account…
@@ -990,7 +990,7 @@ export function Import() {
                     {ACCOUNT_TYPE_LABELS[acct.type]}
                   </span>
                   {transferCount > 0 && (
-                    <span className="ml-2 flex items-center gap-1 text-xs text-ink-500">
+                    <span className="ml-2 flex items-center gap-1 text-xs text-quill-faint">
                       <ArrowLeftRight className="size-3" />
                       {transferCount} transfer{transferCount !== 1 ? "s" : ""} detected
                     </span>
@@ -1000,17 +1000,17 @@ export function Import() {
             </Card>
 
             {/* Transaction preview */}
-            <Card className="divide-y divide-ink-800/70 py-0">
+            <Card className="divide-y divide-rule py-0">
               <div className="flex items-center justify-between gap-3 py-2">
-                <div className="flex items-center gap-3 text-xs font-medium text-ink-600">
+                <div className="flex items-center gap-3 text-xs font-medium text-quill-faint">
                   <span className="w-10 shrink-0">Date</span>
                   <span className="flex-1">Description</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-ink-800 px-2 py-0.5 text-xs font-medium text-ink-400">
+                  <span className="rounded-[2px] bg-page-edge px-2 py-0.5 text-xs font-medium text-quill-soft">
                     {FORMAT_LABELS[format]}
                   </span>
-                  <span className="tnum w-20 shrink-0 text-right text-xs font-medium text-ink-600">
+                  <span className="tnum w-20 shrink-0 text-right text-xs font-medium text-quill-faint">
                     Amount
                   </span>
                 </div>
@@ -1021,29 +1021,29 @@ export function Import() {
                 const isXfer = row.type === "transfer" || row.type === "adjustment";
                 const sign = row.type === "transfer" ? "−" : "+";
                 const amtCls = row.type === "transfer"
-                  ? "text-ink-500"
+                  ? "text-quill-faint"
                   : row.type === "adjustment"
-                    ? "text-sky-400/70"
+                    ? "text-head-1/70"
                     : row.type === "income"
-                      ? "text-teal-400"
-                      : "text-ink-300";
+                      ? "text-accent"
+                      : "text-quill-soft";
 
                 return (
                   <div key={i} className="flex items-center gap-3 py-2">
-                    <span className="w-10 shrink-0 text-xs text-ink-500">
+                    <span className="w-10 shrink-0 text-xs text-quill-faint">
                       {row.date.slice(5).replace("-", "/")}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-sm text-ink-300">
+                    <span className="min-w-0 flex-1 truncate text-sm text-quill-soft">
                       {row.merchant ?? ""}
                       {row.notes && (
-                        <span className="ml-1.5 text-xs text-ink-600">
+                        <span className="ml-1.5 text-xs text-quill-faint">
                           {row.notes}
                         </span>
                       )}
                     </span>
                     <div className="flex shrink-0 items-center gap-1.5">
                       {isXfer && (
-                        <ArrowLeftRight className="size-3 text-ink-600" />
+                        <ArrowLeftRight className="size-3 text-quill-faint" />
                       )}
                       <span className={cn("tnum w-20 text-right text-sm font-medium", amtCls)}>
                         {sign}{row.amount.toFixed(2)}
@@ -1054,7 +1054,7 @@ export function Import() {
               })}
 
               {rows.length > 200 && (
-                <p className="py-3 text-center text-xs text-ink-500">
+                <p className="py-3 text-center text-xs text-quill-faint">
                   +{rows.length - 200} more rows
                 </p>
               )}
@@ -1066,19 +1066,19 @@ export function Import() {
         {rows.length > 0 && !isDone && confirming && (
           <Card className="space-y-4">
             <div>
-              <p className="font-semibold text-ink-100">Confirm import</p>
-              <p className="mt-0.5 text-sm text-ink-500">
+              <p className="font-semibold text-quill">Confirm import</p>
+              <p className="mt-0.5 text-sm text-quill-faint">
                 Importing into{" "}
                 <span
                   className={cn(
                     "font-medium",
-                    acct ? ACCOUNT_TYPE_COLORS[acct.type].text : "text-ink-200",
+                    acct ? ACCOUNT_TYPE_COLORS[acct.type].text : "text-quill",
                   )}
                 >
                   {acct?.name}
                 </span>
                 {acct && (
-                  <span className="text-ink-400"> ({acct.currency})</span>
+                  <span className="text-quill-soft"> ({acct.currency})</span>
                 )}
                 . Double-check the account is correct before proceeding.
               </p>
@@ -1087,10 +1087,10 @@ export function Import() {
             {/* Summary stats */}
             <div className="grid grid-cols-2 gap-2">
               {/* Date range */}
-              <div className="rounded-xl bg-ink-900/80 p-3">
-                <p className="text-xs text-ink-600">Date range</p>
+              <div className="rounded-[2px] bg-page-edge p-3">
+                <p className="text-xs text-quill-faint">Date range</p>
                 {sortedDates.length > 0 && (
-                  <p className="mt-1 text-xs font-medium text-ink-300">
+                  <p className="mt-1 text-xs font-medium text-quill-soft">
                     {formatDate(sortedDates[0]!)}
                     {sortedDates.length > 1 &&
                       sortedDates[0] !== sortedDates[sortedDates.length - 1] && (
@@ -1104,35 +1104,35 @@ export function Import() {
               </div>
 
               {/* Format + total count */}
-              <div className="rounded-xl bg-ink-900/80 p-3">
-                <p className="text-xs text-ink-600">Source</p>
-                <p className="mt-1 text-sm font-semibold text-ink-100">
+              <div className="rounded-[2px] bg-page-edge p-3">
+                <p className="text-xs text-quill-faint">Source</p>
+                <p className="mt-1 text-sm font-semibold text-quill">
                   {FORMAT_LABELS[format]}
                 </p>
-                <p className="text-xs text-ink-500">{rows.length} transactions</p>
+                <p className="text-xs text-quill-faint">{rows.length} transactions</p>
               </div>
 
               {/* Expenses */}
-              <div className="rounded-xl bg-ink-900/80 p-3">
-                <p className="text-xs text-ink-600">Expenses</p>
-                <p className="mt-1 text-sm font-semibold text-ink-100">
+              <div className="rounded-[2px] bg-page-edge p-3">
+                <p className="text-xs text-quill-faint">Expenses</p>
+                <p className="mt-1 text-sm font-semibold text-quill">
                   {expenseCount}
                 </p>
                 {acct && expenseTotal > 0 && (
-                  <p className="text-xs text-ink-500">
+                  <p className="text-xs text-quill-faint">
                     {formatMoney(expenseTotal, acct.currency)}
                   </p>
                 )}
               </div>
 
               {/* Income */}
-              <div className="rounded-xl bg-ink-900/80 p-3">
-                <p className="text-xs text-ink-600">Income</p>
-                <p className="mt-1 text-sm font-semibold text-teal-400">
+              <div className="rounded-[2px] bg-page-edge p-3">
+                <p className="text-xs text-quill-faint">Income</p>
+                <p className="mt-1 text-sm font-semibold text-accent">
                   {incomeCount}
                 </p>
                 {acct && incomeTotal > 0 && (
-                  <p className="text-xs text-ink-500">
+                  <p className="text-xs text-quill-faint">
                     {formatMoney(incomeTotal, acct.currency)}
                   </p>
                 )}
@@ -1141,13 +1141,13 @@ export function Import() {
 
             {/* Transfer notice — shown only when transfers were detected */}
             {transferCount > 0 && (
-              <div className="flex items-center gap-2.5 rounded-xl border border-ink-700/50 bg-ink-900/60 px-3 py-2.5">
-                <ArrowLeftRight className="size-4 shrink-0 text-ink-500" />
+              <div className="flex items-center gap-2.5 rounded-[2px] border border-rule/50 bg-page-edge px-3 py-2.5">
+                <ArrowLeftRight className="size-4 shrink-0 text-quill-faint" />
                 <div className="min-w-0">
-                  <span className="text-sm font-medium text-ink-300">
+                  <span className="text-sm font-medium text-quill-soft">
                     {transferCount} transfer{transferCount !== 1 ? "s" : ""} detected
                   </span>
-                  <span className="ml-2 text-xs text-ink-600">
+                  <span className="ml-2 text-xs text-quill-faint">
                     · excluded from income/expense net
                   </span>
                 </div>
@@ -1156,9 +1156,9 @@ export function Import() {
 
             {/* Auto-categorisation notice */}
             {categorizedCount > 0 && (
-              <div className="flex items-center gap-2.5 rounded-xl border border-teal-500/20 bg-teal-500/5 px-3 py-2.5">
-                <Wand2 className="size-4 shrink-0 text-teal-400/80" />
-                <span className="text-sm font-medium text-ink-300">
+              <div className="flex items-center gap-2.5 rounded-[2px] border border-accent/20 bg-accent/5 px-3 py-2.5">
+                <Wand2 className="size-4 shrink-0 text-accent/80" />
+                <span className="text-sm font-medium text-quill-soft">
                   {categorizedCount} auto-categorised by rules
                 </span>
               </div>
@@ -1166,9 +1166,9 @@ export function Import() {
 
             {/* Duplicate-transfer warning */}
             {flaggedCount > 0 && (
-              <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
-                <Flag className="size-4 shrink-0 text-amber-400" />
-                <span className="text-sm font-medium text-amber-200">
+              <div className="flex items-center gap-2.5 rounded-[2px] border border-head-3/30 bg-head-3/10 px-3 py-2.5">
+                <Flag className="size-4 shrink-0 text-accent" />
+                <span className="text-sm font-medium text-accent">
                   {flaggedCount} flagged as a possible duplicate transfer — review
                   in Activity (flag filter) after importing.
                 </span>
@@ -1176,7 +1176,7 @@ export function Import() {
             )}
 
             {bulk.isError && (
-              <div className="flex items-center gap-2 rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">
+              <div className="flex items-center gap-2 rounded-[2px] border border-debit/50 bg-debit/30 px-4 py-3 text-sm text-debit">
                 <AlertCircle className="size-4 shrink-0" />
                 {(bulk.error as Error).message}
               </div>
@@ -1207,14 +1207,14 @@ export function Import() {
         {/* ── Success state ─────────────────────────────────────────────────── */}
         {isDone && (
           <Card className="flex flex-col items-center gap-4 py-10">
-            <CheckCircle2 className="size-10 text-teal-400" />
+            <CheckCircle2 className="size-10 text-accent" />
             <div className="text-center">
-              <p className="font-semibold text-ink-100">
+              <p className="font-semibold text-quill">
                 {bulk.data?.count === 0
                   ? "Nothing new to import"
                   : `${bulk.data?.count} transactions imported`}
               </p>
-              <p className="mt-1 text-sm text-ink-500">
+              <p className="mt-1 text-sm text-quill-faint">
                 {bulk.data && bulk.data.skipped > 0 ? (
                   <>
                     {bulk.data.skipped} already-imported{" "}
@@ -1251,7 +1251,7 @@ export function Import() {
             </div>
 
             {deleteBatch.isError && (
-              <p className="text-xs text-red-400">
+              <p className="text-xs text-debit">
                 {(deleteBatch.error as Error).message}
               </p>
             )}
@@ -1261,19 +1261,19 @@ export function Import() {
         {/* ── Import history ────────────────────────────────────────────────── */}
         {batches.length > 0 && (
           <div className="space-y-2">
-            <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-600">
+            <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-quill-faint">
               Recent imports
             </h2>
-            <Card className="divide-y divide-ink-800/70 py-0">
+            <Card className="divide-y divide-rule py-0">
               {batches.map((batch) =>
                 deletingId === batch.id ? (
                   <div
                     key={batch.id}
                     className="flex items-center justify-between gap-3 py-3"
                   >
-                    <p className="text-sm text-ink-300">
+                    <p className="text-sm text-quill-soft">
                       Delete{" "}
-                      <span className="font-medium text-ink-100">
+                      <span className="font-medium text-quill">
                         {batch.row_count} transactions
                       </span>
                       ?
@@ -1282,7 +1282,7 @@ export function Import() {
                       <button
                         onClick={() => setDeletingId(null)}
                         disabled={deleteBatch.isPending}
-                        className="rounded-lg px-2 py-1 text-xs text-ink-500 hover:text-ink-200 disabled:opacity-40"
+                        className="rounded-[2px] px-2 py-1 text-xs text-quill-faint hover:text-quill disabled:opacity-40"
                       >
                         Cancel
                       </button>
@@ -1292,7 +1292,7 @@ export function Import() {
                           setDeletingId(null);
                         }}
                         disabled={deleteBatch.isPending}
-                        className="rounded-lg bg-red-950/60 px-2 py-1 text-xs font-medium text-red-400 transition-colors hover:bg-red-900/60 disabled:opacity-50"
+                        className="rounded-[2px] bg-debit/60 px-2 py-1 text-xs font-medium text-debit transition-colors hover:bg-debit disabled:opacity-50"
                       >
                         {deleteBatch.isPending ? "Deleting…" : "Delete"}
                       </button>
@@ -1302,14 +1302,14 @@ export function Import() {
                   <div key={batch.id} className="flex items-center gap-3 py-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="shrink-0 rounded-full bg-ink-800 px-2 py-0.5 text-[10px] font-medium text-ink-400">
+                        <span className="shrink-0 rounded-[2px] bg-page-edge px-2 py-0.5 text-[10px] font-medium text-quill-soft">
                           {SOURCE_LABELS[batch.source ?? ""] ?? batch.source ?? "CSV"}
                         </span>
-                        <span className="truncate text-sm text-ink-300">
+                        <span className="truncate text-sm text-quill-soft">
                           {batch.file_name ?? "Unknown file"}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs text-ink-600">
+                      <p className="mt-0.5 text-xs text-quill-faint">
                         {batch.row_count} transactions ·{" "}
                         {formatDistanceToNow(new Date(batch.imported_at), {
                           addSuffix: true,
@@ -1319,7 +1319,7 @@ export function Import() {
                     <button
                       onClick={() => setDeletingId(batch.id)}
                       aria-label="Delete import"
-                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-600 transition-colors hover:bg-red-950/40 hover:text-red-400"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-[2px] text-quill-faint transition-colors hover:bg-debit/40 hover:text-debit"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -1337,7 +1337,7 @@ export function Import() {
 // ─── generic column-mapper UI ─────────────────────────────────────────────────
 
 const mapSelectCls =
-  "h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-2 text-sm text-ink-50 focus:border-teal-500 focus:outline-none";
+  "h-9 w-full rounded-[2px] border border-rule bg-well px-2 text-sm text-quill focus:border-accent focus:outline-none";
 
 function guessCol(headers: string[], re: RegExp, fallback = -1): number {
   const i = headers.findIndex((h) => re.test(h));
@@ -1359,7 +1359,7 @@ function ColumnSelect({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-ink-400">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-quill-soft">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
@@ -1449,14 +1449,14 @@ function ColumnMapper({
     <Card className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-ink-200">Map the columns</h2>
-          <p className="truncate text-xs text-ink-500">
+          <h2 className="text-sm font-semibold text-quill">Map the columns</h2>
+          <p className="truncate text-xs text-quill-faint">
             {fileName} · unrecognised format · {data.rows.length} rows
           </p>
         </div>
         <button
           onClick={onCancel}
-          className="shrink-0 text-xs text-ink-500 transition-colors hover:text-ink-300"
+          className="shrink-0 text-xs text-quill-faint transition-colors hover:text-quill-soft"
         >
           Cancel
         </button>
@@ -1465,7 +1465,7 @@ function ColumnMapper({
       <div className="grid grid-cols-2 gap-2">
         <ColumnSelect label="Date column" value={dateCol} onChange={setDateCol} headers={headers} />
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-ink-400">Date format</span>
+          <span className="mb-1 block text-xs font-medium text-quill-soft">Date format</span>
           <select
             value={dateFmt}
             onChange={(e) => setDateFmt(e.target.value)}
@@ -1483,7 +1483,7 @@ function ColumnMapper({
       </div>
 
       <div>
-        <span className="mb-1 block text-xs font-medium text-ink-400">Amount columns</span>
+        <span className="mb-1 block text-xs font-medium text-quill-soft">Amount columns</span>
         <div className="grid grid-cols-2 gap-2">
           {(["single", "split"] as const).map((mode) => (
             <button
@@ -1491,10 +1491,10 @@ function ColumnMapper({
               type="button"
               onClick={() => setAmountMode(mode)}
               className={cn(
-                "h-9 rounded-xl border text-xs font-medium transition-colors",
+                "h-9 rounded-[2px] border text-xs font-medium transition-colors",
                 amountMode === mode
-                  ? "border-teal-500 bg-teal-500/10 text-teal-300"
-                  : "border-ink-700 text-ink-400",
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-rule text-quill-soft",
               )}
             >
               {mode === "single" ? "One amount column" : "Separate in / out"}
@@ -1506,8 +1506,8 @@ function ColumnMapper({
       {amountMode === "single" ? (
         <div className="grid grid-cols-2 gap-2">
           <ColumnSelect label="Amount" value={amountCol} onChange={setAmountCol} headers={headers} />
-          <label className="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-ink-700/60 bg-ink-950/30 px-3">
-            <span className="text-xs text-ink-400">Positive = spent</span>
+          <label className="flex cursor-pointer items-center justify-between gap-2 rounded-[2px] border border-rule/60 bg-well px-3">
+            <span className="text-xs text-quill-soft">Positive = spent</span>
             <button
               type="button"
               role="switch"
@@ -1515,12 +1515,12 @@ function ColumnMapper({
               onClick={() => setInvert((v) => !v)}
               className={cn(
                 "relative h-5 w-9 shrink-0 rounded-full transition-colors",
-                invert ? "bg-teal-500" : "bg-ink-700",
+                invert ? "bg-accent" : "bg-rule",
               )}
             >
               <span
                 className={cn(
-                  "block size-3.5 rounded-full bg-white transition-transform",
+                  "block size-3.5 rounded-full bg-page transition-transform",
                   invert ? "translate-x-4" : "translate-x-0.5",
                 )}
               />
@@ -1534,26 +1534,26 @@ function ColumnMapper({
         </div>
       )}
 
-      <div className="rounded-xl border border-ink-800 bg-ink-950/40 p-2">
-        <p className="mb-1 px-1 text-xs font-medium text-ink-500">
+      <div className="rounded-[2px] border border-rule bg-well p-2">
+        <p className="mb-1 px-1 text-xs font-medium text-quill-faint">
           Preview · {built.length} row{built.length === 1 ? "" : "s"} parsed
         </p>
         {preview.length === 0 ? (
-          <p className="px-1 py-2 text-xs text-ink-500">
+          <p className="px-1 py-2 text-xs text-quill-faint">
             Nothing parsed yet — adjust the columns above.
           </p>
         ) : (
-          <ul className="divide-y divide-ink-800/70">
+          <ul className="divide-y divide-rule">
             {preview.map((r, i) => (
               <li key={i} className="flex items-center gap-3 px-1 py-1.5 text-xs">
-                <span className="tnum w-16 shrink-0 text-ink-500">{r.date}</span>
-                <span className="min-w-0 flex-1 truncate text-ink-300">
+                <span className="tnum w-16 shrink-0 text-quill-faint">{r.date}</span>
+                <span className="min-w-0 flex-1 truncate text-quill-soft">
                   {r.merchant ?? "—"}
                 </span>
                 <span
                   className={cn(
                     "tnum shrink-0",
-                    r.type === "income" ? "text-teal-400" : "text-ink-300",
+                    r.type === "income" ? "text-accent" : "text-quill-soft",
                   )}
                 >
                   {r.type === "expense" ? "−" : "+"}
@@ -1565,7 +1565,7 @@ function ColumnMapper({
         )}
       </div>
 
-      {error && <p className="text-xs text-rose-400">{error}</p>}
+      {error && <p className="text-xs text-debit">{error}</p>}
 
       <Button size="sm" className="w-full" onClick={apply} disabled={built.length === 0}>
         Use these columns · {built.length}

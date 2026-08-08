@@ -25,11 +25,16 @@ export type AccountTypeColor = {
   border: string;
 };
 
+/**
+ * One head-ink per account type. Credit and debit are reserved for direction —
+ * a savings account is not "money in" — so none of these may borrow them, and
+ * every type gets a distinct ink rather than sharing one.
+ */
 export const ACCOUNT_TYPE_COLORS: Record<AccountType, AccountTypeColor> = {
-  checking:       { dot: "bg-sky-400",     text: "text-sky-400",     bg: "bg-sky-500/15",     border: "border-sky-500/30" },
-  savings:        { dot: "bg-emerald-400", text: "text-emerald-400", bg: "bg-emerald-500/15", border: "border-emerald-500/30" },
-  cash:           { dot: "bg-amber-400",   text: "text-amber-400",   bg: "bg-amber-500/15",   border: "border-amber-500/30" },
-  investment:     { dot: "bg-violet-400",  text: "text-violet-400",  bg: "bg-violet-500/15",  border: "border-violet-500/30" },
-  investmentCash: { dot: "bg-fuchsia-400", text: "text-fuchsia-400", bg: "bg-fuchsia-500/15", border: "border-fuchsia-500/30" },
-  credit:         { dot: "bg-rose-400",    text: "text-rose-400",    bg: "bg-rose-500/15",    border: "border-rose-500/30" },
+  checking:       { dot: "bg-head-1",     text: "text-head-1",     bg: "bg-head-1/15",     border: "border-head-1/30" },
+  savings:        { dot: "bg-head-4",     text: "text-head-4",     bg: "bg-head-4/15",     border: "border-head-4/30" },
+  cash:           { dot: "bg-head-3",     text: "text-head-3",     bg: "bg-head-3/15",     border: "border-head-3/30" },
+  investment:     { dot: "bg-head-5",     text: "text-head-5",     bg: "bg-head-5/15",     border: "border-head-5/30" },
+  investmentCash: { dot: "bg-head-other", text: "text-head-other", bg: "bg-head-other/15", border: "border-head-other/30" },
+  credit:         { dot: "bg-head-2",     text: "text-head-2",     bg: "bg-head-2/15",     border: "border-head-2/30" },
 };

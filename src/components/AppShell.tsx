@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, useLocation, useOutlet } from "react-router-dom";
 import { BarChart3, LayoutDashboard, ListPlus, Settings, Wallet } from "lucide-react";
-import { motion, useAnimationControls } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/cn";
-import { springSnappy, useReducedMotion } from "@/lib/motion";
-import { Logo } from "@/components/Logo";
+import { paperSettle, paperTurn, pressDown, useReducedMotion } from "@/lib/motion";
+import { LeafScrollProvider } from "@/components/leaf-scroll";
 import { BackToTop } from "@/components/BackToTop";
 
 interface NavItem {
@@ -12,181 +12,301 @@ interface NavItem {
   label: string;
   icon: typeof LayoutDashboard;
   end: boolean;
-  /** Shown in the mobile bottom bar (which only has room for the core four). */
-  primary: boolean;
 }
 
+/**
+ * The five sections. On a desktop these are the stiff dividers down the
+ * fore-edge, labelled the way a ledger labels its tabs. A phone gets the
+ * floating dock instead — thumbs reach the bottom of a screen, not its edge —
+ * so the icons are here for it.
+ */
 const NAV: NavItem[] = [
-  { to: "/", label: "Home", icon: LayoutDashboard, end: true, primary: true },
-  { to: "/analytics", label: "Analytics", icon: BarChart3, end: false, primary: true },
-  { to: "/transactions", label: "Activity", icon: ListPlus, end: false, primary: true },
-  { to: "/accounts", label: "Accounts", icon: Wallet, end: false, primary: true },
-  { to: "/settings", label: "Settings", icon: Settings, end: false, primary: true },
+  { to: "/", label: "Home", icon: LayoutDashboard, end: true },
+  { to: "/analytics", label: "Analytics", icon: BarChart3, end: false },
+  { to: "/transactions", label: "Activity", icon: ListPlus, end: false },
+  { to: "/accounts", label: "Accounts", icon: Wallet, end: false },
+  { to: "/settings", label: "Settings", icon: Settings, end: false },
 ];
 
+/** Each dock cell is size-12 (48px) with gap-1 (4px) → a 52px stride. */
+const PILL_STRIDE = 52;
+
 /**
- * Responsive frame:
- *  - lg+ : sticky top nav bar, wide content area.
- *  - <lg : single mobile column with a floating bottom dock.
+ * The bookmarks hang off the fore-edge, out over the desk. A tab is 56px long;
+ * these say how much of it is tucked back under the cover, so the number you
+ * see clearing the leather is `TAB_LENGTH` minus the tuck.
  *
- * Both nav surfaces share an animated "pill" that springs to the active tab
- * via motion's shared-layout animation (a constant `layoutId`).
+ * Retracted leaves 20px proud — enough to read as a stack of five bookmarks,
+ * not enough to fit a word. The one you're on is never tucked that far: it
+ * stands out of the stack so your place is legible without reaching for it.
+ */
+const TAB_LENGTH = 56;
+const TAB_TUCK = TAB_LENGTH - 20;
+const TAB_TUCK_ACTIVE = TAB_LENGTH - 34;
+/**
+ * Even fully out, a tab keeps its root under the leather. Pulling one clear of
+ * the cover would read as a loose card lying beside the book rather than a
+ * divider bound into it — so every state below leaves some tuck.
+ */
+const TAB_TUCK_OPEN = 14;
+/**
+ * The extra a tab gives when your pointer is on *it* rather than merely on the
+ * stack. Reaching for the fore-edge fans all five out; touching one picks it
+ * out of the fan.
+ */
+const TAB_REACH = 10;
+
+/**
+ * The book.
+ *
+ * One bound volume lying on a desk: leather cover, a ribbon in the gutter,
+ * brass at the corners, and the leaf you actually read. The leaf is the only
+ * thing that scrolls — cover and tabs never move — which is both how a book
+ * behaves and what lets a page turn cleanly.
+ *
+ * On a phone the book fills the screen; on a large display it sits on the desk
+ * with room around it.
  */
 export function AppShell() {
   const reduce = useReducedMotion();
-  const pillTransition = reduce ? { duration: 0 } : springSnappy;
   const { pathname } = useLocation();
+  const outlet = useOutlet();
+  const leafRef = useRef<HTMLElement | null>(null);
+  const [tabsOpen, setTabsOpen] = useState(false);
 
-  // Pulse the whole dock each time the active tab changes.
-  const dockPulse = useAnimationControls();
+  // Turning to a new section always starts at the head of the leaf.
   useEffect(() => {
-    if (reduce) return;
-    dockPulse.start({
-      scale: [1, 1.06, 1],
-      transition: { duration: 0.34, ease: "easeOut" },
-    });
-  }, [pathname, reduce, dockPulse]);
+    leafRef.current?.scrollTo({ top: 0 });
+  }, [pathname]);
 
-  // Shrink the dock while scrolling down; restore near the top or on scroll up.
-  const [compact, setCompact] = useState(false);
-  useEffect(() => {
-    let last = window.scrollY;
-    const onScroll = () => {
-      const y = window.scrollY;
-      if (y < 60) setCompact(false);
-      else if (y > last + 6) setCompact(true);
-      else if (y < last - 6) setCompact(false);
-      last = y;
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  // The mobile pill is driven by the active tab's *index*, not motion's shared
-  // layout. A single element that only animates `x` can never drift vertically —
-  // it's immune to scroll position, route remounts, and the dock's pulse, which
-  // is what caused the pill to fly up from the bottom after scrolling.
-  const primaryNav = NAV.filter((n) => n.primary);
-  const activeIndex = primaryNav.findIndex((n) =>
+  // The dock's pill is driven by the active tab's index rather than a shared
+  // layout animation, so it can only ever move horizontally.
+  const activeIndex = NAV.findIndex((n) =>
     n.end ? pathname === n.to : pathname === n.to || pathname.startsWith(`${n.to}/`),
   );
-  // Each cell is size-12 (48px) with a gap-1 (4px) → 52px stride; p-1.5 (6px) inset.
-  const PILL_STRIDE = 52;
+
+  // The leaf turns when you change *section*, not when a filter changes the
+  // query string — so the key is the first path segment alone.
+  const section = pathname.split("/")[1] ?? "";
 
   return (
-    // Full-height flex column so the content area always fills the screen. On a
-    // short page (e.g. few accounts) this keeps the document bottom at the
-    // viewport bottom, so the fixed dock can't drift up — iOS otherwise anchors
-    // a fixed-bottom element to the (short) content on non-scrollable pages.
-    <div className="flex min-h-[100dvh] flex-col">
-      {/* ---------------------------------------------------------------- */}
-      {/* Desktop: sticky glass top bar                                     */}
-      {/* ---------------------------------------------------------------- */}
-      <header className="sticky top-0 z-20 hidden border-b border-ink-800/60 bg-ink-950/70 backdrop-blur-xl lg:block">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-10">
-          <div className="flex items-end">
-            <Logo className="h-9 w-auto" />
-            <span className="-ml-1 font-serif text-[1.9rem] font-medium leading-none tracking-tight text-ink-50">
-              stuary
-            </span>
-          </div>
-          <nav className="flex items-center gap-1">
-            {NAV.map(({ to, label, icon: Icon, end }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                className="relative rounded-xl px-3 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-teal-400/60"
-              >
-                {({ isActive }) => (
-                  <>
-                    {isActive && (
-                      <motion.span
-                        layoutId="navPillDesktop"
-                        transition={pillTransition}
-                        className="absolute inset-0 -z-10 rounded-xl bg-teal-500/12 ring-1 ring-inset ring-teal-400/20"
-                      />
-                    )}
-                    <span
-                      className={cn(
-                        "flex items-center gap-2 transition-colors",
-                        isActive
-                          ? "text-teal-300"
-                          : "text-ink-400 hover:text-ink-200",
-                      )}
-                    >
-                      <Icon className="size-4" strokeWidth={2} />
-                      {label}
-                    </span>
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </nav>
-        </div>
-      </header>
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Content                                                          */}
-      {/* ---------------------------------------------------------------- */}
-      <main className="mx-auto w-full max-w-md flex-1 px-4 pb-32 pt-6 lg:max-w-6xl lg:px-10 lg:pb-12 lg:pt-8">
-        <Outlet />
-      </main>
-
-      <BackToTop />
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Mobile: floating glass dock with a sliding pill                  */}
-      {/* ---------------------------------------------------------------- */}
-      <nav
-        className="fixed inset-x-0 z-30 flex justify-center px-4 lg:hidden"
-        style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.6rem)" }}
-        aria-label="Primary"
-      >
-        {/* Outer layer shrinks on scroll (anchored bottom-centre so it never
-            drifts); inner layer pulses on tab change. */}
-        <motion.div
-          animate={{ scale: compact ? 0.86 : 1 }}
-          transition={pillTransition}
-          style={{ transformOrigin: "bottom center" }}
+    <div
+      // Extra room on the right is the desk the bookmarks hang over. Without
+      // it they'd run off a 1024px display.
+      className="flex h-full flex-col lg:p-6 lg:pr-24"
+      style={{
+        background:
+          "linear-gradient(170deg, var(--color-desk-a), var(--color-desk-b))",
+      }}
+    >
+      {/* The book: the cover, and the bookmarks bound into it. This wrapper is
+          only the coordinate space they share — it draws nothing. */}
+      <div className="relative flex min-h-0 flex-1 lg:mx-auto lg:w-full lg:max-w-5xl">
+        {/* Fore-edge bookmarks — desktop only; a thumb can't reach a screen
+            edge. They sit *behind* the cover (z-0 against its z-10) and start
+            at its outer edge, so retracting slides them back under the leather
+            and extending pulls them out over the desk. The strip is the full
+            tab length whatever the tabs are doing, so there's always something
+            to reach for. */}
+        <nav
+          aria-label="Sections"
+          onPointerEnter={() => setTabsOpen(true)}
+          onPointerLeave={() => setTabsOpen(false)}
+          onFocus={() => setTabsOpen(true)}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node))
+              setTabsOpen(false);
+          }}
+          className="absolute inset-y-8 left-full z-0 hidden flex-col gap-1.5 lg:flex"
+          style={{ width: TAB_LENGTH }}
         >
-          <motion.div
-            animate={dockPulse}
-            className="relative flex items-center gap-1 rounded-[26px] border border-ink-800/60 bg-ink-950/70 p-1.5 backdrop-blur-xl"
-            style={{ boxShadow: "var(--shadow-float)" }}
+          {NAV.map(({ to, label, end }) => (
+            <NavLink key={to} to={to} end={end} className="group block flex-1">
+              {({ isActive }) => {
+                // Where this tab sits when nothing is touching it: fanned out
+                // with the rest, standing proud because it's the section
+                // you're on, or tucked back in the stack.
+                const rest = tabsOpen || reduce
+                  ? -TAB_TUCK_OPEN
+                  : isActive
+                    ? -TAB_TUCK_ACTIVE
+                    : -TAB_TUCK;
+                return (
+                  <motion.span
+                    initial={false}
+                    animate={{
+                      x: rest,
+                      boxShadow: "2px 2px 7px rgb(0 0 0 / 0.5)",
+                    }}
+                    // Your pointer on *this* tab picks it out of the fan: it
+                    // comes further than its neighbours and its shadow deepens
+                    // and throws further, as a thing lifting off the desk does.
+                    whileHover={
+                      reduce
+                        ? undefined
+                        : {
+                            x: rest + TAB_REACH,
+                            boxShadow: "6px 3px 15px rgb(0 0 0 / 0.62)",
+                            transition: { duration: 0.2, ease: [0.2, 0.8, 0.2, 1] },
+                          }
+                    }
+                    whileTap={reduce ? undefined : { scale: 0.97 }}
+                    transition={paperSettle}
+                    className={cn(
+                      "flex h-full items-center justify-center rounded-r-[4px] transition-colors",
+                      isActive
+                        ? "brass-face"
+                        : "bg-page-edge text-quill/75 group-hover:text-quill",
+                    )}
+                  >
+                    <motion.span
+                      initial={false}
+                      // The name only exists once the fan is open. Which tab
+                      // your pointer is on is carried by `group-hover` on the
+                      // face above — driving it from here would only respond
+                      // to the pointer being on the glyphs themselves.
+                      animate={{ opacity: tabsOpen || reduce ? 1 : 0 }}
+                      transition={{ duration: 0.16 }}
+                      className="text-[0.68rem] tracking-[0.16em] lg:text-xs"
+                      style={{ writingMode: "vertical-rl", fontVariant: "small-caps" }}
+                    >
+                      {label}
+                    </motion.span>
+                  </motion.span>
+                );
+              }}
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* The cover. It encloses the page and nothing else. */}
+        <div
+          className={cn(
+            "surface-hide stitched relative z-10 flex min-h-0 flex-1 overflow-hidden p-2",
+            "lg:rounded-[6px_10px_10px_6px] lg:p-3",
+          )}
+        >
+        <LeafScrollProvider leafRef={leafRef}>
+          {/* The leaf. Extra left padding is the gutter the ribbon lies in. */}
+          <main
+            ref={leafRef}
+            className="surface-leaf relative min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-[2px]"
+            style={{ perspective: "1400px" }}
           >
-            {/* Sliding pill — a single element that only translates horizontally. */}
+            {/* max-w-5xl on a spread: two pages need the width one didn't.
+                The deep bottom padding is clearance for the dock and the add
+                button, which would otherwise sit on top of the last entry. */}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={section}
+                // The leaf is hinged at the gutter, so it swings from its left
+                // edge — a rigid page turning, not a card crossfading.
+                style={{ transformOrigin: "left center" }}
+                initial={
+                  reduce
+                    ? { opacity: 0 }
+                    : { opacity: 0, rotateY: -9, x: -14 }
+                }
+                animate={{ opacity: 1, rotateY: 0, x: 0 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, rotateY: 4, x: 10 }}
+                transition={
+                  reduce ? { duration: 0.12 } : { ...paperTurn, duration: 0.3 }
+                }
+                className="mx-auto w-full max-w-md pb-32 pl-9 pr-4 pt-6 lg:max-w-5xl lg:py-6 lg:pl-16 lg:pr-10"
+              >
+                {outlet}
+              </motion.div>
+            </AnimatePresence>
+          </main>
+
+          <BackToTop />
+        </LeafScrollProvider>
+
+        {/* Binding shadow down the spine */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-0 z-20 w-2.5"
+          style={{
+            background:
+              "linear-gradient(90deg, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.12) 60%, transparent)",
+          }}
+        />
+
+        {/* Silk ribbon, lying in the gutter. It swings a little as the leaf
+            turns — the one thing in the book that isn't pinned down. */}
+        <motion.span
+          aria-hidden
+          key={`ribbon-${section}`}
+          initial={reduce ? false : { rotate: -1.4, y: -6 }}
+          animate={{ rotate: 0, y: 0 }}
+          transition={{ duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
+          className="pointer-events-none absolute top-0 z-20 h-2/3 w-2.5"
+          style={{
+            left: "1.15rem",
+            transformOrigin: "top center",
+            background:
+              "linear-gradient(90deg, #6d1420, #a8283a 35%, #c4485a 50%, #8a1b2a 70%, #5c0f1a)",
+            boxShadow: "1px 0 4px rgb(0 0 0 / 0.55)",
+            clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 94%, 0 100%)",
+          }}
+        />
+
+        {/* Mobile: the dock, in leather and brass. Reachable by thumb, which
+            the fore-edge tabs are not. The pill only ever translates on x, so
+            it can't drift vertically as the leaf scrolls. */}
+        <nav
+          aria-label="Primary"
+          className="absolute inset-x-0 z-30 flex justify-center px-4 lg:hidden"
+          style={{ bottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
+        >
+          <div
+            className="surface-hide relative flex items-center gap-1 rounded-[24px] p-1.5"
+            style={{ boxShadow: "0 10px 26px -8px rgb(0 0 0 / 0.7)" }}
+          >
             {activeIndex >= 0 && (
               <motion.span
                 aria-hidden
-                className="absolute left-1.5 top-1.5 size-12 rounded-[20px] bg-teal-500/15 ring-1 ring-inset ring-teal-400/25"
+                className="brass-face absolute left-1.5 top-1.5 z-0 size-12 rounded-[18px]"
                 initial={false}
                 animate={{ x: activeIndex * PILL_STRIDE }}
-                transition={pillTransition}
+                transition={reduce ? { duration: 0 } : paperSettle}
               />
             )}
-            {primaryNav.map(({ to, label, icon: Icon, end }) => (
-              <NavLink key={to} to={to} end={end} aria-label={label} className="block">
+            {NAV.map(({ to, label, icon: Icon, end }) => (
+              <NavLink key={to} to={to} end={end} aria-label={label} className="relative z-10 block">
                 {({ isActive }) => (
                   <motion.span
-                    whileTap={reduce ? undefined : { scale: 0.88 }}
-                    transition={pillTransition}
-                    className="relative flex size-12 items-center justify-center rounded-[20px]"
+                    whileTap={reduce ? undefined : { scale: 0.9 }}
+                    transition={pressDown}
+                    className="flex size-12 items-center justify-center rounded-[18px]"
                   >
                     <Icon
                       className={cn(
-                        "size-[22px] shrink-0 transition-colors",
-                        isActive ? "text-teal-300" : "text-ink-400",
+                        "size-[21px] shrink-0 transition-colors",
+                        isActive ? "text-[#24170a]" : "text-page-edge/70",
                       )}
-                      strokeWidth={isActive ? 2.4 : 2}
+                      strokeWidth={isActive ? 2.3 : 2}
                     />
                   </motion.span>
                 )}
               </NavLink>
             ))}
-          </motion.div>
-        </motion.div>
-      </nav>
+          </div>
+        </nav>
+
+        {/* Brass corner caps */}
+        <span
+          aria-hidden
+          className="brass-face pointer-events-none absolute left-0 top-0 z-20 size-6"
+          style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
+        />
+        <span
+          aria-hidden
+          className="brass-face pointer-events-none absolute bottom-0 left-0 z-20 size-6"
+          style={{ clipPath: "polygon(0 0, 0 100%, 100% 100%)" }}
+        />
+        </div>
+      </div>
     </div>
   );
 }

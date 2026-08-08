@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   endOfMonth,
@@ -59,16 +59,19 @@ import {
 } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
+import { EmptyState, Spinner } from "@/components/ui";
+import {
+  ChartEmpty,
+  MarginLink,
+  PageHead,
+  Plate,
+  Statement,
+  tooltipStyle,
+  useLedgerInk,
+} from "@/components/ledger";
+import { BudgetsBoard } from "@/components/BudgetsBoard";
 import type { Transaction } from "@/lib/types";
-
-const TOOLTIP_STYLE = {
-  background: "#111a24",
-  border: "1px solid #2b3947",
-  borderRadius: 12,
-  fontSize: 12,
-  color: "#e9eef4",
-} as const;
+import { FALLBACK_HEAD } from "@/lib/constants";
 
 const WIDE = { from: "0000-01-01", to: "9999-12-31" };
 
@@ -163,7 +166,8 @@ function cumulativeSpendSeries(
 }
 
 export function Analytics() {
-  const [params] = useSearchParams();
+  const ink = useLedgerInk();
+  const [params, setParams] = useSearchParams();
 
   // Deep-link seeds: ?month=YYYY-MM → single-month; ?from&to → custom range.
   const seedMonth = params.get("month");
@@ -179,6 +183,18 @@ export function Analytics() {
   );
 
   const [txnMode, setTxnMode] = useState<CashflowMode>("net");
+
+  // Which of the two boards is open, read from the URL rather than held in
+  // state. Seeding state from a search param only reads it once, so a link to
+  // ?view=budgets did nothing if you were already on Analytics, and switching
+  // boards left the URL behind — no back button, nothing to share or reload.
+  const board = params.get("view") === "budgets" ? "budgets" : "analysis";
+  const setBoard = (next: "analysis" | "budgets") => {
+    const p = new URLSearchParams(params);
+    if (next === "budgets") p.set("view", "budgets");
+    else p.delete("view");
+    setParams(p);
+  };
 
   const { data: txns = [], isLoading } = useTransactions();
   const { data: categories = [] } = useCategories();
@@ -304,7 +320,7 @@ export function Analytics() {
           return {
             id: b.id,
             name: b.name,
-            color: b.color ?? "#4d6175",
+            color: b.color ?? FALLBACK_HEAD,
             spent: Math.max(0, spent),
             amount: b.amount,
             catIds,
@@ -351,35 +367,71 @@ export function Analytics() {
     );
   }
 
+  const head = (
+    <PageHead
+      title="Analytics"
+      note={board === "budgets" ? "What you meant to spend" : "What actually happened"}
+      action={
+        // Two ways of reading the same ledger: what happened, and what you
+        // said would happen. They belong on one page, not in two places.
+        <span className="inline-flex items-center gap-3 text-xs">
+          {(["analysis", "budgets"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setBoard(v)}
+              className={cn(
+                "tap capitalize transition-colors",
+                board === v
+                  ? "text-quill underline decoration-brass underline-offset-4"
+                  : "text-quill-faint hover:text-quill-soft",
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </span>
+      }
+    />
+  );
+
+  if (board === "budgets") {
+    return (
+      <div className="mx-auto max-w-2xl">
+        {head}
+        <BudgetsBoard />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader title="Analytics" />
+      {head}
 
       {/* ── Period controls ─────────────────────────────────────────────── */}
-      <Card className="mb-4 space-y-3">
+      <div className="settle mb-4 space-y-3 border-b border-rule pb-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1 rounded-xl border border-ink-700/60 bg-ink-950/50 p-1">
+          <div className="flex items-center gap-1 rounded-[2px] border border-rule/60 bg-well p-1">
             {(["range", "months"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
                 className={cn(
-                  "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-colors",
-                  mode === m ? "bg-ink-700 text-ink-100" : "text-ink-500 hover:text-ink-300",
+                  "tap rounded-[2px] px-3 py-1 text-xs font-medium capitalize transition-colors",
+                  mode === m ? "bg-rule text-quill" : "text-quill-soft hover:text-quill",
                 )}
               >
                 {m === "range" ? "Range" : "Pick months"}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1 rounded-xl border border-ink-700/60 bg-ink-950/50 p-1">
+          <div className="flex items-center gap-1 rounded-[2px] border border-rule/60 bg-well p-1">
             {(["gross", "net"] as CashflowMode[]).map((mo) => (
               <button
                 key={mo}
                 onClick={() => setTxnMode(mo)}
                 className={cn(
-                  "rounded-lg px-3 py-1 text-xs font-medium capitalize transition-colors",
-                  txnMode === mo ? "bg-ink-700 text-ink-100" : "text-ink-500 hover:text-ink-300",
+                  "tap rounded-[2px] px-3 py-1 text-xs font-medium capitalize transition-colors",
+                  txnMode === mo ? "bg-rule text-quill" : "text-quill-soft hover:text-quill",
                 )}
               >
                 {mo}
@@ -396,10 +448,10 @@ export function Analytics() {
                   key={p.id}
                   onClick={() => setPreset(p.id)}
                   className={cn(
-                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                    "tap rounded-[2px] border px-3 py-1 text-xs font-medium transition-colors",
                     preset === p.id
-                      ? "border-teal-500 bg-teal-500/10 text-teal-300"
-                      : "border-ink-700 text-ink-400 hover:border-ink-600",
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-rule text-quill-soft hover:border-rule-strong",
                   )}
                 >
                   {p.label}
@@ -409,30 +461,30 @@ export function Analytics() {
             {preset === "custom" && (
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-ink-400">From</span>
+                  <span className="mb-1 block text-xs font-medium text-quill-soft">From</span>
                   <input
                     type="date"
                     value={customFrom}
                     max={customTo}
                     onChange={(e) => setCustomFrom(e.target.value)}
-                    className="h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 focus:border-teal-500 focus:outline-none"
+                    className="h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill focus:border-accent focus:outline-none"
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-ink-400">To</span>
+                  <span className="mb-1 block text-xs font-medium text-quill-soft">To</span>
                   <input
                     type="date"
                     value={customTo}
                     min={customFrom}
                     onChange={(e) => setCustomTo(e.target.value)}
-                    className="h-9 w-full rounded-xl border border-ink-700 bg-ink-950/60 px-3 text-sm text-ink-50 focus:border-teal-500 focus:outline-none"
+                    className="h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill focus:border-accent focus:outline-none"
                   />
                 </label>
               </div>
             )}
           </div>
         ) : monthsWithData.length === 0 ? (
-          <p className="text-xs text-ink-500">No months with entries yet.</p>
+          <p className="text-xs text-quill-faint">No months with entries yet.</p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {monthsWithData.map((m) => {
@@ -442,10 +494,10 @@ export function Analytics() {
                   key={m.key}
                   onClick={() => toggleMonth(m.key)}
                   className={cn(
-                    "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                    "tap rounded-[2px] border px-2.5 py-1 text-xs font-medium transition-colors",
                     on
-                      ? "border-teal-500 bg-teal-500/15 text-teal-300"
-                      : "border-ink-700 text-ink-400 hover:border-ink-600",
+                      ? "border-accent bg-accent/15 text-accent"
+                      : "border-rule text-quill-soft hover:border-rule-strong",
                   )}
                 >
                   {m.label}
@@ -454,10 +506,10 @@ export function Analytics() {
             })}
           </div>
         )}
-        <p className="text-xs text-ink-500">
-          Showing <span className="text-ink-300">{period.label}</span>
+        <p className="text-xs italic text-quill-faint">
+          Showing <span className="text-quill-soft">{period.label}</span>
         </p>
-      </Card>
+      </div>
 
       {txns.length === 0 ? (
         <EmptyState
@@ -467,20 +519,26 @@ export function Analytics() {
         />
       ) : (
         <div className="space-y-4">
-          {/* KPIs */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi label="Income" value={formatMoney(view.cf.income, base)} tone="up" />
-            <Kpi label="Expenses" value={formatMoney(view.cf.expense, base)} tone="down" />
-            <Kpi label="Net" value={formatMoney(view.cf.net, base)} tone={view.cf.net >= 0 ? "up" : "down"} />
-            <Kpi label="Savings rate" value={`${Math.round(view.savingsRate * 100)}%`} />
-          </div>
+          {/* The period, set out */}
+          <Statement
+            rows={[
+              { label: "Received", value: formatMoney(view.cf.income, base), tone: "credit" },
+              { label: "Expended", value: formatMoney(view.cf.expense, base), tone: "debit" },
+              { label: "Kept", value: `${Math.round(view.savingsRate * 100)}%` },
+            ]}
+            total={{
+              label: "Net",
+              value: formatMoney(view.cf.net, base),
+              tone: view.cf.net >= 0 ? "credit" : "debit",
+            }}
+          />
 
           <Insights view={view} base={base} />
 
           {/* MAIN chart: money flow — income sources → categories + saved */}
-          <Widget
-            title="Money flow"
-            hint="Where income came from and where it went — the surplus flows to Saved"
+          <Plate
+            caption="Money flow"
+            note="Where income came from and where it went — the surplus flows to Saved"
           >
             {!view.flow ? (
               <ChartEmpty label="No income or spending in range" />
@@ -491,21 +549,19 @@ export function Analytics() {
                   nodePadding={28}
                   margin={{ top: 12, right: 8, bottom: 12, left: 8 }}
                   node={(p: unknown) => <FlowNode {...(p as FlowNodeProps)} base={base} />}
-                  link={{ stroke: "#4d6175", strokeOpacity: 0.28 }}
+                  link={{ stroke: FALLBACK_HEAD, strokeOpacity: 0.28 }}
                 >
                   <Tooltip
-                    contentStyle={TOOLTIP_STYLE}
-                    itemStyle={{ color: "#eef4fa" }}
-                    labelStyle={{ color: "#eef4fa" }}
+                    {...tooltipStyle(ink)}
                     formatter={(v: number) => formatMoney(Number(v), base)}
                   />
                 </Sankey>
               </ResponsiveContainer>
             )}
-          </Widget>
+          </Plate>
 
           {/* Cumulative spending over the period */}
-          <Widget title="Cumulative spending" hint="Running total across the period">
+          <Plate caption="Cumulative spending" note="Running total across the period">
             {view.cumulative.length === 0 ? (
               <ChartEmpty label="No spending in range" />
             ) : (
@@ -513,67 +569,71 @@ export function Analytics() {
                 <AreaChart data={view.cumulative} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
                   <defs>
                     <linearGradient id="cumSpend" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#fb7185" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#fb7185" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor={ink["--color-debit"]} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={ink["--color-debit"]} stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid vertical={false} stroke="#1c2632" />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} minTickGap={24} />
-                  <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: "#6f8499", fontSize: 11 }} tickFormatter={(v) => compact(v, base)} />
+                  <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} minTickGap={24} />
+                  <YAxis tickLine={false} axisLine={false} width={48} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} tickFormatter={(v) => compact(v, base)} />
                   <Tooltip
-                    contentStyle={TOOLTIP_STYLE}
-                    itemStyle={{ color: "#eef4fa" }}
-                    labelStyle={{ color: "#eef4fa" }}
+                    {...tooltipStyle(ink)}
                     formatter={(v: number) => [formatMoney(v, base), "Spent so far"]}
                   />
-                  <Area type="monotone" dataKey="cum" stroke="#fb7185" strokeWidth={2} fill="url(#cumSpend)" />
+                  <Area
+                    type="monotone"
+                    dataKey="cum"
+                    stroke={ink["--color-debit"]}
+                    strokeWidth={2}
+                    fill="url(#cumSpend)"
+                    isAnimationActive={false}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             )}
-          </Widget>
+          </Plate>
 
           {/* Savings-rate trend + fixed vs discretionary */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Widget title="Savings rate" hint="Net ÷ income, per month">
+            <Plate caption="Savings rate" note="Net ÷ income, per month">
               {view.savingsTrend.filter((p) => p.rate != null).length < 2 ? (
-                <p className="py-6 text-center text-sm text-ink-500">
+                <p className="py-6 text-center text-sm text-quill-faint">
                   Needs at least two months with income.
                 </p>
               ) : (
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={view.savingsTrend} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
-                    <CartesianGrid vertical={false} stroke="#1c2632" />
-                    <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} />
+                    <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} />
                     <YAxis
                       tickLine={false}
                       axisLine={false}
                       width={38}
-                      tick={{ fill: "#6f8499", fontSize: 11 }}
+                      tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }}
                       tickFormatter={(v) => `${v}%`}
                     />
                     <Tooltip
-                      contentStyle={TOOLTIP_STYLE}
-                      itemStyle={{ color: "#eef4fa" }}
-                      labelStyle={{ color: "#eef4fa" }}
+                      {...tooltipStyle(ink)}
                       formatter={(v: number) => [`${Math.round(v)}%`, "Savings rate"]}
                     />
-                    <ReferenceLine y={0} stroke="#fb7185" strokeDasharray="4 3" />
+                    <ReferenceLine y={0} stroke={ink["--color-debit"]} strokeDasharray="4 3" />
                     <Line
                       type="monotone"
                       dataKey="rate"
-                      stroke="#7fd1b9"
+                      stroke={ink["--color-credit"]}
                       strokeWidth={2}
                       dot={{ r: 3 }}
                       connectNulls={false}
+                      isAnimationActive={false}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               )}
-            </Widget>
+            </Plate>
 
-            <Widget title="Fixed vs discretionary" hint="Committed bills vs controllable spend">
+            <Plate caption="Fixed vs discretionary" note="Committed bills vs controllable spend">
               {view.fixedTotal + view.discTotal <= 0 ? (
-                <p className="py-6 text-center text-sm text-ink-500">No spending in range.</p>
+                <p className="py-6 text-center text-sm text-quill-faint">No spending in range.</p>
               ) : (
                 <FixedVsDiscretionary
                   fixedTotal={view.fixedTotal}
@@ -583,11 +643,11 @@ export function Analytics() {
                   base={base}
                 />
               )}
-            </Widget>
+            </Plate>
           </div>
 
           {/* Expense breakdown — expandable category bars */}
-          <Widget title="Where money went" hint="Expenses by category — tap a row for detail">
+          <Plate caption="Where money went" note="Expenses by category — tap a row for detail">
             {view.expenseCats.length === 0 ? (
               <ChartEmpty label="No spending in range" />
             ) : (
@@ -602,10 +662,10 @@ export function Analytics() {
                 mode={txnMode}
               />
             )}
-          </Widget>
+          </Plate>
 
           {/* Income breakdown */}
-          <Widget title="Where money came from" hint="Income by category — tap a row for detail">
+          <Plate caption="Where money came from" note="Income by category — tap a row for detail">
             {view.incomeCats.length === 0 ? (
               <ChartEmpty label="No income in range" />
             ) : (
@@ -620,33 +680,33 @@ export function Analytics() {
                 mode={txnMode}
               />
             )}
-          </Widget>
+          </Plate>
 
           {/* Recurring & subscriptions — detected from the full ledger */}
-          <Widget
-            title="Recurring & subscriptions"
-            hint={
+          <Plate
+            caption="Recurring & subscriptions"
+            note={
               view.recurring.length > 0
                 ? `≈ ${formatMoney(view.recurring.reduce((s, r) => s + r.monthlyEquivalent, 0), base)}/month committed`
                 : "Detected from steady intervals and stable amounts"
             }
           >
             {view.recurring.length === 0 ? (
-              <p className="py-6 text-center text-sm text-ink-500">
+              <p className="py-6 text-center text-sm text-quill-faint">
                 No recurring charges detected yet — needs ≥3 charges to the same
                 merchant at a steady interval.
               </p>
             ) : (
-              <ul className="divide-y divide-ink-800/60">
+              <ul className="divide-y divide-rule">
                 {view.recurring.slice(0, 8).map((r) => (
                   <li key={r.merchant} className="flex items-center gap-3 py-2 text-sm">
-                    <RefreshCcw className="size-3.5 shrink-0 text-ink-500" />
+                    <RefreshCcw className="size-3.5 shrink-0 text-quill-faint" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-ink-200">{r.merchant}</p>
-                      <p className="text-xs text-ink-500">
+                      <p className="truncate text-quill">{r.merchant}</p>
+                      <p className="text-xs text-quill-faint">
                         {r.cadence} · ×{r.count} ·{" "}
                         {r.maybeStopped ? (
-                          <span className="text-amber-400">
+                          <span className="text-accent">
                             no charge since {format(parseISO(r.lastDate), "d MMM")} — stopped?
                           </span>
                         ) : (
@@ -655,8 +715,8 @@ export function Analytics() {
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="tnum text-ink-200">{formatMoney(r.typicalAmount, base)}</p>
-                      <p className="tnum text-xs text-ink-600">
+                      <p className="tnum text-quill">{formatMoney(r.typicalAmount, base)}</p>
+                      <p className="tnum text-xs text-quill-faint">
                         {formatMoney(r.monthlyEquivalent, base)}/mo
                       </p>
                     </div>
@@ -664,23 +724,25 @@ export function Analytics() {
                 ))}
               </ul>
             )}
-          </Widget>
+          </Plate>
 
-          {/* Budgets — deep per-budget detail for a single month */}
-          <Widget
-            title="Budgets"
-            hint={
-              period.months.length === 1
-                ? `${period.label} — tap a budget for detail`
-                : "Select a single month to see budgets"
+          {/* Budgets live on their own view now — this is the way through. */}
+          <Plate
+            caption="Budgets"
+            note="Pacing, overruns and the heads nothing is watching"
+            action={
+              <button onClick={() => setBoard("budgets")}>
+                <MarginLink>open budgets</MarginLink>
+              </button>
             }
           >
             {period.months.length !== 1 ? (
-              <p className="py-6 text-center text-sm text-ink-500">
-                Budgets are monthly — pick one month to see them.
+              <p className="text-sm italic text-quill-faint">
+                Budgets are kept by period — the budgets view reads them against
+                their own windows rather than this one.
               </p>
             ) : view.budgetRows.length === 0 ? (
-              <p className="py-6 text-center text-sm text-ink-500">No spending budgets set.</p>
+              <p className="text-sm italic text-quill-faint">No spending budgets set.</p>
             ) : (
               <BudgetsDetail
                 rows={view.budgetRows}
@@ -691,22 +753,22 @@ export function Analytics() {
                 mode={txnMode}
               />
             )}
-          </Widget>
+          </Plate>
 
           {/* Movers + currency exposure */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Widget title="Month-on-month movers" hint="This month vs last">
+            <Plate caption="Month-on-month movers" note="This month vs last">
               {view.movers.length === 0 ? (
-                <p className="py-6 text-center text-sm text-ink-500">No change to report.</p>
+                <p className="py-6 text-center text-sm text-quill-faint">No change to report.</p>
               ) : (
                 <ul className="space-y-2">
                   {view.movers.map((m) => (
                     <li key={m.name} className="flex items-center justify-between gap-3 text-sm">
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
-                        <span className="truncate text-ink-200">{m.name}</span>
+                        <span className="truncate text-quill">{m.name}</span>
                       </span>
-                      <span className={cn("tnum flex shrink-0 items-center gap-1 font-medium", m.delta > 0 ? "text-rose-400" : "text-teal-400")}>
+                      <span className={cn("tnum flex shrink-0 items-center gap-1 font-medium", m.delta > 0 ? "text-debit" : "text-accent")}>
                         {m.delta > 0 ? <ArrowUpRight className="size-3.5" /> : <ArrowDownRight className="size-3.5" />}
                         {formatMoney(Math.abs(m.delta), base)}
                       </span>
@@ -714,32 +776,32 @@ export function Analytics() {
                   ))}
                 </ul>
               )}
-            </Widget>
+            </Plate>
 
-            <Widget title="Currency exposure" hint="Across all accounts">
+            <Plate caption="Currency exposure" note="Across all accounts">
               {view.exposure.length === 0 ? (
-                <p className="py-6 text-center text-sm text-ink-500">No balances to show.</p>
+                <p className="py-6 text-center text-sm text-quill-faint">No balances to show.</p>
               ) : (
                 <ul className="space-y-2.5">
                   {view.exposure.map((e) => (
                     <li key={e.currency}>
                       <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                        <span className="text-ink-200">{e.currency}</span>
-                        <span className="tnum text-ink-400">
+                        <span className="text-quill">{e.currency}</span>
+                        <span className="tnum text-quill-soft">
                           {formatMoney(e.base, base)}
-                          <span className="ml-1 text-ink-600">
+                          <span className="ml-1 text-quill-faint">
                             {view.exposureTotal > 0 ? `${Math.round((e.base / view.exposureTotal) * 100)}%` : ""}
                           </span>
                         </span>
                       </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-ink-800">
-                        <div className="h-full rounded-full bg-teal-500" style={{ width: `${view.exposureTotal > 0 ? (e.base / view.exposureTotal) * 100 : 0}%` }} />
+                      <div className="h-1.5 overflow-hidden rounded-full bg-page-edge">
+                        <div className="h-full rounded-full bg-accent" style={{ width: `${view.exposureTotal > 0 ? (e.base / view.exposureTotal) * 100 : 0}%` }} />
                       </div>
                     </li>
                   ))}
                 </ul>
               )}
-            </Widget>
+            </Plate>
           </div>
         </div>
       )}
@@ -777,25 +839,25 @@ function CategoryBreakdown({
         const isOpen = open === s.id;
         const pct = (s.value / total) * 100;
         return (
-          <li key={s.id} className={cn("rounded-xl transition-colors", isOpen && "bg-ink-950/40")}>
+          <li key={s.id} className={cn("rounded-[2px] transition-colors", isOpen && "bg-well")}>
             <button
               onClick={() => setOpen(isOpen ? null : s.id)}
-              className="block w-full rounded-xl px-2 py-2 text-left transition-colors hover:bg-ink-800/40"
+              className="block w-full rounded-[2px] px-2 py-2 text-left transition-colors hover:bg-page-edge"
             >
               <div className="mb-1.5 flex items-center justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
                   <ChevronDown
-                    className={cn("size-3.5 shrink-0 text-ink-500 transition-transform", !isOpen && "-rotate-90")}
+                    className={cn("size-3.5 shrink-0 text-quill-faint transition-transform", !isOpen && "-rotate-90")}
                   />
                   <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
-                  <span className="truncate text-ink-200">{s.name}</span>
+                  <span className="truncate text-quill">{s.name}</span>
                 </span>
-                <span className="tnum shrink-0 text-ink-300">
+                <span className="tnum shrink-0 text-quill-soft">
                   {formatMoney(s.value, base)}
-                  <span className="ml-1.5 text-xs text-ink-600">{Math.round(pct)}%</span>
+                  <span className="ml-1.5 text-xs text-quill-faint">{Math.round(pct)}%</span>
                 </span>
               </div>
-              <div className="ml-6 h-2 overflow-hidden rounded-full bg-ink-800">
+              <div className="ml-6 h-2 overflow-hidden rounded-full bg-page-edge">
                 <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: s.color }} />
               </div>
             </button>
@@ -838,6 +900,7 @@ function CategoryDetail({
   reimbursed: Map<string, number>;
   mode: CashflowMode;
 }) {
+  const ink = useLedgerInk();
   const inCategory = (t: Transaction) =>
     slice.id === "uncategorised" ? !t.category_id : t.category_id === slice.id;
 
@@ -870,7 +933,7 @@ function CategoryDetail({
   return (
     <div className="space-y-3 px-2 pb-3 pl-8">
       {avg != null && (
-        <p className="tnum text-xs text-ink-500">
+        <p className="tnum text-xs text-quill-faint">
           ~{formatMoney(avg, base)}/month average over {months.length} months
         </p>
       )}
@@ -879,34 +942,39 @@ function CategoryDetail({
       {months.length > 1 && (
         <ResponsiveContainer width="100%" height={130}>
           <BarChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-            <CartesianGrid vertical={false} stroke="#1c2632" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} />
+            <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} />
             <YAxis hide />
             <Tooltip
-              cursor={{ fill: "rgba(255,255,255,0.03)" }}
-              contentStyle={TOOLTIP_STYLE}
+              cursor={{ fill: "rgb(0 0 0 / 0.04)" }}
+              {...tooltipStyle(ink)}
               formatter={(v: number) => [formatMoney(v, base), slice.name]}
             />
-            <Bar dataKey="value" fill={slice.color} radius={[4, 4, 0, 0]} />
+            <Bar
+              dataKey="value"
+              fill={slice.color}
+              radius={[4, 4, 0, 0]}
+              isAnimationActive={false}
+            />
           </BarChart>
         </ResponsiveContainer>
       )}
 
       {/* Largest entries */}
       <div>
-        <p className="mb-1 text-xs font-medium text-ink-500">
+        <p className="mb-1 text-xs font-medium text-quill-faint">
           Largest {kind === "expense" ? "expenses" : "income"} · {catTxns.length} entr{catTxns.length === 1 ? "y" : "ies"}
         </p>
-        <ul className="divide-y divide-ink-800/60">
+        <ul className="divide-y divide-rule">
           {catTxns.slice(0, 6).map(({ t, v }) => (
             <li key={t.id} className="flex items-center gap-3 py-1.5 text-sm">
-              <span className="tnum w-14 shrink-0 text-xs text-ink-500">
+              <span className="tnum w-14 shrink-0 text-xs text-quill-faint">
                 {format(parseISO(t.date), "d MMM")}
               </span>
-              <span className="min-w-0 flex-1 truncate text-ink-300">
+              <span className="min-w-0 flex-1 truncate text-quill-soft">
                 {t.merchant || "—"}
               </span>
-              <span className="tnum shrink-0 text-ink-200">{formatMoney(v, base)}</span>
+              <span className="tnum shrink-0 text-quill">{formatMoney(v, base)}</span>
             </li>
           ))}
         </ul>
@@ -932,6 +1000,7 @@ function BudgetsDetail({
   reimbursed: Map<string, number>;
   mode: CashflowMode;
 }) {
+  const ink = useLedgerInk();
   const [open, setOpen] = useState<string | null>(null);
 
   return (
@@ -945,38 +1014,38 @@ function BudgetsDetail({
         const crossed = over ? series.find((p) => p.cum > b.amount) : undefined;
 
         return (
-          <li key={b.id} className={cn("rounded-xl transition-colors", isOpen && "bg-ink-950/40")}>
+          <li key={b.id} className={cn("rounded-[2px] transition-colors", isOpen && "bg-well")}>
             <button
               onClick={() => setOpen(isOpen ? null : b.id)}
-              className="block w-full rounded-xl px-2 py-2 text-left transition-colors hover:bg-ink-800/40"
+              className="block w-full rounded-[2px] px-2 py-2 text-left transition-colors hover:bg-page-edge"
             >
               <div className="mb-1 flex items-center justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
                   <ChevronDown
-                    className={cn("size-3.5 shrink-0 text-ink-500 transition-transform", !isOpen && "-rotate-90")}
+                    className={cn("size-3.5 shrink-0 text-quill-faint transition-transform", !isOpen && "-rotate-90")}
                   />
                   <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
-                  <span className="truncate text-ink-200">{b.name}</span>
+                  <span className="truncate text-quill">{b.name}</span>
                 </span>
-                <span className={cn("tnum shrink-0", over ? "text-rose-400" : "text-ink-400")}>
+                <span className={cn("tnum shrink-0", over ? "text-debit" : "text-quill-soft")}>
                   {formatMoney(b.spent, base)}
-                  <span className="text-ink-600"> / {formatMoney(b.amount, base)}</span>
+                  <span className="text-quill-faint"> / {formatMoney(b.amount, base)}</span>
                 </span>
               </div>
-              <div className="ml-6 flex h-2 overflow-hidden rounded-full bg-ink-800">
+              <div className="ml-6 flex h-2 overflow-hidden rounded-full bg-page-edge">
                 {over ? (
                   <>
-                    <div className="h-full bg-amber-500" style={{ width: `${(b.amount / b.spent) * 100}%` }} />
-                    <div className="h-full bg-rose-500" style={{ width: `${100 - (b.amount / b.spent) * 100}%` }} />
+                    <div className="h-full bg-head-3" style={{ width: `${(b.amount / b.spent) * 100}%` }} />
+                    <div className="h-full bg-debit" style={{ width: `${100 - (b.amount / b.spent) * 100}%` }} />
                   </>
                 ) : (
                   <div
-                    className={cn("h-full rounded-full", ratio > 0.85 ? "bg-amber-500" : "bg-teal-500")}
+                    className={cn("h-full rounded-full", ratio > 0.85 ? "bg-head-3" : "bg-accent")}
                     style={{ width: `${Math.min(100, ratio * 100)}%` }}
                   />
                 )}
               </div>
-              <p className={cn("tnum ml-6 mt-1 text-xs", over ? "text-rose-400" : "text-ink-500")}>
+              <p className={cn("tnum ml-6 mt-1 text-xs", over ? "text-debit" : "text-quill-faint")}>
                 {over
                   ? `Over by ${formatMoney(b.spent - b.amount, base)}${crossed ? ` · crossed the limit on ${crossed.label}` : ""}`
                   : `${formatMoney(b.amount - b.spent, base)} left · ${Math.round(ratio * 100)}% used`}
@@ -986,7 +1055,7 @@ function BudgetsDetail({
             {isOpen && (
               <div className="px-2 pb-3 pl-8">
                 {series.length === 0 ? (
-                  <p className="py-2 text-xs text-ink-500">No entries this month.</p>
+                  <p className="py-2 text-xs text-quill-faint">No entries this month.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={150}>
                     <AreaChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
@@ -996,22 +1065,27 @@ function BudgetsDetail({
                           <stop offset="100%" stopColor={b.color} stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid vertical={false} stroke="#1c2632" />
-                      <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "#6f8499", fontSize: 11 }} minTickGap={20} />
-                      <YAxis tickLine={false} axisLine={false} width={44} tick={{ fill: "#6f8499", fontSize: 11 }} tickFormatter={(v) => compact(v, base)} domain={[0, (dataMax: number) => Math.max(dataMax, b.amount) * 1.1]} />
+                      <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} minTickGap={20} />
+                      <YAxis tickLine={false} axisLine={false} width={44} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} tickFormatter={(v) => compact(v, base)} domain={[0, (dataMax: number) => Math.max(dataMax, b.amount) * 1.1]} />
                       <Tooltip
-                        contentStyle={TOOLTIP_STYLE}
-                        itemStyle={{ color: "#eef4fa" }}
-                        labelStyle={{ color: "#eef4fa" }}
+                        {...tooltipStyle(ink)}
                         formatter={(v: number) => [formatMoney(v, base), "Spent so far"]}
                       />
                       <ReferenceLine
                         y={b.amount}
-                        stroke="#fb7185"
+                        stroke={ink["--color-debit"]}
                         strokeDasharray="5 4"
-                        label={{ value: "Budget", position: "insideTopRight", fill: "#fb7185", fontSize: 11 }}
+                        label={{ value: "Budget", position: "insideTopRight", fill: ink["--color-debit"], fontSize: 11 }}
                       />
-                      <Area type="stepAfter" dataKey="cum" stroke={b.color} strokeWidth={2} fill={`url(#bud-${b.id})`} />
+                      <Area
+                        type="stepAfter"
+                        dataKey="cum"
+                        stroke={b.color}
+                        strokeWidth={2}
+                        fill={`url(#bud-${b.id})`}
+                        isAnimationActive={false}
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
@@ -1031,24 +1105,6 @@ function compact(v: number, base: string): string {
   const abs = Math.abs(v);
   if (abs >= 1000) return `${v < 0 ? "-" : ""}${(abs / 1000).toFixed(abs >= 10000 ? 0 : 1)}k`;
   return formatMoney(v, base).replace(/\.00$/, "");
-}
-
-function Kpi({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
-  const size = value.length > 11 ? "text-lg lg:text-xl" : "text-xl lg:text-2xl";
-  return (
-    <Card className="min-w-0 p-3.5">
-      <p className="truncate text-xs font-medium text-ink-400">{label}</p>
-      <p
-        className={cn(
-          "tnum mt-1 break-words font-semibold leading-tight tracking-tight",
-          size,
-          tone === "up" ? "text-teal-400" : tone === "down" ? "text-rose-400" : "text-ink-100",
-        )}
-      >
-        {value}
-      </p>
-    </Card>
-  );
 }
 
 interface AnalyticsView {
@@ -1116,18 +1172,15 @@ function Insights({ view, base }: { view: AnalyticsView; base: string }) {
       ? `You saved ${Math.round(view.savingsRate * 100)}% of income this period.`
       : `You spent more than you earned this period.`,
   );
+  // A marginal note in the bookkeeper's hand, not a callout box.
   return (
-    <Card className="space-y-1.5">
-      <p className="text-sm font-semibold text-ink-200">Insights</p>
-      <ul className="space-y-1 text-sm text-ink-400">
-        {items.map((t, i) => (
-          <li key={i} className="flex gap-2">
-            <span className="text-teal-400">•</span>
-            <span>{t}</span>
-          </li>
-        ))}
-      </ul>
-    </Card>
+    <aside className="settle border-l-2 border-brass/50 pl-3 text-sm italic text-quill-soft">
+      {items.map((t, i) => (
+        <p key={i} className={i > 0 ? "mt-1" : undefined}>
+          {t}
+        </p>
+      ))}
+    </aside>
   );
 }
 
@@ -1146,16 +1199,17 @@ interface FlowNodeProps {
  * (unreliable) containerWidth from recharts.
  */
 function FlowNode({ x, y, width, height, payload, base }: FlowNodeProps & { base: string }) {
+  const ink = useLedgerInk();
   const toRight = payload.side === "in";
   const labelX = toRight ? x + width + 8 : x - 8;
   const anchor = toRight ? "start" : "end";
   return (
     <g>
       <rect x={x} y={y} width={width} height={height} fill={payload.color} rx={2} fillOpacity={0.9} />
-      <text x={labelX} y={y + height / 2 - 2} textAnchor={anchor} fill="#c6d3df" fontSize={12}>
+      <text x={labelX} y={y + height / 2 - 2} textAnchor={anchor} fill={ink["--color-quill"]} fontSize={12}>
         {payload.name}
       </text>
-      <text x={labelX} y={y + height / 2 + 12} textAnchor={anchor} fill="#6f8499" fontSize={11} className="tnum">
+      <text x={labelX} y={y + height / 2 + 12} textAnchor={anchor} fill={ink["--color-quill-faint"]} fontSize={11} className="tnum">
         {formatMoney(payload.value, base)}
       </text>
     </g>
@@ -1180,33 +1234,33 @@ function FixedVsDiscretionary({
   const fixedPct = (fixedTotal / total) * 100;
   return (
     <div className="space-y-3">
-      <div className="flex h-3 overflow-hidden rounded-full bg-ink-800">
-        <div className="h-full bg-sky-500/80" style={{ width: `${fixedPct}%` }} />
-        <div className="h-full bg-amber-500/80" style={{ width: `${100 - fixedPct}%` }} />
+      <div className="flex h-3 overflow-hidden rounded-full bg-page-edge">
+        <div className="h-full bg-head-1/80" style={{ width: `${fixedPct}%` }} />
+        <div className="h-full bg-head-3/80" style={{ width: `${100 - fixedPct}%` }} />
       </div>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>
-          <p className="text-xs font-medium text-sky-300">
+          <p className="text-xs font-medium text-head-1">
             Fixed · {Math.round(fixedPct)}%
           </p>
-          <p className="tnum font-semibold text-ink-100">{formatMoney(fixedTotal, base)}</p>
-          <p className="mt-1 truncate text-xs text-ink-500">
+          <p className="tnum font-semibold text-quill">{formatMoney(fixedTotal, base)}</p>
+          <p className="mt-1 truncate text-xs text-quill-faint">
             {fixedCats.length === 0
               ? "No categories marked fixed yet — set them in Categories."
               : fixedCats.map((c) => c.name).join(" · ")}
           </p>
         </div>
         <div>
-          <p className="text-xs font-medium text-amber-300">
+          <p className="text-xs font-medium text-accent">
             Discretionary · {Math.round(100 - fixedPct)}%
           </p>
-          <p className="tnum font-semibold text-ink-100">{formatMoney(discTotal, base)}</p>
-          <p className="mt-1 truncate text-xs text-ink-500">
+          <p className="tnum font-semibold text-quill">{formatMoney(discTotal, base)}</p>
+          <p className="mt-1 truncate text-xs text-quill-faint">
             {discCats.map((c) => c.name).join(" · ") || "—"}
           </p>
         </div>
       </div>
-      <p className="text-xs text-ink-600">
+      <p className="text-xs text-quill-faint">
         Discretionary is the lever — fixed costs only move by renegotiating or
         cancelling.
       </p>
@@ -1214,22 +1268,4 @@ function FixedVsDiscretionary({
   );
 }
 
-function ChartEmpty({ label }: { label: string }) {
-  return (
-    <div className="flex h-[180px] items-center justify-center rounded-xl border border-dashed border-ink-800 text-center text-sm text-ink-500">
-      {label}
-    </div>
-  );
-}
 
-function Widget({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
-  return (
-    <Card className="flex min-w-0 flex-col">
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold text-ink-200">{title}</h2>
-        {hint && <p className="text-xs text-ink-500">{hint}</p>}
-      </div>
-      <div className="flex-1">{children}</div>
-    </Card>
-  );
-}

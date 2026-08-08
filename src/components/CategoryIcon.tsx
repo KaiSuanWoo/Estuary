@@ -1,5 +1,6 @@
 import { cn } from "@/lib/cn";
 import { iconFor } from "@/lib/category-icons";
+import { FALLBACK_HEAD } from "@/lib/constants";
 
 /** A category's icon in a rounded square tinted with the category colour. */
 export function CategoryIcon({
@@ -14,11 +15,11 @@ export function CategoryIcon({
   className?: string;
 }) {
   const Icon = iconFor(icon);
-  const c = color ?? "#4d6175";
+  const c = color ?? FALLBACK_HEAD;
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-lg",
+        "flex shrink-0 items-center justify-center rounded-[2px]",
         size === "sm" ? "size-7" : "size-9",
         className,
       )}
