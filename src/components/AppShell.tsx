@@ -32,13 +32,23 @@ const NAV: NavItem[] = [
 const PILL_STRIDE = 52;
 
 /**
- * How far a tab tucks behind the cover when the bookmarks are closed. The tab
- * is 44px wide, so 24px stays proud — enough to read as a stack of bookmarks,
- * not enough to fit a word.
+ * The bookmarks hang off the fore-edge, out over the desk. A tab is 56px long;
+ * these say how much of it is tucked back under the cover, so the number you
+ * see clearing the leather is `TAB_LENGTH` minus the tuck.
+ *
+ * Retracted leaves 20px proud — enough to read as a stack of five bookmarks,
+ * not enough to fit a word. The one you're on is never tucked that far: it
+ * stands out of the stack so your place is legible without reaching for it.
  */
-const TAB_TUCK = 24;
-/** The tab you're on is never fully tucked; it stands out of the stack. */
-const TAB_TUCK_ACTIVE = 10;
+const TAB_LENGTH = 56;
+const TAB_TUCK = TAB_LENGTH - 20;
+const TAB_TUCK_ACTIVE = TAB_LENGTH - 34;
+/**
+ * Even fully out, a tab keeps its root under the leather. Pulling it clear of
+ * the cover would read as five loose cards lying beside the book rather than
+ * dividers bound into it.
+ */
+const TAB_TUCK_OPEN = 8;
 
 /**
  * The book.
@@ -75,18 +85,79 @@ export function AppShell() {
 
   return (
     <div
-      className="flex h-full flex-col lg:p-6"
+      // Extra room on the right is the desk the bookmarks hang over. Without
+      // it they'd run off a 1024px display.
+      className="flex h-full flex-col lg:p-6 lg:pr-24"
       style={{
         background:
           "linear-gradient(170deg, var(--color-desk-a), var(--color-desk-b))",
       }}
     >
-      <div
-        className={cn(
-          "surface-hide stitched relative flex min-h-0 flex-1 overflow-hidden p-2",
-          "lg:mx-auto lg:w-full lg:max-w-5xl lg:rounded-[6px_10px_10px_6px] lg:p-3",
-        )}
-      >
+      {/* The book: the cover, and the bookmarks bound into it. This wrapper is
+          only the coordinate space they share — it draws nothing. */}
+      <div className="relative flex min-h-0 flex-1 lg:mx-auto lg:w-full lg:max-w-5xl">
+        {/* Fore-edge bookmarks — desktop only; a thumb can't reach a screen
+            edge. They sit *behind* the cover (z-0 against its z-10) and start
+            at its outer edge, so retracting slides them back under the leather
+            and extending pulls them out over the desk. The strip is the full
+            tab length whatever the tabs are doing, so there's always something
+            to reach for. */}
+        <nav
+          aria-label="Sections"
+          onPointerEnter={() => setTabsOpen(true)}
+          onPointerLeave={() => setTabsOpen(false)}
+          onFocus={() => setTabsOpen(true)}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node))
+              setTabsOpen(false);
+          }}
+          className="absolute inset-y-8 left-full z-0 hidden flex-col gap-1.5 lg:flex"
+          style={{ width: TAB_LENGTH }}
+        >
+          {NAV.map(({ to, label, end }) => (
+            <NavLink key={to} to={to} end={end} className="group block flex-1">
+              {({ isActive }) => (
+                <motion.span
+                  initial={false}
+                  animate={{
+                    x: tabsOpen || reduce
+                      ? -TAB_TUCK_OPEN
+                      : isActive
+                        ? -TAB_TUCK_ACTIVE
+                        : -TAB_TUCK,
+                  }}
+                  whileTap={reduce ? undefined : { scale: 0.97 }}
+                  transition={paperSettle}
+                  className={cn(
+                    "flex h-full items-center justify-center rounded-r-[4px]",
+                    "shadow-[2px_2px_7px_rgb(0_0_0/0.5)] transition-colors",
+                    isActive
+                      ? "brass-face"
+                      : "bg-page-edge text-quill/75 group-hover:text-quill",
+                  )}
+                >
+                  <motion.span
+                    initial={false}
+                    animate={{ opacity: tabsOpen || reduce ? 1 : 0 }}
+                    transition={{ duration: 0.16 }}
+                    className="text-[0.68rem] tracking-[0.16em] lg:text-xs"
+                    style={{ writingMode: "vertical-rl", fontVariant: "small-caps" }}
+                  >
+                    {label}
+                  </motion.span>
+                </motion.span>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* The cover. It encloses the page and nothing else. */}
+        <div
+          className={cn(
+            "surface-hide stitched relative z-10 flex min-h-0 flex-1 overflow-hidden p-2",
+            "lg:rounded-[6px_10px_10px_6px] lg:p-3",
+          )}
+        >
         <LeafScrollProvider leafRef={leafRef}>
           {/* The leaf. Extra left padding is the gutter the ribbon lies in. */}
           <main
@@ -122,57 +193,6 @@ export function AppShell() {
 
           <BackToTop />
         </LeafScrollProvider>
-
-        {/* Fore-edge tabs — desktop only; a thumb can't reach a screen edge.
-            They lie tucked behind the cover and pull out like bookmarks when
-            you reach for them. Only `transform` moves, so nothing reflows. */}
-        <nav
-          aria-label="Sections"
-          onPointerEnter={() => setTabsOpen(true)}
-          onPointerLeave={() => setTabsOpen(false)}
-          onFocus={() => setTabsOpen(true)}
-          onBlur={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node))
-              setTabsOpen(false);
-          }}
-          className="relative z-20 ml-1.5 hidden w-11 shrink-0 flex-col gap-1.5 lg:flex"
-        >
-          {NAV.map(({ to, label, end }) => (
-            <NavLink key={to} to={to} end={end} className="group block flex-1">
-              {({ isActive }) => (
-                <motion.span
-                  initial={false}
-                  animate={{
-                    x: tabsOpen || reduce
-                      ? 0
-                      : isActive
-                        ? TAB_TUCK_ACTIVE
-                        : TAB_TUCK,
-                  }}
-                  whileTap={reduce ? undefined : { scale: 0.97 }}
-                  transition={paperSettle}
-                  className={cn(
-                    "flex h-full items-center justify-center rounded-r-[4px]",
-                    "shadow-[1px_1px_3px_rgb(0_0_0/0.4)] transition-colors",
-                    isActive
-                      ? "brass-face"
-                      : "bg-page-edge text-quill/75 group-hover:text-quill",
-                  )}
-                >
-                  <motion.span
-                    initial={false}
-                    animate={{ opacity: tabsOpen || reduce ? 1 : 0 }}
-                    transition={{ duration: 0.16 }}
-                    className="text-[0.68rem] tracking-[0.16em] lg:text-xs"
-                    style={{ writingMode: "vertical-rl", fontVariant: "small-caps" }}
-                  >
-                    {label}
-                  </motion.span>
-                </motion.span>
-              )}
-            </NavLink>
-          ))}
-        </nav>
 
         {/* Binding shadow down the spine */}
         <span
@@ -257,6 +277,7 @@ export function AppShell() {
           className="brass-face pointer-events-none absolute bottom-0 left-0 z-20 size-6"
           style={{ clipPath: "polygon(0 0, 0 100%, 100% 100%)" }}
         />
+        </div>
       </div>
     </div>
   );
