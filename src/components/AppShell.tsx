@@ -55,6 +55,18 @@ const TAB_TUCK_OPEN = 14;
  * out of the fan.
  */
 const TAB_REACH = 10;
+/**
+ * How tall a tab is, taken from the type rather than from the space available.
+ * The longest label — "Analytics", set vertically at 12px with 0.16em — needs
+ * 74px, so 96px gives it that plus room to breathe at either end.
+ *
+ * Dividing the whole fore-edge between five tabs made each 153px: tall, thin,
+ * and reading as a hanging file in a cabinet drawer rather than a divider bound
+ * into a book. Grouping them at the head of the edge and leaving the foot clear
+ * is what makes them bookmarks. It is a maximum, not a fixed height — on a
+ * short window the tabs share what there is instead of running off the cover.
+ */
+const TAB_HEIGHT = 96;
 
 /**
  * The book.
@@ -117,11 +129,17 @@ export function AppShell() {
             if (!e.currentTarget.contains(e.relatedTarget as Node))
               setTabsOpen(false);
           }}
-          className="absolute inset-y-8 left-full z-0 hidden flex-col gap-1.5 lg:flex"
+          className="absolute inset-y-8 left-full z-0 hidden flex-col justify-start gap-1.5 lg:flex"
           style={{ width: TAB_LENGTH }}
         >
           {NAV.map(({ to, label, end }) => (
-            <NavLink key={to} to={to} end={end} className="group block flex-1">
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className="group block min-h-0 flex-1"
+              style={{ maxHeight: TAB_HEIGHT }}
+            >
               {({ isActive }) => {
                 // Where this tab sits when nothing is touching it: fanned out
                 // with the rest, standing proud because it's the section
