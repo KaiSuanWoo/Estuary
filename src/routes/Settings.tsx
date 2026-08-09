@@ -27,8 +27,12 @@ import {
   LAMPS,
   readHide,
   readLamp,
-  readShowHomeBudgets,
-  writeShowHomeBudgets,
+  readTextScale,
+  readBoldText,
+  applyTextScale,
+  applyBoldText,
+  TEXT_SCALES,
+  TEXT_SCALE_LABELS,
   type Hide,
   type Lamp,
 } from "@/lib/ledger";
@@ -168,16 +172,17 @@ export function Settings() {
 
 /**
  * The physical book: the light it's read under, the hide it's bound in, and
- * what its first page carries.
+ * the hand it's written in.
  *
- * All three are stored per device rather than per account — a phone in bed
- * wants a different lamp from a desk at noon, and a phone has a screenful less
- * room for a budget line.
+ * All of it is stored per device rather than per account — a phone in bed wants
+ * a different lamp from a desk at noon, and the eyes reading a phone at arm's
+ * length are not the eyes reading a desktop.
  */
 function TheBook() {
   const [lamp, setLamp] = useState<Lamp>(readLamp);
   const [hide, setHide] = useState<Hide>(readHide);
-  const [showBudgets, setShowBudgets] = useState(readShowHomeBudgets);
+  const [scale, setScale] = useState<number>(readTextScale);
+  const [bold, setBold] = useState<boolean>(readBoldText);
 
   return (
     <Register
@@ -239,26 +244,46 @@ function TheBook() {
         </div>
       </Line>
 
-      <Line label="Budgets on Home" note="One line: spent, limit, what's left">
+      <Line
+        label="Text size"
+        note={`${TEXT_SCALE_LABELS[TEXT_SCALES.indexOf(scale as never)]} — everything scales together`}
+      >
+        <input
+          type="range"
+          min={0}
+          max={TEXT_SCALES.length - 1}
+          step={1}
+          value={TEXT_SCALES.indexOf(scale as never)}
+          aria-label="Text size"
+          onChange={(e) => {
+            const next = TEXT_SCALES[Number(e.target.value)];
+            setScale(next);
+            applyTextScale(next);
+          }}
+          className="h-6 w-36 cursor-pointer accent-[var(--color-brass)]"
+        />
+      </Line>
+
+      <Line label="Heavier text" note="Presses the ink harder without changing its size">
         <button
           type="button"
           role="switch"
-          aria-checked={showBudgets}
-          aria-label="Show budgets on Home"
+          aria-checked={bold}
+          aria-label="Heavier text"
           onClick={() => {
-            const next = !showBudgets;
-            setShowBudgets(next);
-            writeShowHomeBudgets(next);
+            const next = !bold;
+            setBold(next);
+            applyBoldText(next);
           }}
           className={cn(
             "tap relative h-6 w-11 shrink-0 rounded-full border transition-colors",
-            showBudgets ? "border-brass bg-brass/30" : "border-rule",
+            bold ? "border-brass bg-brass/30" : "border-rule",
           )}
         >
           <span
             className={cn(
               "absolute top-0.5 size-4 rounded-full transition-all",
-              showBudgets ? "left-[1.55rem] bg-brass" : "left-0.5 bg-quill-faint",
+              bold ? "left-[1.55rem] bg-brass" : "left-0.5 bg-quill-faint",
             )}
           />
         </button>

@@ -17,19 +17,10 @@ import {
 import { useLeafScroll } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
+import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
+import { groupLinks } from "@/lib/budgets";
+import { budgetMetrics } from "@/lib/budget-metrics";
 import { useCategories } from "@/hooks/useCategories";
-import {
-  useBudgets,
-  useBudgetLinks,
-  useBudgetTransactionLinks,
-} from "@/hooks/useBudgets";
-import {
-  spendForBudget,
-  budgetPacing,
-  goalFunding,
-  groupLinks,
-  groupTxnLinks,
-} from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import {
@@ -39,7 +30,6 @@ import {
 } from "@/hooks/useInvestmentSnapshot";
 import { investmentTotalInBase } from "@/lib/investments";
 import { balancesByCurrency } from "@/lib/balances";
-import { readShowHomeBudgets } from "@/lib/ledger";
 import { convert, totalInBase, type RateMap } from "@/lib/fx";
 import {
   cashflowForRange,
@@ -59,7 +49,6 @@ import {
   headInk,
   LeadFigure,
   MarginLink,
-  PacingBar,
   PageHead,
   Plate,
   Register,
@@ -71,7 +60,7 @@ import {
 } from "@/components/ledger";
 import { HoverDonut } from "@/components/HoverDonut";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
-import type { Budget, InvestmentHistoryPoint } from "@/lib/types";
+import type { InvestmentHistoryPoint } from "@/lib/types";
 
 export function Dashboard() {
   const [adding, setAdding] = useState(false);
@@ -90,10 +79,8 @@ export function Dashboard() {
   const baseCurrency = useBaseCurrency();
   const rates = useRateMap();
 
-  // Budget + goal data (cross-account, so always over the full ledger).
   const { data: budgets = [] } = useBudgets();
   const { data: budgetLinks = [] } = useBudgetLinks();
-  const { data: budgetTxnLinks = [] } = useBudgetTransactionLinks();
   const reimbursedMap = useReimbursedAmountMap();
   const { data: investSnapshot } = useInvestmentSnapshot();
   const { data: investHistory = [] } = useInvestmentHistory();
@@ -102,7 +89,6 @@ export function Dashboard() {
   // the hook count differ between the loading and loaded renders.
   const ink = useLedgerInk();
   const reduce = useReducedMotion();
-  const showBudgets = readShowHomeBudgets();
 
   const accounts = accountsQ.data ?? [];
   const txns = allTxnsQ.data ?? [];
@@ -164,6 +150,26 @@ export function Dashboard() {
     [scopedTxns, txns, baseCurrency, rates, cashflowMode],
   );
 
+  // Only the budgets pinned from the editor reach the front page, and only
+  // ever as one line each — Home is a glance, not the board.
+  const pinned = useMemo(() => {
+    const links = groupLinks(budgetLinks);
+    return budgets
+      .filter((b) => b.show_on_home && b.type !== "goal")
+      .map((b) =>
+        budgetMetrics(
+          b,
+          links.get(b.id) ?? new Set<string>(),
+          categoriesQ.data ?? [],
+          txns,
+          baseCurrency,
+          rates,
+          reimbursedMap,
+          { cycles: 0 },
+        ),
+      );
+  }, [budgets, budgetLinks, categoriesQ.data, txns, baseCurrency, rates, reimbursedMap]);
+
   const categorySlices = spendingByCategory(
     scopedTxns,
     categoriesQ.data ?? [],
@@ -174,54 +180,6 @@ export function Dashboard() {
     cashflowMode,
     txns,
   );
-
-  // ── Budgets — recurring use a period window; goals are transaction-funded ────
-  const { expenseRows, expenseTotals } = useMemo(() => {
-    const links = groupLinks(budgetLinks);
-    const txnLinks = groupTxnLinks(budgetTxnLinks);
-    const recurring = budgets.filter((b) => b.type !== "goal");
-    const spentOf = (b: Budget) =>
-      spendForBudget(
-        b,
-        links.get(b.id) ?? new Set<string>(),
-        txns,
-        baseCurrency,
-        rates,
-        reimbursedMap,
-      );
-    const expenseRows = recurring
-      .filter((b) => b.direction !== "saving")
-      .map((b) => {
-        const spent = spentOf(b);
-        return { b, spent, pacing: budgetPacing(b, spent) };
-      });
-    return {
-      expenseRows,
-      expenseTotals: expenseRows.reduce(
-        (acc, { b, spent }) => ({
-          spent: acc.spent + spent,
-          budget: acc.budget + b.amount,
-        }),
-        { spent: 0, budget: 0 },
-      ),
-      savingRows: recurring
-        .filter((b) => b.direction === "saving")
-        .map((b) => ({ b, spent: spentOf(b) })),
-      goalRows: budgets
-        .filter((b) => b.type === "goal")
-        .map((b) => ({
-          b,
-          funding: goalFunding(
-            b,
-            txnLinks.get(b.id) ?? new Set<string>(),
-            txns,
-            baseCurrency,
-            rates,
-            reimbursedMap,
-          ),
-        })),
-    };
-  }, [budgets, budgetLinks, budgetTxnLinks, txns, baseCurrency, rates, reimbursedMap]);
 
   if (accountsQ.isLoading) {
     return (
@@ -299,6 +257,11 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* Six months of received-against-expended. It belongs on the verso: the
+          shape of the last half-year is part of where you stand, not part of
+          what happened this month. */}
+      {cashflowPlate}
+
       {showInvest && (
         <Plate caption="Investments" note="Value over time">
           <InvestmentsPlate
@@ -309,11 +272,6 @@ export function Dashboard() {
           />
         </Plate>
       )}
-
-      {/* Six months of received-against-expended. It belongs on the verso: the
-          shape of the last half-year is part of where you stand, not part of
-          what happened this month. */}
-      {cashflowPlate}
     </>
   );
 
@@ -419,27 +377,21 @@ export function Dashboard() {
           the moment there is a left page to carry it. */}
       <div className="lg:hidden">{cashflowPlate}</div>
 
-      {showBudgets && (
-      <Register
-        title="Budgets"
-        action={
-          <Link to="/analytics?view=budgets">
-            <MarginLink>manage</MarginLink>
-          </Link>
-        }
-      >
-        {expenseRows.length === 0 ? (
-          <p className="text-sm italic text-quill-faint">
-            No budgets set. Create one to track spending against a limit.
-          </p>
-        ) : (
-          <BudgetSummary
-            spent={expenseTotals.spent}
-            budget={expenseTotals.budget}
-            base={baseCurrency}
-          />
-        )}
-      </Register>
+      {pinned.length > 0 && (
+        <Register
+          title="Budgets"
+          action={
+            <Link to="/analytics?view=budgets">
+              <MarginLink>the board</MarginLink>
+            </Link>
+          }
+        >
+          <div>
+            {pinned.map((m) => (
+              <PinnedBudget key={m.budget.id} m={m} base={baseCurrency} />
+            ))}
+          </div>
+        </Register>
       )}
     </>
   );
@@ -456,41 +408,70 @@ export function Dashboard() {
 
 // --- building blocks -------------------------------------------------------
 
-/** Compact aggregate strip atop the Budget widget — all spending budgets combined. */
-function BudgetSummary({
-  spent,
-  budget,
-  base,
-}: {
-  spent: number;
-  budget: number;
-  base: string;
-}) {
-  const ratio = budget > 0 ? spent / budget : 0;
-  const remaining = budget - spent;
-  const tone =
-    ratio > 1 ? "text-debit" : ratio > 0.85 ? "text-accent" : "text-quill";
+/**
+ * A pinned budget, in one line. Spent against allocated, the share used, and
+ * the gap from an even pace — the three figures that answer "am I fine" without
+ * opening anything.
+ */
+function PinnedBudget({ m, base }: { m: ReturnType<typeof budgetMetrics>; base: string }) {
+  const over = m.used > 1;
+  const dev = m.deviation;
   return (
-    <div className="leaf-panel p-3">
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="font-medium text-quill-soft">
-          All budgets{" "}
-          <span className="tnum text-quill-faint">
-            · {formatMoney(spent, base)} / {formatMoney(budget, base)}
+    <div className="border-b border-rule py-2 last:border-b-0">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="min-w-0 truncate text-quill">{m.budget.name}</span>
+        <span className="tnum shrink-0 text-sm text-quill-soft">
+          {formatMoney(m.spent, base)}
+          <span className="text-quill-faint"> / {formatMoney(m.allocated, base)}</span>
+          <span className={cn("ml-2", over ? "text-debit" : "text-quill")}>
+            {Math.round(m.used * 100)}%
           </span>
-        </span>
-        <span className={cn("tnum font-medium", tone)}>
-          {remaining >= 0
-            ? `${formatMoney(remaining, base)} left`
-            : `${formatMoney(-remaining, base)} over`}
+          {dev != null && (
+            <span
+              className={cn(
+                "ml-2 text-xs",
+                dev > 0.02 ? "text-debit" : dev < -0.02 ? "text-credit" : "text-quill-faint",
+              )}
+            >
+              {dev >= 0 ? "+" : "−"}
+              {Math.abs(Math.round(dev * 100))}%
+            </span>
+          )}
         </span>
       </div>
-      <PacingBar ratio={ratio} />
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(Math.min(1, m.used) * 100)}
+        aria-label={`${m.budget.name}: ${Math.round(m.used * 100)}% of budget`}
+        className="relative mt-1.5 flex h-1.5 overflow-hidden bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]"
+      >
+        {over ? (
+          <>
+            <div className="h-full bg-head-3" style={{ width: `${(1 / m.used) * 100}%` }} />
+            <div className="h-full bg-debit" style={{ width: `${100 - (1 / m.used) * 100}%` }} />
+          </>
+        ) : (
+          m.breakdown.map((c) => (
+            <div
+              key={c.id}
+              className="h-full"
+              style={{ width: `${c.shareOfAllocated * 100}%`, backgroundColor: c.color }}
+            />
+          ))
+        )}
+        {m.elapsed != null && m.elapsed > 0.02 && m.elapsed < 0.98 && (
+          <span
+            aria-hidden
+            className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-quill/70"
+            style={{ left: `${m.elapsed * 100}%` }}
+          />
+        )}
+      </div>
     </div>
   );
 }
-
-
 
 function CashflowBars({
   data,

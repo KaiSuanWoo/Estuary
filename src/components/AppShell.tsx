@@ -28,8 +28,12 @@ const NAV: NavItem[] = [
   { to: "/settings", label: "Settings", icon: Settings, end: false },
 ];
 
-/** Each dock cell is size-12 (48px) with gap-1 (4px) → a 52px stride. */
-const PILL_STRIDE = 52;
+/**
+ * Each dock cell is size-12 (3rem) with gap-1 (0.25rem) → a 3.25rem stride.
+ * Expressed in rem, not px, so it still lands under the icons when the text
+ * scale grows the dock.
+ */
+const PILL_STRIDE = 3.25;
 
 /**
  * The bookmarks hang off the fore-edge, out over the desk. A tab is 56px long;
@@ -66,7 +70,7 @@ const TAB_REACH = 10;
  * is what makes them bookmarks. It is a maximum, not a fixed height — on a
  * short window the tabs share what there is instead of running off the cover.
  */
-const TAB_HEIGHT = 96;
+const TAB_HEIGHT = "6rem";
 
 /**
  * The book.
@@ -171,7 +175,7 @@ export function AppShell() {
                     whileTap={reduce ? undefined : { scale: 0.97 }}
                     transition={paperSettle}
                     className={cn(
-                      "flex h-full items-center justify-center rounded-r-[4px] transition-colors",
+                      "flex h-full items-center justify-end rounded-r-[4px] pr-2 transition-colors",
                       isActive
                         ? "brass-face"
                         : "bg-page-edge text-quill/75 group-hover:text-quill",
@@ -183,7 +187,10 @@ export function AppShell() {
                       // your pointer is on is carried by `group-hover` on the
                       // face above — driving it from here would only respond
                       // to the pointer being on the glyphs themselves.
-                      animate={{ opacity: tabsOpen || reduce ? 1 : 0 }}
+                      // The section you're on keeps its name showing at all
+                      // times — the colour alone said "this one" without ever
+                      // saying which one.
+                      animate={{ opacity: tabsOpen || reduce || isActive ? 1 : 0 }}
                       transition={{ duration: 0.16 }}
                       className="text-[0.68rem] tracking-[0.16em] lg:text-xs"
                       style={{ writingMode: "vertical-rl", fontVariant: "small-caps" }}
@@ -205,10 +212,14 @@ export function AppShell() {
           )}
         >
         <LeafScrollProvider leafRef={leafRef}>
-          {/* The leaf. Extra left padding is the gutter the ribbon lies in. */}
+          {/* The leaf. Its paper grain and the shadow falling from the gutter
+              live on this element, which never scrolls — hung on the scroll
+              container itself they were one screen tall and slid away, so the
+              texture stopped dead a screenful down. */}
+          <div className="surface-leaf relative min-h-0 flex-1 rounded-[2px]">
           <main
             ref={leafRef}
-            className="surface-leaf relative min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-[2px]"
+            className="absolute inset-0 overflow-y-auto overscroll-contain"
             style={{ perspective: "1400px" }}
           >
             {/* max-w-5xl on a spread: two pages need the width one didn't.
@@ -236,6 +247,7 @@ export function AppShell() {
               </motion.div>
             </AnimatePresence>
           </main>
+          </div>
 
           <BackToTop />
         </LeafScrollProvider>
@@ -263,7 +275,7 @@ export function AppShell() {
             left: "1.15rem",
             transformOrigin: "top center",
             background:
-              "linear-gradient(90deg, #6d1420, #a8283a 35%, #c4485a 50%, #8a1b2a 70%, #5c0f1a)",
+              "linear-gradient(90deg, var(--color-silk-lo), var(--color-silk) 35%, var(--color-silk-hi) 50%, var(--color-silk) 70%, var(--color-silk-lo))",
             boxShadow: "1px 0 4px rgb(0 0 0 / 0.55)",
             clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 94%, 0 100%)",
           }}
@@ -286,7 +298,7 @@ export function AppShell() {
                 aria-hidden
                 className="brass-face absolute left-1.5 top-1.5 z-0 size-12 rounded-[18px]"
                 initial={false}
-                animate={{ x: activeIndex * PILL_STRIDE }}
+                animate={{ x: `${activeIndex * PILL_STRIDE}rem` }}
                 transition={reduce ? { duration: 0 } : paperSettle}
               />
             )}

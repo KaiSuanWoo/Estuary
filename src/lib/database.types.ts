@@ -292,6 +292,8 @@ export interface Database {
           end_date: string | null;
           due_date: string | null;
           color: string | null;
+          show_on_home: boolean;
+          display_order: number | null;
           created_at: string;
         };
         Insert: {
@@ -306,6 +308,8 @@ export interface Database {
           end_date?: string | null;
           due_date?: string | null;
           color?: string | null;
+          show_on_home?: boolean;
+          display_order?: number | null;
           created_at?: string;
         };
         Update: {
@@ -320,6 +324,8 @@ export interface Database {
           end_date?: string | null;
           due_date?: string | null;
           color?: string | null;
+          show_on_home?: boolean;
+          display_order?: number | null;
           created_at?: string;
         };
         Relationships: [];
