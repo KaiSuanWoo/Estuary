@@ -1,21 +1,28 @@
-import { Ban, Flag } from "lucide-react";
+import { ArrowLeftRight, Ban, Flag } from "lucide-react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { formatMoney } from "@/lib/format";
+import { iconFor } from "@/lib/category-icons";
 import { isReimbursement, reimbursementLinks } from "@/lib/reimbursements";
 import { pressDown, useReducedMotion } from "@/lib/motion";
-import type { Transaction } from "@/lib/types";
+import { FALLBACK_HEAD } from "@/lib/constants";
+import type { Category, Transaction } from "@/lib/types";
 
 /**
  * One entry in the register.
  *
- * A ledger has no avatars and no coloured pills — it has columns. Money out and
- * money in sit under their own headings so a glance down either column answers
- * "what did I spend" without reading a sign, and the particulars carry the
- * merchant with its category and account beneath.
+ * A ledger has columns, not cards: money out and money in sit under their own
+ * headings so a glance down either answers "what did I spend" without reading
+ * a sign, and the particulars carry the merchant with its head and account
+ * beneath.
+ *
+ * The head's mark sits in the margin — a bare glyph in the category's own ink,
+ * not a tinted avatar chip. It is there to be scanned down, which is what makes
+ * a column of entries readable at speed.
  */
 export function TransactionRow({
   tx,
+  category,
   categoryName,
   accountName,
   toAccountName,
@@ -24,6 +31,8 @@ export function TransactionRow({
   onClick,
 }: {
   tx: Transaction;
+  /** The head this entry is filed under, for its mark and ink. */
+  category?: Category;
   categoryName?: string;
   /** Name of the source account (used in transfer subtitle). */
   accountName?: string;
@@ -74,9 +83,11 @@ export function TransactionRow({
         ? categoryName
         : tx.notes || null;
 
-  // Which column the figure belongs in. Transfers leave the account they're
-  // filed against, so they sit under "out".
-  const outward = tx.type === "expense" || tx.type === "transfer";
+  // Which ink the figure takes. Credit green and debit red mean money entering
+  // or leaving your position — a transfer does neither, it moves between two
+  // accounts you already own and nets to nothing, so it is written in plain
+  // quill like any other neutral entry.
+  const outward = tx.type === "expense";
   const gross = tx.amount;
   const net = netAmt ?? (reimb ? reimbNet : null);
 
@@ -89,13 +100,16 @@ export function TransactionRow({
       whileTap={onClick && !reduce ? { scale: 0.99 } : undefined}
       transition={pressDown}
       className={cn(
-        "grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-0.5 border-b border-rule py-2.5 last:border-b-0",
-        balance !== undefined && "sm:grid-cols-[1fr_auto_auto]",
+        "grid grid-cols-[1.15rem_1fr_auto] items-baseline gap-x-2.5 gap-y-0.5 border-b border-rule py-2.5 last:border-b-0",
+        balance !== undefined && "sm:grid-cols-[1.15rem_1fr_auto_auto]",
         isExcluded && "opacity-45",
         onClick && "cursor-pointer transition-colors hover:bg-[color-mix(in_oklab,var(--color-quill)_4%,transparent)]",
       )}
       onClick={onClick}
     >
+      {/* The head's mark, in the margin. */}
+      <Mark isTransfer={isTransfer} category={category} />
+
       {/* Particulars */}
       <div className="min-w-0">
         <p className="flex items-center gap-1.5 truncate text-quill">
@@ -124,7 +138,12 @@ export function TransactionRow({
             <span className="tnum text-xs text-quill-faint line-through">
               {figure(gross)}
             </span>
-            <span className={cn("tnum", outward ? "text-debit" : "text-credit")}>
+            <span
+              className={cn(
+                "tnum",
+                isTransfer ? "text-quill" : outward ? "text-debit" : "text-credit",
+              )}
+            >
               {figure(net)}
             </span>
           </>
@@ -134,9 +153,11 @@ export function TransactionRow({
               "tnum",
               isExcluded
                 ? "text-quill-faint line-through"
-                : outward
-                  ? "text-debit"
-                  : "text-credit",
+                : isTransfer
+                  ? "text-quill"
+                  : outward
+                    ? "text-debit"
+                    : "text-credit",
             )}
           >
             {figure(gross)}
@@ -159,6 +180,37 @@ export function TransactionRow({
         </span>
       )}
     </motion.div>
+  );
+}
+
+/**
+ * The glyph beside an entry. Transfers have no head of their own, so they take
+ * the movement's own mark and the page's neutral ink.
+ */
+function Mark({
+  isTransfer,
+  category,
+}: {
+  isTransfer: boolean;
+  category?: Category;
+}) {
+  if (isTransfer) {
+    return (
+      <ArrowLeftRight
+        aria-hidden
+        className="size-3.5 shrink-0 translate-y-0.5 text-quill-faint"
+        strokeWidth={1.75}
+      />
+    );
+  }
+  const Icon = iconFor(category?.icon);
+  return (
+    <Icon
+      aria-hidden
+      className="size-3.5 shrink-0 translate-y-0.5"
+      strokeWidth={1.75}
+      style={{ color: category?.color ?? FALLBACK_HEAD }}
+    />
   );
 }
 
