@@ -878,6 +878,7 @@ export function Transactions() {
                       <TransactionRow
                         key={tx.id}
                         tx={tx}
+                        category={cat}
                         categoryName={cat?.name}
                         accountName={accountMap.get(tx.account_id)}
                         toAccountName={
@@ -1106,6 +1107,7 @@ function SearchOverlay({
                   <TransactionRow
                     key={tx.id}
                     tx={tx}
+                    category={cat}
                     categoryName={cat?.name}
                     accountName={accountMap.get(tx.account_id)}
                     toAccountName={
