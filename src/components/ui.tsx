@@ -8,6 +8,7 @@ import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { easeStandard, paperSettle, useReducedMotion } from "@/lib/motion";
+import { Overlay, useScrollLock } from "@/components/leaf-scroll";
 
 /** A block of entries ruled onto the leaf. */
 export function Card({
@@ -167,6 +168,8 @@ export function Sheet({
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(true);
   const close = () => setOpen(false);
+  // The page underneath must not move while a form is over it.
+  useScrollLock(open);
 
   // A loose card slid into the book: it comes up, tilts level, and settles.
   // Paper has no rebound, so there is no overshoot on the way in.
@@ -185,6 +188,7 @@ export function Sheet({
       };
 
   return (
+    <Overlay>
     <AnimatePresence onExitComplete={onClose}>
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center px-4 pb-24 pt-10 lg:items-center lg:py-8">
@@ -224,5 +228,6 @@ export function Sheet({
         </div>
       )}
     </AnimatePresence>
+    </Overlay>
   );
 }
