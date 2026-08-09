@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useLeafScroll } from "@/components/leaf-scroll";
+import { useLeafScroll, Overlay, useScrollLock } from "@/components/leaf-scroll";
 import { useReimbursedAmountMap, useTransactions } from "@/hooks/useTransactions";
 import {
   PAGE_SIZE,
@@ -917,6 +917,7 @@ export function Transactions() {
         </>
       )}
 
+      <Overlay>
       {hasData && (
         <button
           type="button"
@@ -973,6 +974,7 @@ export function Transactions() {
           <Flag className="size-5" />
         </button>
       )}
+      </Overlay>
 
       {searchOpen && (
         <SearchOverlay
@@ -1036,7 +1038,9 @@ function SearchOverlay({
   onPick: (tx: Transaction) => void;
   onClose: () => void;
 }) {
+  useScrollLock(true);
   return (
+    <Overlay>
     <div
       role="dialog"
       aria-modal="true"
@@ -1124,5 +1128,6 @@ function SearchOverlay({
         </div>
       </div>
     </div>
+    </Overlay>
   );
 }

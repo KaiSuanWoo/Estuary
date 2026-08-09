@@ -27,10 +27,14 @@ import type { Transaction } from "@/lib/types";
 const inputCls =
   "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
+// Credit belongs here: the label, the ink, the `credit_limit` field and the
+// available-balance maths all existed for it, but it was missing from the one
+// list that decides what you can actually create.
 const ACCOUNT_TYPES: AccountType[] = [
   "checking",
   "savings",
   "cash",
+  "credit",
   "investment",
   "investmentCash",
 ];

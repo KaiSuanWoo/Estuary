@@ -7,6 +7,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * The leaf scrolls, not the window.
@@ -49,6 +50,43 @@ export function useLeafScroll(onScroll: (y: number) => void): void {
     el.addEventListener("scroll", handle, { passive: true });
     return () => el.removeEventListener("scroll", handle);
   }, [leafRef]);
+}
+
+/**
+ * Renders into `document.body`, outside the book entirely.
+ *
+ * The leaf carries `perspective` so the page can turn, and a perspective makes
+ * an element a containing block for `position: fixed` descendants — so anything
+ * fixed that a route renders would anchor to the leaf rather than the window,
+ * landing sheets inside the page area and the floating buttons a cover's worth
+ * off the bottom of the screen. Overlays and floating chrome go through here so
+ * no ancestor can capture them.
+ */
+export function Overlay({ children }: { children: ReactNode }) {
+  return createPortal(children, document.body);
+}
+
+/**
+ * Hold the leaf still while something is open on top of it.
+ *
+ * Locks the leaf (which is what actually scrolls) and the document, and
+ * restores whatever was there before — a second sheet opening over the first
+ * must not clear the first one's lock when it closes.
+ */
+export function useScrollLock(active: boolean): void {
+  const leafRef = useContext(LeafScrollCtx);
+  useEffect(() => {
+    if (!active) return;
+    const leaf = leafRef?.current;
+    const prevLeaf = leaf?.style.overflow ?? "";
+    const prevBody = document.body.style.overflow;
+    if (leaf) leaf.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      if (leaf) leaf.style.overflow = prevLeaf;
+      document.body.style.overflow = prevBody;
+    };
+  }, [active, leafRef]);
 }
 
 /** Returns a function that sends the leaf back to its head. */

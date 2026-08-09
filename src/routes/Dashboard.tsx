@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useLeafScroll } from "@/components/leaf-scroll";
+import { useLeafScroll, Overlay } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
@@ -637,6 +637,7 @@ export function FloatingAdd({
   useLeafScroll((y) => setScrolled(y > 300));
 
   return (
+    <Overlay>
     <button
       onClick={onClick}
       aria-label="Add transaction"
@@ -648,5 +649,6 @@ export function FloatingAdd({
     >
       <Plus className="size-7" strokeWidth={2.5} />
     </button>
+    </Overlay>
   );
 }
