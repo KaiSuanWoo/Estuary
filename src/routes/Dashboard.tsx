@@ -16,20 +16,8 @@ import {
 } from "recharts";
 import { useLeafScroll } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
-import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
+import { useTransactions } from "@/hooks/useTransactions";
 import { useCategories } from "@/hooks/useCategories";
-import {
-  useBudgets,
-  useBudgetLinks,
-  useBudgetTransactionLinks,
-} from "@/hooks/useBudgets";
-import {
-  spendForBudget,
-  budgetPacing,
-  goalFunding,
-  groupLinks,
-  groupTxnLinks,
-} from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
 import {
@@ -39,7 +27,6 @@ import {
 } from "@/hooks/useInvestmentSnapshot";
 import { investmentTotalInBase } from "@/lib/investments";
 import { balancesByCurrency } from "@/lib/balances";
-import { readShowHomeBudgets } from "@/lib/ledger";
 import { convert, totalInBase, type RateMap } from "@/lib/fx";
 import {
   cashflowForRange,
@@ -59,10 +46,8 @@ import {
   headInk,
   LeadFigure,
   MarginLink,
-  PacingBar,
   PageHead,
   Plate,
-  Register,
   Spread,
   Statement,
   tooltipStyle,
@@ -71,7 +56,7 @@ import {
 } from "@/components/ledger";
 import { HoverDonut } from "@/components/HoverDonut";
 import { AddTransactionSheet } from "@/components/AddTransactionSheet";
-import type { Budget, InvestmentHistoryPoint } from "@/lib/types";
+import type { InvestmentHistoryPoint } from "@/lib/types";
 
 export function Dashboard() {
   const [adding, setAdding] = useState(false);
@@ -90,11 +75,6 @@ export function Dashboard() {
   const baseCurrency = useBaseCurrency();
   const rates = useRateMap();
 
-  // Budget + goal data (cross-account, so always over the full ledger).
-  const { data: budgets = [] } = useBudgets();
-  const { data: budgetLinks = [] } = useBudgetLinks();
-  const { data: budgetTxnLinks = [] } = useBudgetTransactionLinks();
-  const reimbursedMap = useReimbursedAmountMap();
   const { data: investSnapshot } = useInvestmentSnapshot();
   const { data: investHistory = [] } = useInvestmentHistory();
 
@@ -102,7 +82,6 @@ export function Dashboard() {
   // the hook count differ between the loading and loaded renders.
   const ink = useLedgerInk();
   const reduce = useReducedMotion();
-  const showBudgets = readShowHomeBudgets();
 
   const accounts = accountsQ.data ?? [];
   const txns = allTxnsQ.data ?? [];
@@ -174,54 +153,6 @@ export function Dashboard() {
     cashflowMode,
     txns,
   );
-
-  // ── Budgets — recurring use a period window; goals are transaction-funded ────
-  const { expenseRows, expenseTotals } = useMemo(() => {
-    const links = groupLinks(budgetLinks);
-    const txnLinks = groupTxnLinks(budgetTxnLinks);
-    const recurring = budgets.filter((b) => b.type !== "goal");
-    const spentOf = (b: Budget) =>
-      spendForBudget(
-        b,
-        links.get(b.id) ?? new Set<string>(),
-        txns,
-        baseCurrency,
-        rates,
-        reimbursedMap,
-      );
-    const expenseRows = recurring
-      .filter((b) => b.direction !== "saving")
-      .map((b) => {
-        const spent = spentOf(b);
-        return { b, spent, pacing: budgetPacing(b, spent) };
-      });
-    return {
-      expenseRows,
-      expenseTotals: expenseRows.reduce(
-        (acc, { b, spent }) => ({
-          spent: acc.spent + spent,
-          budget: acc.budget + b.amount,
-        }),
-        { spent: 0, budget: 0 },
-      ),
-      savingRows: recurring
-        .filter((b) => b.direction === "saving")
-        .map((b) => ({ b, spent: spentOf(b) })),
-      goalRows: budgets
-        .filter((b) => b.type === "goal")
-        .map((b) => ({
-          b,
-          funding: goalFunding(
-            b,
-            txnLinks.get(b.id) ?? new Set<string>(),
-            txns,
-            baseCurrency,
-            rates,
-            reimbursedMap,
-          ),
-        })),
-    };
-  }, [budgets, budgetLinks, budgetTxnLinks, txns, baseCurrency, rates, reimbursedMap]);
 
   if (accountsQ.isLoading) {
     return (
@@ -299,6 +230,11 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* Six months of received-against-expended. It belongs on the verso: the
+          shape of the last half-year is part of where you stand, not part of
+          what happened this month. */}
+      {cashflowPlate}
+
       {showInvest && (
         <Plate caption="Investments" note="Value over time">
           <InvestmentsPlate
@@ -309,11 +245,6 @@ export function Dashboard() {
           />
         </Plate>
       )}
-
-      {/* Six months of received-against-expended. It belongs on the verso: the
-          shape of the last half-year is part of where you stand, not part of
-          what happened this month. */}
-      {cashflowPlate}
     </>
   );
 
@@ -419,28 +350,6 @@ export function Dashboard() {
           the moment there is a left page to carry it. */}
       <div className="lg:hidden">{cashflowPlate}</div>
 
-      {showBudgets && (
-      <Register
-        title="Budgets"
-        action={
-          <Link to="/analytics?view=budgets">
-            <MarginLink>manage</MarginLink>
-          </Link>
-        }
-      >
-        {expenseRows.length === 0 ? (
-          <p className="text-sm italic text-quill-faint">
-            No budgets set. Create one to track spending against a limit.
-          </p>
-        ) : (
-          <BudgetSummary
-            spent={expenseTotals.spent}
-            budget={expenseTotals.budget}
-            base={baseCurrency}
-          />
-        )}
-      </Register>
-      )}
     </>
   );
 
@@ -455,42 +364,6 @@ export function Dashboard() {
 
 
 // --- building blocks -------------------------------------------------------
-
-/** Compact aggregate strip atop the Budget widget — all spending budgets combined. */
-function BudgetSummary({
-  spent,
-  budget,
-  base,
-}: {
-  spent: number;
-  budget: number;
-  base: string;
-}) {
-  const ratio = budget > 0 ? spent / budget : 0;
-  const remaining = budget - spent;
-  const tone =
-    ratio > 1 ? "text-debit" : ratio > 0.85 ? "text-accent" : "text-quill";
-  return (
-    <div className="leaf-panel p-3">
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="font-medium text-quill-soft">
-          All budgets{" "}
-          <span className="tnum text-quill-faint">
-            · {formatMoney(spent, base)} / {formatMoney(budget, base)}
-          </span>
-        </span>
-        <span className={cn("tnum font-medium", tone)}>
-          {remaining >= 0
-            ? `${formatMoney(remaining, base)} left`
-            : `${formatMoney(-remaining, base)} over`}
-        </span>
-      </div>
-      <PacingBar ratio={ratio} />
-    </div>
-  );
-}
-
-
 
 function CashflowBars({
   data,

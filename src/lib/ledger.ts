@@ -53,9 +53,20 @@ export const HIDE_NOTES: Record<Hide, string> = {
 export const LAMPS = ["system", "day", "night"] as const;
 export type Lamp = (typeof LAMPS)[number];
 
+/**
+ * How large the hand is, and how heavily it presses.
+ *
+ * Scale multiplies the root font size, so every rem-based size in the app —
+ * type, spacing, the fore-edge tabs, the dock — grows together rather than
+ * type alone outgrowing the boxes holding it.
+ */
+export const TEXT_SCALES = [0.9, 1, 1.1, 1.25, 1.4] as const;
+export const TEXT_SCALE_LABELS = ["Small", "Normal", "Large", "Larger", "Largest"];
+
 const HIDE_KEY = "estuary.hide";
 const LAMP_KEY = "estuary.lamp";
-const HOME_BUDGETS_KEY = "estuary.home.budgets";
+const SCALE_KEY = "estuary.text.scale";
+const BOLD_KEY = "estuary.text.bold";
 
 function isHide(v: unknown): v is Hide {
   return typeof v === "string" && (HIDES as readonly string[]).includes(v);
@@ -105,34 +116,60 @@ export function applyLamp(lamp: Lamp): void {
   }
 }
 
+/** Stored text scale, falling back to normal. */
+export function readTextScale(): number {
+  try {
+    const v = Number(localStorage.getItem(SCALE_KEY));
+    return (TEXT_SCALES as readonly number[]).includes(v) ? v : 1;
+  } catch {
+    return 1;
+  }
+}
+
+export function readBoldText(): boolean {
+  try {
+    return localStorage.getItem(BOLD_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Whether Home carries the budget line. Per device on purpose: a phone has a
- * screenful less room than a desktop, so it's reasonable to want budgets on one
- * and not the other. Defaults to shown.
+ * Scale is applied to the root font size rather than to a set of type classes,
+ * so everything measured in rem grows with it — the fore-edge tabs and the dock
+ * included. Anything left in px would otherwise stay put and start clipping the
+ * larger type.
  */
-export function readShowHomeBudgets(): boolean {
+export function applyTextScale(scale: number): void {
+  document.documentElement.style.fontSize =
+    scale === 1 ? "" : `${(scale * 100).toFixed(2)}%`;
   try {
-    return localStorage.getItem(HOME_BUDGETS_KEY) !== "0";
+    localStorage.setItem(SCALE_KEY, String(scale));
   } catch {
-    return true;
+    // Storage unavailable — the choice simply won't survive a reload.
   }
 }
 
-export function writeShowHomeBudgets(show: boolean): void {
+export function applyBoldText(bold: boolean): void {
+  const root = document.documentElement;
+  if (bold) root.setAttribute("data-bold", "on");
+  else root.removeAttribute("data-bold");
   try {
-    localStorage.setItem(HOME_BUDGETS_KEY, show ? "1" : "0");
+    localStorage.setItem(BOLD_KEY, bold ? "1" : "0");
   } catch {
-    // Storage unavailable — the choice won't survive a reload.
+    // As above.
   }
 }
 
 /**
- * Put the book in its stored binding and light. Call once before first paint
- * so the page never flashes the wrong hide.
+ * Put the book in its stored binding, light and hand. Call once before first
+ * paint so the page never flashes the wrong one.
  */
 export function initLedger(): void {
   const hide = readHide();
   const lamp = readLamp();
   if (hide !== DEFAULT_HIDE) document.documentElement.setAttribute("data-hide", hide);
   if (lamp !== "system") document.documentElement.setAttribute("data-lamp", lamp);
+  applyTextScale(readTextScale());
+  applyBoldText(readBoldText());
 }

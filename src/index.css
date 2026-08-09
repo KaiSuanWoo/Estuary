@@ -40,9 +40,14 @@
   --color-head-5:       #6b4a5e;  /* plum           */
   --color-head-other:   #7a6a54;  /* beyond the five */
 
-  /* The binding. Oxblood by default; four more in @layer base. */
+  /* The binding. Oxblood by default; four more in @layer base. Each hide
+     comes with its own silk: the ribbon is sewn into the book, so it is dyed
+     to match rather than staying oxblood while the cover changes. */
   --color-hide-a:       #5a1826;
   --color-hide-b:       #330d16;
+  --color-silk-lo:      #5c0f1a;
+  --color-silk:         #a8283a;
+  --color-silk-hi:      #c4485a;
 
   /* Hardware */
   --color-brass-hi:     #e3c77e;
@@ -152,10 +157,14 @@
   /* ══ The bindings ══════════════════════════════════════════════════════
      Oxblood is the default and needs no attribute. Only the hide changes —
      page, ink and brass are fixed — so re-binding can't break legibility.  */
-  :root[data-hide="navy"]   { --color-hide-a: #243c5c; --color-hide-b: #101e31; }
-  :root[data-hide="forest"] { --color-hide-a: #254032; --color-hide-b: #122018; }
-  :root[data-hide="tan"]    { --color-hide-a: #9a6538; --color-hide-b: #5e3b1e; }
-  :root[data-hide="black"]  { --color-hide-a: #2a2320; --color-hide-b: #100d0b; }
+  :root[data-hide="navy"]   { --color-hide-a: #243c5c; --color-hide-b: #101e31;
+                              --color-silk-lo: #10243d; --color-silk: #2f5c93; --color-silk-hi: #4d7cb8; }
+  :root[data-hide="forest"] { --color-hide-a: #254032; --color-hide-b: #122018;
+                              --color-silk-lo: #12281c; --color-silk: #2f6b46; --color-silk-hi: #4d9268; }
+  :root[data-hide="tan"]    { --color-hide-a: #9a6538; --color-hide-b: #5e3b1e;
+                              --color-silk-lo: #5c3a12; --color-silk: #a8762b; --color-silk-hi: #cb9a48; }
+  :root[data-hide="black"]  { --color-hide-a: #2a2320; --color-hide-b: #100d0b;
+                              --color-silk-lo: #1d1a17; --color-silk: #6b625a; --color-silk-hi: #948a80; }
 }
 
 @layer base {
@@ -200,6 +209,13 @@
     -webkit-appearance: none;
     appearance: none;
     min-width: 0;
+  }
+
+  /* A heavier hand, for anyone who wants the ink to press harder. Set on the
+     body so it inherits everywhere; a Tailwind weight utility still wins
+     locally, which is right — those places were already deliberately heavy. */
+  :root[data-bold="on"] body {
+    font-weight: 600;
   }
 
   /* tabular numerals for money */
