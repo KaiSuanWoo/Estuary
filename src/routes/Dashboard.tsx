@@ -642,10 +642,13 @@ export function FloatingAdd({
       onClick={onClick}
       aria-label="Add transaction"
       className={cn(
-        "brass-face fixed bottom-6 right-16 z-20 flex size-14 items-center justify-center rounded-full shadow-[0_6px_18px_rgb(0_0_0/0.45)] transition-all active:scale-95 lg:right-24",
+        // On a phone it sits clear above the dock rather than clipping its
+        // right-hand end; a desktop has no dock, so it returns to the corner.
+        "brass-face fixed right-5 z-20 flex size-14 items-center justify-center rounded-full shadow-[0_6px_18px_rgb(0_0_0/0.45)] transition-all active:scale-95 lg:right-24",
         !scrolled && "lg:pointer-events-none lg:translate-y-2 lg:opacity-0",
         className,
       )}
+      style={{ bottom: "calc(env(safe-area-inset-bottom) + 5.5rem)" }}
     >
       <Plus className="size-7" strokeWidth={2.5} />
     </button>

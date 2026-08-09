@@ -177,6 +177,19 @@
   #root {
     height: 100%;
   }
+  /* iOS Safari resolves `height: 100%` against the *large* viewport — the one
+     with the toolbars retracted — so with the toolbar showing, the last ~100px
+     of the layout sits below the screen and the foot of the book is simply cut
+     off. `dvh` tracks the toolbar as it comes and goes.
+     `#root` stays at 100% so it measures against body's content box, which the
+     safe-area padding has already shortened; giving it `dvh` too would make it
+     overflow by exactly the home indicator. */
+  @supports (height: 100dvh) {
+    html,
+    body {
+      height: 100dvh;
+    }
+  }
   body {
     margin: 0;
     /* The desk shows through the safe-area inset, so the notch band matches
