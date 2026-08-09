@@ -16,7 +16,10 @@ import {
 } from "recharts";
 import { useLeafScroll } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
-import { useTransactions } from "@/hooks/useTransactions";
+import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
+import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
+import { groupLinks } from "@/lib/budgets";
+import { budgetMetrics } from "@/lib/budget-metrics";
 import { useCategories } from "@/hooks/useCategories";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
@@ -48,6 +51,7 @@ import {
   MarginLink,
   PageHead,
   Plate,
+  Register,
   Spread,
   Statement,
   tooltipStyle,
@@ -75,6 +79,9 @@ export function Dashboard() {
   const baseCurrency = useBaseCurrency();
   const rates = useRateMap();
 
+  const { data: budgets = [] } = useBudgets();
+  const { data: budgetLinks = [] } = useBudgetLinks();
+  const reimbursedMap = useReimbursedAmountMap();
   const { data: investSnapshot } = useInvestmentSnapshot();
   const { data: investHistory = [] } = useInvestmentHistory();
 
@@ -142,6 +149,26 @@ export function Dashboard() {
       ),
     [scopedTxns, txns, baseCurrency, rates, cashflowMode],
   );
+
+  // Only the budgets pinned from the editor reach the front page, and only
+  // ever as one line each — Home is a glance, not the board.
+  const pinned = useMemo(() => {
+    const links = groupLinks(budgetLinks);
+    return budgets
+      .filter((b) => b.show_on_home && b.type !== "goal")
+      .map((b) =>
+        budgetMetrics(
+          b,
+          links.get(b.id) ?? new Set<string>(),
+          categoriesQ.data ?? [],
+          txns,
+          baseCurrency,
+          rates,
+          reimbursedMap,
+          { cycles: 0 },
+        ),
+      );
+  }, [budgets, budgetLinks, categoriesQ.data, txns, baseCurrency, rates, reimbursedMap]);
 
   const categorySlices = spendingByCategory(
     scopedTxns,
@@ -350,6 +377,22 @@ export function Dashboard() {
           the moment there is a left page to carry it. */}
       <div className="lg:hidden">{cashflowPlate}</div>
 
+      {pinned.length > 0 && (
+        <Register
+          title="Budgets"
+          action={
+            <Link to="/analytics?view=budgets">
+              <MarginLink>the board</MarginLink>
+            </Link>
+          }
+        >
+          <div>
+            {pinned.map((m) => (
+              <PinnedBudget key={m.budget.id} m={m} base={baseCurrency} />
+            ))}
+          </div>
+        </Register>
+      )}
     </>
   );
 
@@ -364,6 +407,71 @@ export function Dashboard() {
 
 
 // --- building blocks -------------------------------------------------------
+
+/**
+ * A pinned budget, in one line. Spent against allocated, the share used, and
+ * the gap from an even pace — the three figures that answer "am I fine" without
+ * opening anything.
+ */
+function PinnedBudget({ m, base }: { m: ReturnType<typeof budgetMetrics>; base: string }) {
+  const over = m.used > 1;
+  const dev = m.deviation;
+  return (
+    <div className="border-b border-rule py-2 last:border-b-0">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="min-w-0 truncate text-quill">{m.budget.name}</span>
+        <span className="tnum shrink-0 text-sm text-quill-soft">
+          {formatMoney(m.spent, base)}
+          <span className="text-quill-faint"> / {formatMoney(m.allocated, base)}</span>
+          <span className={cn("ml-2", over ? "text-debit" : "text-quill")}>
+            {Math.round(m.used * 100)}%
+          </span>
+          {dev != null && (
+            <span
+              className={cn(
+                "ml-2 text-xs",
+                dev > 0.02 ? "text-debit" : dev < -0.02 ? "text-credit" : "text-quill-faint",
+              )}
+            >
+              {dev >= 0 ? "+" : "−"}
+              {Math.abs(Math.round(dev * 100))}%
+            </span>
+          )}
+        </span>
+      </div>
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(Math.min(1, m.used) * 100)}
+        aria-label={`${m.budget.name}: ${Math.round(m.used * 100)}% of budget`}
+        className="relative mt-1.5 flex h-1.5 overflow-hidden bg-[color-mix(in_oklab,var(--color-quill)_12%,transparent)]"
+      >
+        {over ? (
+          <>
+            <div className="h-full bg-head-3" style={{ width: `${(1 / m.used) * 100}%` }} />
+            <div className="h-full bg-debit" style={{ width: `${100 - (1 / m.used) * 100}%` }} />
+          </>
+        ) : (
+          m.breakdown.map((c) => (
+            <div
+              key={c.id}
+              className="h-full"
+              style={{ width: `${c.shareOfAllocated * 100}%`, backgroundColor: c.color }}
+            />
+          ))
+        )}
+        {m.elapsed != null && m.elapsed > 0.02 && m.elapsed < 0.98 && (
+          <span
+            aria-hidden
+            className="absolute top-0 h-full w-0.5 -translate-x-1/2 bg-quill/70"
+            style={{ left: `${m.elapsed * 100}%` }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
 function CashflowBars({
   data,

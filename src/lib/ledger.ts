@@ -65,6 +65,7 @@ export const TEXT_SCALE_LABELS = ["Small", "Normal", "Large", "Larger", "Largest
 
 const HIDE_KEY = "estuary.hide";
 const LAMP_KEY = "estuary.lamp";
+const DENSITY_KEY = "estuary.budgets.density";
 const SCALE_KEY = "estuary.text.scale";
 const BOLD_KEY = "estuary.text.bold";
 
@@ -113,6 +114,28 @@ export function applyLamp(lamp: Lamp): void {
     localStorage.setItem(LAMP_KEY, lamp);
   } catch {
     // As above.
+  }
+}
+
+/**
+ * How much of a budget the board shows without being asked. Compact is one
+ * ruled line each; detailed opens every bundle and its cycle history.
+ */
+export type Density = "compact" | "detailed";
+
+export function readBudgetDensity(): Density {
+  try {
+    return localStorage.getItem(DENSITY_KEY) === "detailed" ? "detailed" : "compact";
+  } catch {
+    return "compact";
+  }
+}
+
+export function writeBudgetDensity(d: Density): void {
+  try {
+    localStorage.setItem(DENSITY_KEY, d);
+  } catch {
+    // Storage unavailable — the choice won't survive a reload.
   }
 }
 

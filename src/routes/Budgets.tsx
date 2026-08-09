@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { Check, ChevronLeft, Plus, Search, Target, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, Plus, Search, Star, Target, Trash2 } from "lucide-react";
 import { useCategories } from "@/hooks/useCategories";
 import {
   useTransactions,
@@ -80,6 +80,7 @@ export function Budgets() {
   const reimbursed = useReimbursedAmountMap();
   const base = useBaseCurrency();
   const rates = useRateMap();
+  const update = useUpdateBudget();
 
   const [sheet, setSheet] = useState<Budget | "new" | null>(null);
   const [contribute, setContribute] = useState<Budget | null>(null);
@@ -122,7 +123,13 @@ export function Budgets() {
     return (
       <li key={b.id}>
         <button onClick={() => setSheet(b)} className="block w-full text-left">
-          <BudgetRow budget={b} spent={spent} catNames={names} base={base} />
+          <BudgetRow
+            budget={b}
+            spent={spent}
+            catNames={names}
+            base={base}
+            onPin={(next) => update.mutate({ id: b.id, patch: { show_on_home: next } })}
+          />
         </button>
       </li>
     );
@@ -338,11 +345,13 @@ function BudgetRow({
   spent,
   catNames,
   base,
+  onPin,
 }: {
   budget: Budget;
   spent: number;
   catNames: string[];
   base: string;
+  onPin: (next: boolean) => void;
 }) {
   const saving = b.direction === "saving";
   const ratio = b.amount > 0 ? spent / b.amount : 0;
@@ -365,37 +374,6 @@ function BudgetRow({
       ? `${formatMoney(remaining, base)} left`
       : `${formatMoney(-remaining, base)} over`;
 
-  // One contextual pace hint: how much can still be spent/saved per day, or a
-  // warning when expense spend is running ahead of the period.
-  let hint: { text: string; tone: string } | null = null;
-  if (saving) {
-    if (remaining > 0 && pacing.perDayLeft != null)
-      hint = {
-        text: `Save ~${formatMoney(pacing.perDayLeft, base)}/day to reach target`,
-        tone: "text-quill-faint",
-      };
-  } else if (ratio > 1) {
-    // Over budget: contrast the actual daily burn with the budgeted daily allowance.
-    if (pacing.daysTotal && pacing.daysLeft != null) {
-      const elapsedDays = Math.max(1, pacing.daysTotal - pacing.daysLeft);
-      hint = {
-        text: `${formatMoney(spent / elapsedDays, base)}/day vs ${formatMoney(b.amount / pacing.daysTotal, base)}/day budgeted`,
-        tone: "text-debit/80",
-      };
-    }
-  } else {
-    if (pacing.overPace && pacing.projected != null)
-      hint = {
-        text: `Ahead of pace · on track for ${formatMoney(pacing.projected, base)}`,
-        tone: "text-accent",
-      };
-    else if (pacing.perDayLeft != null)
-      hint = {
-        text: `~${formatMoney(pacing.perDayLeft, base)}/day left for ${pacing.daysLeft}d`,
-        tone: "text-quill-faint",
-      };
-  }
-
   return (
     <Card className="p-3.5">
       <div className="flex items-start justify-between gap-3">
@@ -411,7 +389,8 @@ function BudgetRow({
             </p>
           </div>
         </div>
-        <div className="shrink-0 text-right">
+        <div className="flex shrink-0 items-start gap-2 text-right">
+          <div>
           <span className={cn("tnum text-sm font-medium", tone.text)}>
             {formatMoney(spent, base)}
             <span className="text-quill-faint"> / {formatMoney(b.amount, base)}</span>
@@ -419,6 +398,23 @@ function BudgetRow({
           <p className={cn("tnum text-[11px] font-medium", tone.text)}>
             {Math.round(ratio * 100)}% {saving ? "saved" : "used"}
           </p>
+          </div>
+          <button
+            type="button"
+            aria-pressed={b.show_on_home}
+            aria-label={b.show_on_home ? `Unpin ${b.name} from Home` : `Pin ${b.name} to Home`}
+            title="Show on Home"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPin(!b.show_on_home);
+            }}
+            className="tap -mr-1 mt-0.5 shrink-0 text-quill-faint transition-colors hover:text-brass-lo"
+          >
+            <Star
+              className={cn("size-4", b.show_on_home && "text-brass-lo")}
+              fill={b.show_on_home ? "currentColor" : "none"}
+            />
+          </button>
         </div>
       </div>
       <PacingBar
@@ -435,7 +431,6 @@ function BudgetRow({
           </span>
         )}
       </div>
-      {hint && <p className={cn("tnum mt-1 text-xs", hint.tone)}>{hint.text}</p>}
     </Card>
   );
 }
