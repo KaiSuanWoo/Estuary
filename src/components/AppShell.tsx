@@ -230,7 +230,15 @@ export function AppShell() {
                 key={section}
                 // The leaf is hinged at the gutter, so it swings from its left
                 // edge — a rigid page turning, not a card crossfading.
-                style={{ transformOrigin: "left center" }}
+                //
+                // The dock floats over the leaf and is itself pushed up by the
+                // home indicator, so the clearance beneath the last entry has
+                // to carry that inset too — a fixed `pb-32` left the cashflow
+                // plate sitting under the dock on a notched phone.
+                style={{
+                  transformOrigin: "left center",
+                  paddingBottom: "calc(9rem + env(safe-area-inset-bottom))",
+                }}
                 initial={
                   reduce
                     ? { opacity: 0 }
@@ -241,7 +249,7 @@ export function AppShell() {
                 transition={
                   reduce ? { duration: 0.12 } : { ...paperTurn, duration: 0.3 }
                 }
-                className="mx-auto w-full max-w-md pb-32 pl-9 pr-4 pt-6 lg:max-w-5xl lg:py-6 lg:pl-16 lg:pr-10"
+                className="mx-auto w-full max-w-md pl-9 pr-4 pt-6 lg:max-w-5xl lg:py-6 lg:pl-16 lg:pr-10"
               >
                 {outlet}
               </motion.div>
