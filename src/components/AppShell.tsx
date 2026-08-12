@@ -318,13 +318,27 @@ export function AppShell() {
                     transition={pressDown}
                     className="flex size-12 items-center justify-center rounded-[18px]"
                   >
-                    <Icon
-                      className={cn(
-                        "size-[21px] shrink-0 transition-colors",
-                        isActive ? "text-[#24170a]" : "text-page-edge/70",
-                      )}
-                      strokeWidth={isActive ? 2.3 : 2}
-                    />
+                    {/* The pill slides to the section you chose; the icon it
+                        lands on rises to meet it. Without this the pill moves
+                        under a row of glyphs that never acknowledge it. */}
+                    <motion.span
+                      initial={false}
+                      animate={
+                        reduce
+                          ? { scale: 1, y: 0 }
+                          : { scale: isActive ? 1.12 : 1, y: isActive ? -1 : 0 }
+                      }
+                      transition={paperSettle}
+                      className="flex items-center justify-center"
+                    >
+                      <Icon
+                        className={cn(
+                          "size-[21px] shrink-0 transition-colors duration-300",
+                          isActive ? "text-[#24170a]" : "text-page-edge/70",
+                        )}
+                        strokeWidth={isActive ? 2.3 : 2}
+                      />
+                    </motion.span>
                   </motion.span>
                 )}
               </NavLink>

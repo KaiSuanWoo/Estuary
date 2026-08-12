@@ -215,6 +215,35 @@ function OptionChip({
   );
 }
 
+/** A filter that is simply on or off — no panel, no options to pick from. */
+function ToggleChip({
+  label,
+  icon: Icon,
+  on,
+  onClick,
+}: {
+  label: string;
+  icon: typeof Flag;
+  on: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={on}
+      className={cn(
+        "flex h-8 shrink-0 items-center gap-1.5 rounded-[2px] border px-3 text-xs font-medium transition-colors",
+        on
+          ? "border-accent bg-accent/10 text-accent"
+          : "border-rule text-quill-soft hover:border-rule-strong hover:text-quill",
+      )}
+    >
+      <Icon className="size-3 shrink-0" />
+      {label}
+    </button>
+  );
+}
+
 /** Desktop page navigator. Windowed numbers around the current page. */
 function Pager({
   page,
@@ -679,6 +708,21 @@ export function Transactions() {
                   onClick={() => togglePanel("tag")}
                 />
               )}
+              {/* These two are filters like the rest, so they belong in the row
+                  with them. Floating over the register, they covered whichever
+                  entries happened to be beneath them. */}
+              <ToggleChip
+                label="Flagged"
+                icon={Flag}
+                on={flaggedOnly}
+                onClick={() => setFlaggedOnly((v) => !v)}
+              />
+              <ToggleChip
+                label="Owed"
+                icon={Receipt}
+                on={owedOnly}
+                onClick={() => setOwedOnly((v) => !v)}
+              />
             </div>
 
             {/* Clear-all × — appears only when any filter is active */}
@@ -918,63 +962,27 @@ export function Transactions() {
         </>
       )}
 
+      {/* A phone already has the search field at the head of the page and a
+          back-to-top to reach it; a desktop page is long enough to want a way
+          in from wherever you are. The flag and receipt counters that used to
+          float here are chips in the filter row now. */}
       <Overlay>
-      {hasData && (
-        <button
-          type="button"
-          onClick={() => setSearchOpen(true)}
-          aria-label="Search transactions"
-          tabIndex={scrolled ? 0 : -1}
-          className={cn(
-            "fixed bottom-56 left-5 z-30 flex size-11 items-center justify-center rounded-full",
-            "border border-rule-strong bg-page text-quill-soft shadow-[0_3px_10px_rgb(0_0_0/0.4)]",
-            "transition-all hover:text-quill",
-            "lg:bottom-40 lg:left-auto lg:right-8",
-            scrolled
-              ? "opacity-100"
-              : "pointer-events-none translate-y-1 opacity-0",
-          )}
-        >
-          <Search className="size-5" />
-        </button>
-      )}
-
-      {hasData && (
-        <button
-          type="button"
-          onClick={() => setOwedOnly((v) => !v)}
-          aria-pressed={owedOnly}
-          aria-label="Show only what I'm owed (unsettled reimbursable)"
-          title="What I'm owed"
-          className={cn(
-            "fixed bottom-24 left-5 z-30 flex size-11 items-center justify-center rounded-full transition-colors",
-            "shadow-[0_3px_10px_rgb(0_0_0/0.4)] lg:bottom-8 lg:left-auto lg:right-8",
-            owedOnly
-              ? "brass-face"
-              : "border border-rule-strong bg-page text-quill-soft hover:text-quill",
-          )}
-        >
-          <Receipt className="size-5" />
-        </button>
-      )}
-
-      {hasData && (
-        <button
-          type="button"
-          onClick={() => setFlaggedOnly((v) => !v)}
-          aria-pressed={flaggedOnly}
-          aria-label="Show flagged only"
-          className={cn(
-            "fixed bottom-40 left-5 z-30 flex size-11 items-center justify-center rounded-full transition-colors",
-            "shadow-[0_3px_10px_rgb(0_0_0/0.4)] lg:bottom-24 lg:left-auto lg:right-8",
-            flaggedOnly
-              ? "brass-face"
-              : "border border-rule-strong bg-page text-quill-soft hover:text-quill",
-          )}
-        >
-          <Flag className="size-5" />
-        </button>
-      )}
+        {hasData && (
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search transactions"
+            tabIndex={scrolled ? 0 : -1}
+            className={cn(
+              "fixed bottom-8 right-8 z-30 hidden size-11 items-center justify-center rounded-full lg:flex",
+              "border border-rule-strong bg-page text-quill-soft shadow-[0_3px_10px_rgb(0_0_0/0.4)]",
+              "transition-all hover:text-quill",
+              scrolled ? "opacity-100" : "pointer-events-none translate-y-1 opacity-0",
+            )}
+          >
+            <Search className="size-5" />
+          </button>
+        )}
       </Overlay>
 
       {searchOpen && (
