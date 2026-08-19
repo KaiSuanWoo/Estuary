@@ -215,35 +215,6 @@ function OptionChip({
   );
 }
 
-/** A filter that is simply on or off — no panel, no options to pick from. */
-function ToggleChip({
-  label,
-  icon: Icon,
-  on,
-  onClick,
-}: {
-  label: string;
-  icon: typeof Flag;
-  on: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={on}
-      className={cn(
-        "flex h-8 shrink-0 items-center gap-1.5 rounded-[2px] border px-3 text-xs font-medium transition-colors",
-        on
-          ? "border-accent bg-accent/10 text-accent"
-          : "border-rule text-quill-soft hover:border-rule-strong hover:text-quill",
-      )}
-    >
-      <Icon className="size-3 shrink-0" />
-      {label}
-    </button>
-  );
-}
-
 /** Desktop page navigator. Windowed numbers around the current page. */
 function Pager({
   page,
@@ -708,21 +679,6 @@ export function Transactions() {
                   onClick={() => togglePanel("tag")}
                 />
               )}
-              {/* These two are filters like the rest, so they belong in the row
-                  with them. Floating over the register, they covered whichever
-                  entries happened to be beneath them. */}
-              <ToggleChip
-                label="Flagged"
-                icon={Flag}
-                on={flaggedOnly}
-                onClick={() => setFlaggedOnly((v) => !v)}
-              />
-              <ToggleChip
-                label="Owed"
-                icon={Receipt}
-                on={owedOnly}
-                onClick={() => setOwedOnly((v) => !v)}
-              />
             </div>
 
             {/* Clear-all × — appears only when any filter is active */}
@@ -962,26 +918,75 @@ export function Transactions() {
         </>
       )}
 
-      {/* A phone already has the search field at the head of the page and a
-          back-to-top to reach it; a desktop page is long enough to want a way
-          in from wherever you are. The flag and receipt counters that used to
-          float here are chips in the filter row now. */}
+      {/* Floating chrome sits in a single row above the dock. Stacked down the
+          left edge it lay over the register and covered whichever entries
+          happened to be beneath it; the leaf already clears this band for the
+          dock, so nothing here can overlap an entry. A desktop has no dock and
+          plenty of margin, so there it keeps the right-hand column. */}
       <Overlay>
         {hasData && (
-          <button
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            aria-label="Search transactions"
-            tabIndex={scrolled ? 0 : -1}
-            className={cn(
-              "fixed bottom-8 right-8 z-30 hidden size-11 items-center justify-center rounded-full lg:flex",
-              "border border-rule-strong bg-page text-quill-soft shadow-[0_3px_10px_rgb(0_0_0/0.4)]",
-              "transition-all hover:text-quill",
-              scrolled ? "opacity-100" : "pointer-events-none translate-y-1 opacity-0",
-            )}
+          <div
+            className="fixed z-30 flex items-center gap-2 lg:flex-col-reverse lg:items-end"
+            style={
+              isDesktop
+                ? { right: "2rem", bottom: "2rem" }
+                : {
+                    // Clear of the add button (1.25rem margin + its 3.5rem
+                    // width), on the same centre line, inside the band the leaf
+                    // already clears for the dock.
+                    right: "calc(1.25rem + 3.5rem + 0.5rem)",
+                    bottom: "calc(env(safe-area-inset-bottom) + 5.875rem)",
+                  }
+            }
           >
-            <Search className="size-5" />
-          </button>
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              aria-label="Search transactions"
+              tabIndex={scrolled ? 0 : -1}
+              className={cn(
+                "flex size-11 items-center justify-center rounded-full transition-all",
+                "border border-rule-strong bg-page text-quill-soft shadow-[0_3px_10px_rgb(0_0_0/0.4)]",
+                "hover:text-quill",
+                scrolled ? "opacity-100" : "pointer-events-none translate-y-1 opacity-0",
+              )}
+            >
+              <Search className="size-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFlaggedOnly((v) => !v)}
+              aria-pressed={flaggedOnly}
+              aria-label="Show flagged only"
+              className={cn(
+                "flex size-11 items-center justify-center rounded-full transition-colors",
+                "shadow-[0_3px_10px_rgb(0_0_0/0.4)]",
+                flaggedOnly
+                  ? "brass-face"
+                  : "border border-rule-strong bg-page text-quill-soft hover:text-quill",
+              )}
+            >
+              <Flag className="size-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setOwedOnly((v) => !v)}
+              aria-pressed={owedOnly}
+              aria-label="Show only what I'm owed (unsettled reimbursable)"
+              title="What I'm owed"
+              className={cn(
+                "flex size-11 items-center justify-center rounded-full transition-colors",
+                "shadow-[0_3px_10px_rgb(0_0_0/0.4)]",
+                owedOnly
+                  ? "brass-face"
+                  : "border border-rule-strong bg-page text-quill-soft hover:text-quill",
+              )}
+            >
+              <Receipt className="size-5" />
+            </button>
+          </div>
         )}
       </Overlay>
 
@@ -1003,7 +1008,13 @@ export function Transactions() {
       )}
 
       {/* Top slot of the desktop right-edge stack (Receipt 8 · Flag 24 · Search 40). */}
-      <FloatingAdd onClick={() => setAdding(true)} className="lg:bottom-56" />
+      <FloatingAdd
+          onClick={() => setAdding(true)}
+          // Activity already has a row of counters in the band above the dock,
+          // so the add button sits a row higher again.
+          style={{ bottom: "calc(env(safe-area-inset-bottom) + 9.25rem)" }}
+          className="lg:bottom-56"
+        />
       {adding && <AddTransactionSheet onClose={() => setAdding(false)} />}
       {editing && (
         <EditTransactionSheet tx={editing} onClose={() => setEditing(null)} />

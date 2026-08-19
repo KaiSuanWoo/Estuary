@@ -137,14 +137,18 @@ export function Dashboard() {
   );
   const navigate = useNavigate();
   const { from, to } = monthBounds(refDate);
+  // Narrowing the book to one account narrows what may cancel an expense: a
+  // repayment into a *different* account never came back to this one, so it
+  // must not net anything away here. Unscoped, everything cancels as before.
+  const scope = accountFilter ? new Set([accountFilter]) : undefined;
   // Each of these sums a scoped slice but resolves reimbursements against the
   // full ledger (`txns`) — a repayment in another month or account still counts.
-  const month = cashflowForRange(scopedTxns, baseCurrency, rates, from, to, cashflowMode, txns);
+  const month = cashflowForRange(scopedTxns, baseCurrency, rates, from, to, cashflowMode, txns, scope);
   // Six months of received-vs-expended; each bar carries its yyyy-MM so a click
   // can open that month in Analytics.
   const trend = useMemo(
     () =>
-      monthlyCashflow(scopedTxns, baseCurrency, rates, 6, undefined, cashflowMode, txns).map(
+      monthlyCashflow(scopedTxns, baseCurrency, rates, 6, undefined, cashflowMode, txns, scope).map(
         (p, i) => ({ ...p, monthKey: format(subMonths(new Date(), 5 - i), "yyyy-MM") }),
       ),
     [scopedTxns, txns, baseCurrency, rates, cashflowMode],
@@ -179,6 +183,7 @@ export function Dashboard() {
     to,
     cashflowMode,
     txns,
+    scope,
   );
 
   if (accountsQ.isLoading) {
@@ -624,9 +629,12 @@ function InvestmentsPlate({
 export function FloatingAdd({
   onClick,
   className,
+  style,
 }: {
   onClick: () => void;
   className?: string;
+  /** Lets a page with its own floating row lift the button clear of it. */
+  style?: React.CSSProperties;
 }) {
   // Mobile: always visible above the dock (the primary add affordance).
   // Desktop web: revealed only once the page is scrolled (like the floating
@@ -648,7 +656,7 @@ export function FloatingAdd({
         !scrolled && "lg:pointer-events-none lg:translate-y-2 lg:opacity-0",
         className,
       )}
-      style={{ bottom: "calc(env(safe-area-inset-bottom) + 5.5rem)" }}
+      style={{ bottom: "calc(env(safe-area-inset-bottom) + 5.5rem)", ...style }}
     >
       <Plus className="size-7" strokeWidth={2.5} />
     </button>
