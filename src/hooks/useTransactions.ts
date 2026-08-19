@@ -94,6 +94,30 @@ export function useUpdateTransaction() {
  * Reimbursable expenses that haven't been fully settled yet.
  * Used to populate the "link as reimbursement" picker on income transactions.
  */
+/**
+ * Every repayment income, with its links intact.
+ *
+ * `useReimbursedAmountMap` collapses these to a per-expense total, which is all
+ * a summary needs; showing an expense *what* paid it back needs the rows.
+ */
+export function useRepayments() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["transactions", "repayments"] as const,
+    enabled: !!user,
+    queryFn: async (): Promise<Transaction[]> => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("type", "income")
+        .not("reimbursement_links", "is", null)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export function useReimbursableExpenses() {
   const { user } = useAuth();
 

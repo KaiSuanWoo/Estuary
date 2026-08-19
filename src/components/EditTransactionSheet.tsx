@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { format, parseISO } from "date-fns";
 import { ArrowRight, Check, Flag, SlidersHorizontal, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatMoney } from "@/lib/format";
-import { reimbursementLinks } from "@/lib/reimbursements";
+import {
+  isCrossAccount,
+  reimbursementLinks,
+  repaymentsFor,
+} from "@/lib/reimbursements";
 import { Button, Sheet } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { TagPicker } from "@/components/TagPicker";
@@ -18,6 +23,7 @@ import {
   useUpdateTransaction,
   useDeleteTransaction,
   useReimbursableExpenses,
+  useRepayments,
   useTransactionsByIds,
 } from "@/hooks/useTransactions";
 import { useBaseCurrency } from "@/hooks/useSettings";
@@ -110,7 +116,16 @@ export function EditTransactionSheet({
     return init;
   });
 
+  const accountName = (id: string) =>
+    accounts.find((a) => a.id === id)?.name ?? "another account";
+
   const { data: reimbursableExpenses = [] } = useReimbursableExpenses();
+  // What has already paid this expense back, if anything.
+  const { data: allRepayments = [] } = useRepayments();
+  const repayments = useMemo(
+    () => (type === "expense" ? repaymentsFor(tx.id, allRepayments) : []),
+    [type, tx.id, allRepayments],
+  );
   // Also load any expenses this income is already linked to (they may be
   // settled / off the reimbursable list), so every allocation stays visible.
   const linkedIds = useMemo(
@@ -634,6 +649,44 @@ export function EditTransactionSheet({
                   />
                 </button>
               </label>
+
+              {isReimbursable && repayments.length > 0 && (
+                <div className="mt-3 border-t border-rule pt-2">
+                  <p className="mb-1.5 text-xs text-quill-faint">Paid back by</p>
+                  {repayments.map(({ income, amount }) => {
+                    const elsewhere = isCrossAccount(tx, income);
+                    return (
+                      <div
+                        key={income.id + amount}
+                        className="flex items-baseline justify-between gap-2 border-b border-rule py-1.5 last:border-b-0"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm text-quill">
+                            {income.merchant || "Repayment"}
+                          </span>
+                          <span className="block truncate text-xs italic text-quill-faint">
+                            {format(parseISO(income.date), "d MMM yyyy")}
+                            {" · "}
+                            {accountName(income.account_id)}
+                            {elsewhere && (
+                              <span className="text-accent"> · another account</span>
+                            )}
+                          </span>
+                        </span>
+                        <span className="tnum shrink-0 text-sm text-credit">
+                          {formatMoney(amount, income.currency)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {repayments.some((r) => isCrossAccount(tx, r.income)) && (
+                    <p className="mt-1.5 text-xs italic text-quill-faint">
+                      Repaid into another account — this one is still down the
+                      money, so a summary scoped to it won't cancel the expense.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {isReimbursable && (
                 <div className="mt-3 flex gap-1.5">

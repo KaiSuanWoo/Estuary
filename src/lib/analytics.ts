@@ -88,14 +88,26 @@ export function isNegligible(value: number): boolean {
  * cancels its expense, and looking at a narrow window would silently report
  * that expense at full cost.
  */
+/**
+ * How much of each expense has been repaid, in base currency.
+ *
+ * `scope` is the guard rail for cross-account reimbursements. When a summary
+ * is narrowed to one account, only repayments that landed *in that account*
+ * may net an expense away: paying on one card and being repaid into another
+ * leaves the card genuinely down the money, and netting it there would show a
+ * balance the account never got back. Unscoped, every repayment counts —
+ * across your accounts as a whole, the money did come home.
+ */
 function buildReimbursedMap(
   txns: Transaction[],
   base: string,
   rates: RateMap,
+  scope?: Set<string>,
 ): Map<string, number> {
   const map = new Map<string, number>();
   for (const t of txns) {
     if (t.type !== "income") continue;
+    if (scope && !scope.has(t.account_id)) continue;
     for (const link of reimbursementLinks(t)) {
       const amt = amountInBase(link.amount, t, base, rates);
       map.set(link.expense_id, (map.get(link.expense_id) ?? 0) + amt);
@@ -127,9 +139,24 @@ export function cashflowForRange(
   to: string,
   mode: CashflowMode = "net",
   ledger: Transaction[] = txns,
+  /** Accounts this summary covers; omit for the whole book. See the map. */
+  scope?: Set<string>,
 ): Cashflow {
   const reimbursed =
-    mode === "net" ? buildReimbursedMap(ledger, base, rates) : null;
+    mode === "net" ? buildReimbursedMap(ledger, base, rates, scope) : null;
+
+  // The mirror of the guard rail above. A repayment only stops counting as
+  // income if the expense it covers is in the same scope — repaid into this
+  // account for something bought on another, the money really did arrive here
+  // and cancelling it would lose it.
+  const inScopeExpenses =
+    scope && mode === "net"
+      ? new Set(
+          ledger
+            .filter((t) => t.type === "expense" && scope.has(t.account_id))
+            .map((t) => t.id),
+        )
+      : null;
 
   let income = 0;
   let expense = 0;
@@ -141,7 +168,9 @@ export function cashflowForRange(
       // In net mode a repayment isn't real income — only the part not allocated
       // to expenses counts (usually nothing).
       if (mode === "net") {
-        const links = reimbursementLinks(t);
+        const links = reimbursementLinks(t).filter(
+          (l) => !inScopeExpenses || inScopeExpenses.has(l.expense_id),
+        );
         if (links.length > 0) {
           const allocated = links.reduce((s, l) => s + l.amount, 0);
           const remainder = Math.max(0, t.amount - allocated);
@@ -188,9 +217,10 @@ export function spendingByCategory(
   to: string,
   mode: CashflowMode = "net",
   ledger: Transaction[] = txns,
+  scope?: Set<string>,
 ): CategorySlice[] {
   const reimbursed =
-    mode === "net" ? buildReimbursedMap(ledger, base, rates) : null;
+    mode === "net" ? buildReimbursedMap(ledger, base, rates, scope) : null;
   const byId = new Map(categories.map((c) => [c.id, c]));
   const slices = new Map<string, CategorySlice>();
 
@@ -345,12 +375,13 @@ export function monthlyCashflow(
   now = new Date(),
   mode: CashflowMode = "net",
   ledger: Transaction[] = txns,
+  scope?: Set<string>,
 ): MonthlyPoint[] {
   const points: MonthlyPoint[] = [];
   for (let i = months - 1; i >= 0; i--) {
     const d = subMonths(now, i);
     const { from, to } = monthBounds(d);
-    const cf = cashflowForRange(txns, base, rates, from, to, mode, ledger);
+    const cf = cashflowForRange(txns, base, rates, from, to, mode, ledger, scope);
     points.push({ label: format(d, "MMM"), income: cf.income, expense: cf.expense });
   }
   return points;
