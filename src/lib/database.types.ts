@@ -279,6 +279,42 @@ export interface Database {
         };
         Relationships: [];
       };
+      account_currencies: {
+        Row: {
+          id: string;
+          user_id: string;
+          account_id: string;
+          currency: string;
+          opening_balance: number;
+          display_order: number;
+          is_archived: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          account_id: string;
+          currency: string;
+          opening_balance?: number;
+          display_order?: number;
+          is_archived?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          account_id?: string;
+          currency?: string;
+          opening_balance?: number;
+          display_order?: number;
+          is_archived?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       budgets: {
         Row: {
           id: string;
@@ -424,6 +460,7 @@ export interface Database {
           receipt_image_path: string | null;
           destination_account_id: string | null;
           destination_amount: number | null;
+          destination_currency: string | null;
           fx_rate: number | null;
           external_id: string | null;
           import_batch_id: string | null;
@@ -451,6 +488,7 @@ export interface Database {
           receipt_image_path?: string | null;
           destination_account_id?: string | null;
           destination_amount?: number | null;
+          destination_currency?: string | null;
           fx_rate?: number | null;
           external_id?: string | null;
           import_batch_id?: string | null;
@@ -478,6 +516,7 @@ export interface Database {
           receipt_image_path?: string | null;
           destination_account_id?: string | null;
           destination_amount?: number | null;
+          destination_currency?: string | null;
           fx_rate?: number | null;
           external_id?: string | null;
           import_batch_id?: string | null;

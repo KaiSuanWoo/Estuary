@@ -5,6 +5,11 @@ type Tables = Database["public"]["Tables"];
 
 export type Account = Tables["accounts"]["Row"];
 export type AccountInsert = Tables["accounts"]["Insert"];
+
+/** One declared currency balance inside an account — a Wise "pocket". */
+export type AccountCurrency = Tables["account_currencies"]["Row"];
+export type AccountCurrencyInsert = Tables["account_currencies"]["Insert"];
+export type AccountCurrencyUpdate = Tables["account_currencies"]["Update"];
 export type AccountUpdate = Tables["accounts"]["Update"];
 
 export type Category = Tables["categories"]["Row"];

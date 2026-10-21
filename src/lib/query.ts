@@ -19,6 +19,7 @@ export const qk = {
   profilesAll: ["profiles"] as const,
   settings: ["settings"] as const,
   accounts: ["accounts"] as const,
+  accountCurrencies: ["account_currencies"] as const,
   categories: ["categories"] as const,
   fxRates: ["fx_rates"] as const,
   liveRates: (base: string) => ["live_rates", base] as const,

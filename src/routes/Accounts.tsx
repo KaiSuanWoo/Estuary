@@ -16,12 +16,19 @@ import {
 } from "@/hooks/useReconciliations";
 import { useInvestmentOverrides } from "@/hooks/useInvestmentSnapshot";
 import { accountBalancesByCurrency, isMultiCurrency } from "@/lib/balances";
+import {
+  usePocketsByAccount,
+  useAddPocket,
+  useUpdatePocket,
+  useRemovePocket,
+} from "@/hooks/useAccountCurrencies";
 import type { BalanceOverride } from "@/lib/investments";
 import { formatDate, formatMoney, todayISO } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { ACCOUNT_TYPE_COLORS, ACCOUNT_TYPE_LABELS } from "@/lib/account-colors";
 import { Button, Card, EmptyState, PageHeader, Sheet, Skeleton } from "@/components/ui";
-import type { Account, AccountType } from "@/lib/types";
+import { CURRENCIES } from "@/lib/constants";
+import type { Account, AccountCurrency, AccountType } from "@/lib/types";
 import type { Transaction } from "@/lib/types";
 
 const inputCls =
@@ -115,6 +122,7 @@ function AccountList({
   onEdit: (a: Account) => void;
 }) {
   const reorder = useReorderAccounts();
+  const pocketsByAccount = usePocketsByAccount();
   // Local order drives rendering during a drag; resynced when the query updates.
   const [order, setOrder] = useState<Account[]>(accounts);
   const orderRef = useRef(order);
@@ -146,6 +154,7 @@ function AccountList({
           account={a}
           txns={txns}
           overrides={overrides}
+          pockets={pocketsByAccount.get(a.id) ?? []}
           isDefault={i === 0}
           onEdit={onEdit}
           onCommit={commit}
@@ -163,6 +172,7 @@ function AccountRow({
   account: a,
   txns,
   overrides,
+  pockets,
   isDefault,
   onEdit,
   onCommit,
@@ -170,12 +180,13 @@ function AccountRow({
   account: Account;
   txns: Transaction[];
   overrides: Map<string, BalanceOverride>;
+  pockets: AccountCurrency[];
   isDefault: boolean;
   onEdit: (a: Account) => void;
   onCommit: () => void;
 }) {
   const controls = useDragControls();
-  const balances = accountBalancesByCurrency(a, txns, overrides);
+  const balances = accountBalancesByCurrency(a, txns, overrides, pockets);
   const multi = a.is_multi_currency || isMultiCurrency(balances);
   const isCredit = a.type === "credit";
   const owed = isCredit ? -(balances[a.currency] ?? 0) : 0;
@@ -375,6 +386,9 @@ function EditAccountSheet({
   const [currency, setCurrency] = useState(account.currency);
   const [opening, setOpening] = useState(String(account.opening_balance));
   const [isMulti, setIsMulti] = useState(account.is_multi_currency);
+  const pockets = usePocketsByAccount().get(account.id) ?? [];
+  const updatePocket = useUpdatePocket();
+  const addPocket = useAddPocket();
   const [creditLimit, setCreditLimit] = useState(
     account.credit_limit != null ? String(account.credit_limit) : "",
   );
@@ -385,17 +399,38 @@ function EditAccountSheet({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    const nextCurrency = currency.trim().toUpperCase() || account.currency;
+    const nextOpening = Number(opening) || 0;
     await update.mutateAsync({
       id: account.id,
       patch: {
         name: name.trim(),
         type,
-        currency: currency.trim().toUpperCase() || account.currency,
-        opening_balance: Number(opening) || 0,
+        currency: nextCurrency,
+        opening_balance: nextOpening,
         is_multi_currency: type === "credit" ? false : isMulti,
         credit_limit: type === "credit" ? Number(creditLimit) || null : null,
       },
     });
+    // Balances read pockets, so the single opening field has to land on the
+    // primary pocket or it would edit a number nothing looks at. A
+    // multi-currency account edits its pockets directly and skips this.
+    if (!isMulti || type === "credit") {
+      const primary = pockets.find((x) => x.currency === nextCurrency);
+      if (primary) {
+        if (Number(primary.opening_balance) !== nextOpening)
+          await updatePocket.mutateAsync({
+            id: primary.id,
+            patch: { opening_balance: nextOpening },
+          });
+      } else {
+        await addPocket.mutateAsync({
+          account_id: account.id,
+          currency: nextCurrency,
+          opening_balance: nextOpening,
+        });
+      }
+    }
     onClose();
   }
 
@@ -462,24 +497,26 @@ function EditAccountSheet({
             <MultiCurrencyToggle value={isMulti} onChange={setIsMulti} />
           )}
 
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-quill-soft">
-              {type === "credit"
-                ? "Current balance (negative = owing)"
-                : isMulti
-                  ? `Opening balance (${currency.toUpperCase()})`
+          {isMulti && type !== "credit" ? (
+            <PocketRegister account={account} />
+          ) : (
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-quill-soft">
+                {type === "credit"
+                  ? "Current balance (negative = owing)"
                   : "Opening balance"}
-            </span>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              value={opening}
-              onChange={(e) => setOpening(e.target.value)}
-              placeholder="0.00"
-              className={cn(smInput, "tnum")}
-            />
-          </label>
+              </span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                value={opening}
+                onChange={(e) => setOpening(e.target.value)}
+                placeholder="0.00"
+                className={cn(smInput, "tnum")}
+              />
+            </label>
+          )}
 
           {update.isError && (
             <p className="text-xs text-debit">
@@ -528,6 +565,104 @@ function EditAccountSheet({
   );
 }
 
+/**
+ * The currencies an account holds, each with its own opening figure.
+ *
+ * A pocket is a declaration, not a consequence: it exists because there is a
+ * row, so a Wise can hold GBP at 0.00 from the day you open it and state what
+ * was already in each currency when you started tracking. The primary pocket
+ * cannot be removed — it is the account's own currency.
+ */
+function PocketRegister({ account }: { account: Account }) {
+  const pockets = usePocketsByAccount().get(account.id) ?? [];
+  const add = useAddPocket();
+  const update = useUpdatePocket();
+  const remove = useRemovePocket();
+  const [adding, setAdding] = useState("");
+
+  const held = new Set(pockets.map((p) => p.currency));
+  const available = CURRENCIES.filter((c) => !held.has(c));
+  const ordered = [...pockets].sort((a, b) =>
+    a.currency === account.currency ? -1 : b.currency === account.currency ? 1 : a.currency.localeCompare(b.currency),
+  );
+
+  return (
+    <div className="rounded-[2px] border border-rule/60 bg-well p-3">
+      <p className="mb-1 text-xs font-medium text-quill-soft">Currencies held</p>
+      <p className="mb-2 text-xs italic text-quill-faint">
+        Opening balance per currency — what was in each the day you started.
+      </p>
+
+      {ordered.map((p) => {
+        const primary = p.currency === account.currency;
+        return (
+          <div key={p.id} className="flex items-center gap-2 border-b border-rule py-1.5 last:border-b-0">
+            <span className="w-12 shrink-0 text-sm text-quill">{p.currency}</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              defaultValue={String(p.opening_balance)}
+              aria-label={`Opening balance in ${p.currency}`}
+              onBlur={(e) => {
+                const next = Number(e.target.value) || 0;
+                if (next !== Number(p.opening_balance))
+                  update.mutate({ id: p.id, patch: { opening_balance: next } });
+              }}
+              className={cn(inputCls, "tnum h-8 flex-1")}
+            />
+            {primary ? (
+              <span className="w-16 shrink-0 text-right text-[0.65rem] italic text-quill-faint">
+                primary
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => remove.mutate(p.id)}
+                aria-label={`Remove the ${p.currency} balance`}
+                className="tap w-16 shrink-0 text-right text-xs italic text-quill-faint transition-colors hover:text-debit"
+              >
+                remove
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      {available.length > 0 && (
+        <div className="mt-2 flex items-center gap-2">
+          <select
+            value={adding}
+            onChange={(e) => setAdding(e.target.value)}
+            aria-label="Currency to add"
+            className={cn(inputCls, "h-8 w-24 shrink-0")}
+          >
+            <option value="">Add…</option>
+            {available.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!adding || add.isPending}
+            onClick={() => {
+              if (!adding) return;
+              add.mutate(
+                { account_id: account.id, currency: adding, display_order: pockets.length },
+                { onSuccess: () => setAdding("") },
+              );
+            }}
+          >
+            Add currency
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Reconciliation ───────────────────────────────────────────────────────────
 
 /**
@@ -543,8 +678,12 @@ function ReconcileSection({ account }: { account: Account }) {
 
   const [stated, setStated] = useState("");
 
+  // Reconciles the primary pocket. Without passing pockets this would fall
+  // back to `accounts.opening_balance`, which is no longer what the primary
+  // currency is opened with on a multi-currency account.
+  const pockets = usePocketsByAccount().get(account.id) ?? [];
   const computed =
-    accountBalancesByCurrency(account, txns)[account.currency] ?? 0;
+    accountBalancesByCurrency(account, txns, undefined, pockets)[account.currency] ?? 0;
   const last = checks.find((r) => r.account_id === account.id);
   const justSaved = create.data?.account_id === account.id ? create.data : null;
   const shown = justSaved ?? last;

@@ -6,6 +6,7 @@ import { Button, Sheet } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { TagPicker } from "@/components/TagPicker";
 import { useAccounts } from "@/hooks/useAccounts";
+import { usePocketsByAccount } from "@/hooks/useAccountCurrencies";
 import { useCategories } from "@/hooks/useCategories";
 import { useCreateTransaction } from "@/hooks/useTransactions";
 import { useSetTransactionTags } from "@/hooks/useTags";
@@ -46,6 +47,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
   const [fee, setFee] = useState(""); // transfer fee, in the source currency
   const [currency, setCurrency] = useState(""); // "" → use account's currency
   const [srcCurrency, setSrcCurrency] = useState(""); // transfer source currency
+  const [destCurrency, setDestCurrency] = useState(""); // transfer destination currency
   const [categoryId, setCategoryId] = useState("");
   const [date, setDate] = useState(todayISO());
   const [merchant, setMerchant] = useState("");
@@ -63,19 +65,39 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
     accounts.find((a) => a.id === toAccountId) ??
     accounts.find((a) => a.id !== from?.id);
 
-  // Currencies the user deals in — drives whether currency pickers are shown.
-  const allCurrencies = useMemo(
-    () => Array.from(new Set(accounts.map((a) => a.currency))).sort(),
-    [accounts],
-  );
+  const pocketsByAccount = usePocketsByAccount();
+  // The currencies *this* account actually holds. Offering the set of other
+  // accounts' primaries meant you could not put GBP into a Wise until some
+  // other account was already denominated in GBP.
+  const allCurrencies = useMemo(() => {
+    const own = (pocketsByAccount.get(from?.id ?? "") ?? [])
+      .filter((p) => !p.is_archived)
+      .map((p) => p.currency);
+    return own.length > 0 ? own : from?.currency ? [from.currency] : [];
+  }, [pocketsByAccount, from?.id, from?.currency]);
   // Currency picker appears only for accounts explicitly marked multi-currency.
   const showCurrency = !!from?.is_multi_currency;
+
+  // What the destination can receive. A multi-currency account can receive in
+  // any of its pockets, which is also what makes converting *inside* one
+  // account expressible.
+  const destCurrencies = useMemo(() => {
+    const own = (pocketsByAccount.get(to?.id ?? "") ?? [])
+      .filter((p) => !p.is_archived)
+      .map((p) => p.currency);
+    return own.length > 0 ? own : to?.currency ? [to.currency] : [];
+  }, [pocketsByAccount, to?.id, to?.currency]);
 
   // Effective currency the money is denominated in.
   const fromCurrency = srcCurrency || from?.currency || "";
   const entryCurrency = currency || from?.currency || "";
+  const toCurrency = destCurrency || destCurrencies[0] || to?.currency || "";
+  // Converting within one account — AUD to USD inside a Wise — is a transfer
+  // whose destination is the source. Allowed only when the currencies differ:
+  // same account, same currency would be a no-op.
+  const inAccountConversion = isTransfer && !!from && to?.id === from.id;
   const crossCurrency =
-    isTransfer && !!from && !!to && fromCurrency !== to.currency;
+    isTransfer && !!from && !!to && fromCurrency !== toCurrency;
   // Show the exchange-rate fields for cross-currency transfers AND whenever a
   // multi-currency account is involved (so you can always set an FX rate).
   const showRate =
@@ -83,6 +105,8 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
     !!from &&
     !!to &&
     (crossCurrency || !!from.is_multi_currency || !!to.is_multi_currency);
+  // The one combination that means nothing.
+  const sameAccountSameCurrency = inAccountConversion && fromCurrency === toCurrency;
 
   // ── Cross-currency transfer: keep amount / fee / rate / received in sync ────
   // Wise model: the fee is taken from the source first, then the remainder is
@@ -112,7 +136,10 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
   const canSubmit = (() => {
     if (!from || !(Number(amount) > 0) || create.isPending) return false;
     if (isTransfer) {
-      if (!to || to.id === from.id) return false;
+      if (!to) return false;
+      // Same account is allowed — that is a conversion — but only across two
+      // different currencies. Same account, same currency moves nothing.
+      if (to.id === from.id && fromCurrency === toCurrency) return false;
       if (crossCurrency && !(Number(destAmount) > 0)) return false;
     }
     return true;
@@ -138,6 +165,7 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
           account_id: from.id,
           destination_account_id: to.id,
           destination_amount: recv,
+          destination_currency: toCurrency || null,
           // Keep the pure FX rate the user entered for cross-currency transfers.
           fx_rate: showRate ? (Number(rate) > 0 ? Number(rate) : amt > 0 ? recv / amt : null) : null,
           date,
@@ -298,14 +326,49 @@ export function AddTransactionSheet({ onClose }: { onClose: () => void }) {
                         className={inputCls}
                       >
                         {accounts
-                          .filter((a) => a.id !== from?.id)
+                          // The source itself is offered when it holds more
+                          // than one currency — that is how you record an
+                          // in-account conversion rather than faking it with
+                          // an adjustment, which is what inflates a balance.
+                          .filter(
+                            (a) =>
+                              a.id !== from?.id ||
+                              (pocketsByAccount.get(a.id) ?? []).length > 1,
+                          )
                           .map((a) => (
                             <option key={a.id} value={a.id}>
-                              {a.name} · {a.currency}
+                              {a.id === from?.id
+                                ? `${a.name} · convert within`
+                                : `${a.name} · ${a.currency}`}
                             </option>
                           ))}
                       </select>
                     </Field>
+
+                    {/* Which pocket it lands in. Only worth asking when the
+                        destination holds more than one. */}
+                    {destCurrencies.length > 1 && (
+                      <Field label="Received as">
+                        <select
+                          value={toCurrency}
+                          onChange={(e) => setDestCurrency(e.target.value)}
+                          className={inputCls}
+                        >
+                          {destCurrencies.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    )}
+
+                    {sameAccountSameCurrency && (
+                      <p className="text-xs text-debit">
+                        Converting within one account needs two different
+                        currencies — pick what it should be received as.
+                      </p>
+                    )}
 
                     {/* Fee — applies to any transfer (Wise charges fees even
                         same-currency); deducted from the amount sent. */}

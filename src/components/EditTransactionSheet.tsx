@@ -12,6 +12,7 @@ import { Button, Sheet } from "@/components/ui";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { TagPicker } from "@/components/TagPicker";
 import { useAccounts } from "@/hooks/useAccounts";
+import { usePocketsByAccount } from "@/hooks/useAccountCurrencies";
 import { useCategories } from "@/hooks/useCategories";
 import { useTransactionTags, useSetTransactionTags } from "@/hooks/useTags";
 import {
@@ -155,10 +156,15 @@ export function EditTransactionSheet({
     accounts.find((a) => a.id === toAccountId) ??
     accounts.find((a) => a.id !== from?.id);
 
-  const allCurrencies = useMemo(
-    () => Array.from(new Set(accounts.map((a) => a.currency))).sort(),
-    [accounts],
-  );
+  const pocketsByAccount = usePocketsByAccount();
+  // The currencies *this* account actually holds, not the set of currencies
+  // other accounts happen to use as their primary.
+  const allCurrencies = useMemo(() => {
+    const own = (pocketsByAccount.get(from?.id ?? "") ?? [])
+      .filter((p) => !p.is_archived)
+      .map((p) => p.currency);
+    return own.length > 0 ? own : from?.currency ? [from.currency] : [];
+  }, [pocketsByAccount, from?.id, from?.currency]);
 
   /**
    * Move the entry to another account, carrying its currency with it.
