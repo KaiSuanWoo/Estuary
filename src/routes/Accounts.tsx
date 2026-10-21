@@ -34,9 +34,9 @@ const ACCOUNT_TYPES: AccountType[] = [
   "checking",
   "savings",
   "cash",
+  "trading",
   "credit",
   "investment",
-  "investmentCash",
 ];
 
 export function Accounts() {
@@ -307,11 +307,11 @@ function TypePicker({
                   : "border-rule text-quill-soft hover:border-rule-strong",
               )}
             >
-              {t === "investmentCash"
-                ? "Invest"
-                : t === "credit"
-                  ? "Credit"
-                  : ACCOUNT_TYPE_LABELS[t]}
+              {/* "Credit card" is the only label too long for a third of the
+                  row; every other type reads as itself. Shortening one of a
+                  pair to "Invest" beside "Investment" is what made them look
+                  like the same type twice. */}
+              {t === "credit" ? "Credit" : ACCOUNT_TYPE_LABELS[t]}
             </button>
           );
         })}

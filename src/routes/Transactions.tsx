@@ -918,24 +918,28 @@ export function Transactions() {
         </>
       )}
 
-      {/* Floating chrome sits in a single row above the dock. Stacked down the
-          left edge it lay over the register and covered whichever entries
-          happened to be beneath it; the leaf already clears this band for the
-          dock, so nothing here can overlap an entry. A desktop has no dock and
-          plenty of margin, so there it keeps the right-hand column. */}
+      {/* Floating chrome. On a phone it's a column stacked directly above the
+          add button, centred on it — a single tidy tower in the corner rather
+          than the diagonal it used to make below-left, which overlapped the
+          register and crowded the dock. (Search sits at the top of the column
+          and is only there once you've scrolled, so the visible pair — flag and
+          reimbursement — sits closest to the add button.) A desktop has no dock
+          and plenty of margin, so there it keeps the right-hand column. */}
       <Overlay>
         {hasData && (
           <div
-            className="fixed z-30 flex items-center gap-2 lg:flex-col-reverse lg:items-end"
+            className="fixed z-30 flex flex-col items-center gap-2 lg:flex-col-reverse lg:items-end"
             style={
               isDesktop
                 ? { right: "2rem", bottom: "2rem" }
                 : {
-                    // Clear of the add button (1.25rem margin + its 3.5rem
-                    // width), on the same centre line, inside the band the leaf
-                    // already clears for the dock.
-                    right: "calc(1.25rem + 3.5rem + 0.5rem)",
-                    bottom: "calc(env(safe-area-inset-bottom) + 5.875rem)",
+                    // Centred on the add button (its 3.5rem width vs these
+                    // 2.75rem: (3.5−2.75)/2 = 0.375rem inside its 1.25rem
+                    // margin) and lifted just clear of its top edge
+                    // (1.25rem margin + 3.5rem add + 3.5rem add height... i.e.
+                    // 9.25rem bottom + 3.5rem + 0.5rem gap).
+                    right: "1.625rem",
+                    bottom: "calc(env(safe-area-inset-bottom) + 13.25rem)",
                   }
             }
           >

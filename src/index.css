@@ -198,9 +198,21 @@
     color: var(--color-quill);
     font-family: var(--font-ledger);
     -webkit-font-smoothing: antialiased;
-    /* safe-area padding for iPhone home-screen PWA */
+    /* safe-area padding for iPhone home-screen PWA. The book's own screens lift
+       this off on a phone (below) so the cover reaches the physical edges; the
+       auth/onboarding screens, which render without the shell, keep it. */
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
       env(safe-area-inset-left);
+  }
+  /* Full-bleed book on a phone: while the shell is mounted (AppShell stamps
+     `data-shell` on <html>), the desk inset comes off the body so the leather
+     runs edge to edge, and the safe-area top is carried by the leaf content
+     instead (`.leaf-safe-top`). The dock and leaf already fold in the bottom
+     inset themselves, so nothing sits under the notch or the home indicator. */
+  @media (max-width: 1023px) {
+    html[data-shell] body {
+      padding: 0;
+    }
   }
   /* The lamp on the desk. A single warm pool falling from above-left, fixed to
      the viewport so it never seams as the leaf scrolls. */
@@ -333,6 +345,19 @@
    z-index 1; that is why the guardrail holds and texture never sits under a
    figure.                                                                  */
 @layer components {
+  /* The leaf's own top padding. On a phone the shell has taken the safe-area
+     inset off the body, so the heading would otherwise sit under the notch —
+     the leaf carries that inset here. Desktop keeps the plain 1.5rem (lg:py-6
+     wins there). */
+  .leaf-safe-top {
+    padding-top: 1.5rem;
+  }
+  @media (max-width: 1023px) {
+    .leaf-safe-top {
+      padding-top: calc(env(safe-area-inset-top) + 1.5rem);
+    }
+  }
+
   .surface-hide {
     position: relative;
     isolation: isolate;
