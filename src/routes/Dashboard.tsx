@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { useLeafScroll, Overlay } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
+import { usePocketsByAccount } from "@/hooks/useAccountCurrencies";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
 import { groupLinks } from "@/lib/budgets";
@@ -111,7 +112,8 @@ export function Dashboard() {
   // report Zenith's live valuation via `overrides`, so they fold into net worth
   // exactly once.
   const overrides = useInvestmentOverrides(accounts);
-  const byCurrency = balancesByCurrency(scopedAccounts, txns, overrides);
+  const pockets = usePocketsByAccount();
+  const byCurrency = balancesByCurrency(scopedAccounts, txns, overrides, pockets);
   const { total: netWorth, missing } = totalInBase(byCurrency, baseCurrency, rates);
 
   // Cash / investments split. A snapshot whose accounts aren't materialised yet
@@ -123,7 +125,7 @@ export function Dashboard() {
       ? investmentTotalInBase(investSnapshot, baseCurrency, rates)
       : 0;
   const linkedInvest = totalInBase(
-    balancesByCurrency(investAccounts, txns, overrides),
+    balancesByCurrency(investAccounts, txns, overrides, pockets),
     baseCurrency,
     rates,
   ).total;
