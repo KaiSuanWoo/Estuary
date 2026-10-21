@@ -95,6 +95,17 @@ export function AppShell() {
     leafRef.current?.scrollTo({ top: 0 });
   }, [pathname]);
 
+  // Mark the document while the book is mounted so the phone layout can run the
+  // cover to the physical edges (the desk inset comes off the body — see
+  // index.css). The auth/onboarding screens render without the shell and keep
+  // their safe-area padding.
+  useEffect(() => {
+    document.documentElement.dataset.shell = "1";
+    return () => {
+      delete document.documentElement.dataset.shell;
+    };
+  }, []);
+
   // The dock's pill is driven by the active tab's index rather than a shared
   // layout animation, so it can only ever move horizontally.
   const activeIndex = NAV.findIndex((n) =>
@@ -249,7 +260,7 @@ export function AppShell() {
                 transition={
                   reduce ? { duration: 0.12 } : { ...paperTurn, duration: 0.3 }
                 }
-                className="mx-auto w-full max-w-md pl-9 pr-4 pt-6 lg:max-w-5xl lg:py-6 lg:pl-16 lg:pr-10"
+                className="leaf-safe-top mx-auto w-full max-w-md pl-5 pr-4 lg:max-w-5xl lg:py-6 lg:pl-16 lg:pr-10"
               >
                 {outlet}
               </motion.div>
@@ -271,14 +282,16 @@ export function AppShell() {
         />
 
         {/* Silk ribbon, lying in the gutter. It swings a little as the leaf
-            turns — the one thing in the book that isn't pinned down. */}
+            turns — the one thing in the book that isn't pinned down. Desktop
+            only: on a phone the gutter is too narrow to spare, so the ribbon
+            would crowd the register rather than adorn it. */}
         <motion.span
           aria-hidden
           key={`ribbon-${section}`}
           initial={reduce ? false : { rotate: -1.4, y: -6 }}
           animate={{ rotate: 0, y: 0 }}
           transition={{ duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
-          className="pointer-events-none absolute top-0 z-20 h-2/3 w-2.5"
+          className="pointer-events-none absolute top-0 z-20 hidden h-2/3 w-2.5 lg:block"
           style={{
             left: "1.15rem",
             transformOrigin: "top center",

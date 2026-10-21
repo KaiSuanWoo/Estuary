@@ -22,7 +22,7 @@ export type AccountType =
   | "checking"
   | "savings"
   | "cash"
-  | "investmentCash"
+  | "trading"
   | "credit"
   | "investment";
 export type SavingsType = "fixed" | "disposable" | "investment" | "custom";
