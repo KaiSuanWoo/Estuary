@@ -664,6 +664,7 @@ export interface Database {
           account_id: string;
           date: string;
           stated_balance: number;
+          currency: string;
           computed_balance: number;
           difference: number;
           created_at: string;
@@ -674,6 +675,7 @@ export interface Database {
           account_id: string;
           date: string;
           stated_balance: number;
+          currency: string;
           computed_balance: number;
           difference: number;
           created_at?: string;
@@ -684,6 +686,7 @@ export interface Database {
           account_id?: string;
           date?: string;
           stated_balance?: number;
+          currency?: string;
           computed_balance?: number;
           difference?: number;
           created_at?: string;

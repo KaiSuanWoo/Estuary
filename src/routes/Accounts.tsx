@@ -198,7 +198,13 @@ function AccountRow({
   ];
 
   const { data: checks = [] } = useReconciliations();
-  const lastCheck = checks.find((r) => r.account_id === a.id);
+  // Checks are per pocket now, so "reconciled" means every currency held has
+  // been checked — a Wise whose AUD matches while its GBP has never been
+  // looked at is not reconciled.
+  const myChecks = checks.filter((r) => r.account_id === a.id);
+  const lastCheck = myChecks.find((r) => r.currency === a.currency) ?? myChecks[0];
+  const checkedCurrencies = new Set(myChecks.map((r) => r.currency));
+  const unchecked = currencies.filter((c) => !checkedCurrencies.has(c));
 
   // A Zenith-valued account has no local movement to trace — its worth is
   // whatever the snapshot last said.
@@ -281,7 +287,11 @@ function AccountRow({
               ? `Reconciled ${formatDate(lastCheck.date)} · ${
                   Math.abs(lastCheck.difference) < 0.005
                     ? "matched"
-                    : `off by ${formatMoney(Math.abs(lastCheck.difference), a.currency)}`
+                    : `off by ${formatMoney(Math.abs(lastCheck.difference), lastCheck.currency)}`
+                }${
+                  unchecked.length > 0
+                    ? ` · ${unchecked.join(", ")} never checked`
+                    : ""
                 }`
               : "Never reconciled"}
         </p>
@@ -676,16 +686,32 @@ function ReconcileSection({ account }: { account: Account }) {
   const { data: checks = [] } = useReconciliations();
   const create = useCreateReconciliation();
 
-  const [stated, setStated] = useState("");
-
-  // Reconciles the primary pocket. Without passing pockets this would fall
-  // back to `accounts.opening_balance`, which is no longer what the primary
-  // currency is opened with on a multi-currency account.
   const pockets = usePocketsByAccount().get(account.id) ?? [];
-  const computed =
-    accountBalancesByCurrency(account, txns, undefined, pockets)[account.currency] ?? 0;
-  const last = checks.find((r) => r.account_id === account.id);
-  const justSaved = create.data?.account_id === account.id ? create.data : null;
+  const balances = accountBalancesByCurrency(account, txns, undefined, pockets);
+
+  // A statement states a balance in one currency, so a check is against one
+  // pocket. The primary leads; the rest follow in the order they are held.
+  const held = pockets.length
+    ? [...pockets]
+        .filter((p) => !p.is_archived)
+        .map((p) => p.currency)
+        .sort((x, y) =>
+          x === account.currency ? -1 : y === account.currency ? 1 : x.localeCompare(y),
+        )
+    : [account.currency];
+
+  const [currency, setCurrency] = useState(account.currency);
+  const [stated, setStated] = useState("");
+  const active = held.includes(currency) ? currency : held[0] ?? account.currency;
+
+  const computed = balances[active] ?? 0;
+  const last = checks.find(
+    (r) => r.account_id === account.id && r.currency === active,
+  );
+  const justSaved =
+    create.data?.account_id === account.id && create.data?.currency === active
+      ? create.data
+      : null;
   const shown = justSaved ?? last;
 
   async function reconcile() {
@@ -693,6 +719,7 @@ function ReconcileSection({ account }: { account: Account }) {
     if (!Number.isFinite(bank)) return;
     await create.mutateAsync({
       account_id: account.id,
+      currency: active,
       date: todayISO(),
       stated_balance: bank,
       computed_balance: computed,
@@ -706,19 +733,58 @@ function ReconcileSection({ account }: { account: Account }) {
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <p className="text-xs font-medium text-quill-soft">Reconcile with your bank</p>
         {shown && (
-          <p
-            className={cn(
-              "tnum text-xs",
-              Math.abs(shown.difference) < 0.005 ? "text-accent" : "text-accent",
-            )}
-          >
+          <p className="tnum text-xs text-accent">
             {formatDate(shown.date)} ·{" "}
             {Math.abs(shown.difference) < 0.005
               ? "matched"
-              : `off by ${formatMoney(Math.abs(shown.difference), account.currency)}`}
+              : `off by ${formatMoney(Math.abs(shown.difference), active)}`}
           </p>
         )}
       </div>
+
+      {/* Only worth asking which pocket when there is more than one. */}
+      {held.length > 1 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {held.map((c) => {
+            const check = checks.find(
+              (r) => r.account_id === account.id && r.currency === c,
+            );
+            const matched = check ? Math.abs(check.difference) < 0.005 : null;
+            return (
+              <button
+                key={c}
+                type="button"
+                aria-pressed={c === active}
+                onClick={() => {
+                  setCurrency(c);
+                  setStated("");
+                }}
+                className={cn(
+                  "tap flex items-center gap-1.5 rounded-[2px] border px-2.5 py-1 text-xs transition-colors",
+                  c === active
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-rule text-quill-soft hover:border-rule-strong hover:text-quill",
+                )}
+              >
+                {c}
+                {/* A pocket never checked is worth seeing at a glance. */}
+                <span
+                  aria-hidden
+                  className={cn(
+                    "size-1.5 rounded-full",
+                    matched === null
+                      ? "bg-rule-strong"
+                      : matched
+                        ? "bg-credit"
+                        : "bg-debit",
+                  )}
+                />
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex gap-2">
         <input
           type="number"
@@ -726,7 +792,8 @@ function ReconcileSection({ account }: { account: Account }) {
           step="0.01"
           value={stated}
           onChange={(e) => setStated(e.target.value)}
-          placeholder={`Bank shows… (${account.currency})`}
+          placeholder={`Bank shows… (${active})`}
+          aria-label={`Balance your bank shows in ${active}`}
           className="tnum h-9 flex-1 rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none"
         />
         <Button
@@ -740,11 +807,10 @@ function ReconcileSection({ account }: { account: Account }) {
         </Button>
       </div>
       <p className="tnum mt-1.5 text-xs text-quill-faint">
-        Estuary computes {formatMoney(computed, account.currency)}
+        Estuary computes {formatMoney(computed, active)}
         {stated.trim() !== "" && Number.isFinite(Number(stated)) && (
           <>
-            {" "}· difference{" "}
-            {formatMoney(Number(stated) - computed, account.currency)}
+            {" "}· difference {formatMoney(Number(stated) - computed, active)}
           </>
         )}
       </p>
