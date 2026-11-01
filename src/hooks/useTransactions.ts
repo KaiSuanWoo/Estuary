@@ -9,46 +9,77 @@ import { convert } from "@/lib/fx";
 import { reimbursementLinks } from "@/lib/reimbursements";
 import type { Transaction, TransactionInsert, TransactionUpdate } from "@/lib/types";
 
-export interface TransactionFilters {
-  limit?: number;
-  accountId?: string;
-  /** Inclusive ISO date bounds (yyyy-MM-dd). */
-  from?: string;
-  to?: string;
+/*
+ * `useTransactions` — the whole-ledger fetch — used to live here.
+ *
+ * Nothing needs it any more. Every screen that called it was folding the rows
+ * up into one figure, and those figures are grouped in the database now; the
+ * three places that genuinely want rows ask for the rows they want
+ * (`useTransactionsByIds`, `useTransferIns`, the paged Activity list).
+ *
+ * It is deleted rather than left exported, because it was the shape of the
+ * original bug: PostgREST caps an unbounded select at 1000 rows without
+ * saying so, and the next caller to reach for it would have reintroduced a
+ * total that quietly disagrees with the ledger.
+ */
+
+/**
+ * Balance immediately after each entry in one account, keyed by transaction id.
+ *
+ * This was the last reason the Activity list fetched the whole ledger: one
+ * column, on one screen, when a single account is selected. The database runs
+ * the same accumulation as a window function and returns the account's rows
+ * alone.
+ */
+export function useRunningBalance(accountId: string | undefined) {
+  const { user } = useAuth();
+
+  const { data = [] } = useQuery({
+    queryKey: qk.runningBalance(accountId ?? ""),
+    enabled: !!user && !!accountId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("account_running_balance")
+        .select("transaction_id, balance_after")
+        .eq("account_id", accountId!);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  return useMemo(
+    () => new Map(data.map((r) => [r.transaction_id, Number(r.balance_after)])),
+    [data],
+  );
 }
 
-export function useTransactions(filters: TransactionFilters = {}) {
+/**
+ * Inbound transfers into one account: amount as it landed, and the date.
+ *
+ * The importer uses these to flag a likely duplicate — a Wise→CommBank top-up
+ * that the bank's own CSV also lists as a plain credit, which would otherwise
+ * be counted twice. It used to filter them out of a full-ledger fetch, which
+ * is a scan for what is really a two-column query on one account.
+ */
+export function useTransferIns(accountId: string | undefined) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: qk.transactions(filters as Record<string, unknown>),
-    enabled: !!user,
-    queryFn: async (): Promise<Transaction[]> => {
-      // Rebuilt per page: `.range()` is not re-applicable to a spent builder.
-      const page = (from: number, to: number) => {
-        let q = supabase
+    queryKey: ["transactions", "transfer_ins", accountId ?? null] as const,
+    enabled: !!user && !!accountId,
+    queryFn: async (): Promise<{ amt: number; date: string }[]> => {
+      const rows = await fetchAllPages((from, to) =>
+        supabase
           .from("transactions")
-          .select("*")
-          .order("date", { ascending: false })
-          .order("created_at", { ascending: false });
-
-        if (filters.accountId) q = q.eq("account_id", filters.accountId);
-        if (filters.from) q = q.gte("date", filters.from);
-        if (filters.to) q = q.lte("date", filters.to);
-        return q.range(from, to);
-      };
-
-      // An explicit limit is a deliberate ceiling (recent-activity lists), so
-      // honour it in one request rather than paging past it.
-      if (filters.limit) {
-        const { data, error } = await page(0, filters.limit - 1);
-        if (error) throw error;
-        return data ?? [];
-      }
-
-      // Balances read the whole ledger — a short page would just look like
-      // money going missing. See `fetchAllPages`.
-      return fetchAllPages(page);
+          .select("amount, destination_amount, date")
+          .eq("type", "transfer")
+          .eq("destination_account_id", accountId!)
+          .range(from, to),
+      );
+      return rows.map((t) => ({
+        amt: Number(t.destination_amount ?? t.amount),
+        date: t.date,
+      }));
     },
   });
 }

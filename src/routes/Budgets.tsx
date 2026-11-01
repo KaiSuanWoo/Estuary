@@ -4,10 +4,12 @@ import { format, parseISO } from "date-fns";
 import { Check, ChevronLeft, Plus, Search, Star, Target, Trash2 } from "lucide-react";
 import { useCategories } from "@/hooks/useCategories";
 import {
-  useTransactions,
   useReimbursedAmountMap,
   useCreateTransaction,
+  useTransactionsByIds,
 } from "@/hooks/useTransactions";
+import { usePagedTransactions } from "@/hooks/usePagedTransactions";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
@@ -23,7 +25,10 @@ import {
   useSetTransactionGoals,
 } from "@/hooks/useBudgets";
 import {
-  spendForBudget,
+  useBudgetSpendMap,
+  useGoalFunding,
+} from "@/hooks/useBudgetSpend";
+import {
   budgetPacing,
   goalFunding,
   groupLinks,
@@ -31,7 +36,7 @@ import {
   periodLabel,
   type GoalFunding,
 } from "@/lib/budgets";
-import type { RateMap } from "@/lib/fx";
+import { convert } from "@/lib/fx";
 import { formatMoney, formatSignedMoney, todayISO } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Button, Card, EmptyState, Sheet, Spinner } from "@/components/ui";
@@ -72,14 +77,14 @@ function toneFor(ratio: number, saving: boolean): { bar: string; text: string } 
 
 export function Budgets() {
   const { data: categories = [], isLoading } = useCategories();
-  const { data: txns = [] } = useTransactions();
   const { data: accounts = [] } = useAccounts();
   const { data: budgets = [] } = useBudgets();
   const { data: links = [] } = useBudgetLinks();
   const { data: txnLinks = [] } = useBudgetTransactionLinks();
-  const reimbursed = useReimbursedAmountMap();
+  // Spend per budget and funding per goal, grouped in the database.
+  const spendByBudget = useBudgetSpendMap();
+  const fundingByGoal = useGoalFunding();
   const base = useBaseCurrency();
-  const rates = useRateMap();
   const update = useUpdateBudget();
 
   const [sheet, setSheet] = useState<Budget | "new" | null>(null);
@@ -101,22 +106,15 @@ export function Budgets() {
     let spent = 0;
     let budget = 0;
     for (const b of spending) {
-      spent += spendForBudget(
-        b,
-        linksByBudget.get(b.id) ?? new Set<string>(),
-        txns,
-        base,
-        rates,
-        reimbursed,
-      );
+      spent += spendByBudget.get(b.id)?.spent ?? 0;
       budget += b.amount;
     }
     return { spent, budget };
-  }, [spending, linksByBudget, txns, base, rates, reimbursed]);
+  }, [spending, spendByBudget]);
 
   function recurringRow(b: Budget) {
     const catIds = linksByBudget.get(b.id) ?? new Set<string>();
-    const spent = spendForBudget(b, catIds, txns, base, rates, reimbursed);
+    const spent = spendByBudget.get(b.id)?.spent ?? 0;
     const names = [...catIds]
       .map((id) => catById.get(id)?.name)
       .filter(Boolean) as string[];
@@ -137,7 +135,7 @@ export function Budgets() {
 
   function goalRow(b: Budget) {
     const ids = txnsByBudget.get(b.id) ?? new Set<string>();
-    const funding = goalFunding(b, ids, txns, base, rates, reimbursed);
+    const funding = goalFunding(b, fundingByGoal.get(b.id));
     return (
       <li key={b.id}>
         <GoalRow
@@ -229,10 +227,7 @@ export function Budgets() {
         <BudgetSheet
           budget={sheet}
           categories={categories}
-          txns={txns}
           base={base}
-          rates={rates}
-          reimbursed={reimbursed}
           assignedCats={
             sheet === "new"
               ? new Set<string>()
@@ -533,20 +528,14 @@ function GoalRow({
 function BudgetSheet({
   budget,
   categories,
-  txns,
   base,
-  rates,
-  reimbursed,
   assignedCats,
   assignedTxns,
   onClose,
 }: {
   budget: Budget | "new";
   categories: Category[];
-  txns: Transaction[];
   base: string;
-  rates: RateMap;
-  reimbursed: Map<string, number>;
   assignedCats: Set<string>;
   assignedTxns: Set<string>;
   onClose: () => void;
@@ -583,19 +572,29 @@ function BudgetSheet({
   const field =
     "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
 
-  // Live funding preview for goals
-  const preview = useMemo(
-    () =>
-      goalFunding(
-        { amount: Number(amount) || 0, due_date: due || null } as Budget,
-        pickedTxns,
-        txns,
-        base,
-        rates,
-        reimbursed,
-      ),
-    [amount, due, pickedTxns, txns, base, rates, reimbursed],
-  );
+  /**
+   * Live funding preview for goals.
+   *
+   * The only sum still done in the browser, and necessarily so: these are the
+   * picks being made in this sheet right now. Nothing is saved yet, so there is
+   * nothing for the server to group. It is bounded by what has been ticked.
+   */
+  const { data: pickedRows = [] } = useTransactionsByIds([...pickedTxns]);
+  const rates = useRateMap();
+  const reimbursed = useReimbursedAmountMap();
+  const preview = useMemo(() => {
+    let spent = 0;
+    let saved = 0;
+    for (const t of pickedRows) {
+      const amt = convert(t.amount, t.currency, base, rates) ?? t.amount;
+      if (t.type === "expense") spent += amt - (reimbursed.get(t.id) ?? 0);
+      else saved += amt;
+    }
+    return goalFunding(
+      { amount: Number(amount) || 0, due_date: due || null } as Budget,
+      { spent: Math.max(0, spent), saved },
+    );
+  }, [amount, due, pickedRows, base, rates, reimbursed]);
 
   function toggleCat(id: string) {
     setPickedCats((prev) => {
@@ -776,7 +775,6 @@ function BudgetSheet({
                 </span>
               </div>
               <TransactionPicker
-                txns={txns}
                 picked={pickedTxns}
                 onToggle={toggleTxn}
                 base={base}
@@ -973,30 +971,42 @@ function BudgetSheet({
   );
 }
 
-/** Searchable, checkable list of transactions to fund a goal with. */
+/**
+ * Searchable, checkable list of transactions to fund a goal with.
+ *
+ * Searches server-side. It used to filter a fetch of the whole ledger down to
+ * sixty rows, which meant holding every transaction in memory to show the
+ * handful that matched what was typed.
+ */
 function TransactionPicker({
-  txns,
   picked,
   onToggle,
   base,
 }: {
-  txns: Transaction[];
   picked: Set<string>;
   onToggle: (id: string) => void;
   base: string;
 }) {
   const [q, setQ] = useState("");
+  const term = useDebouncedValue(q, 300);
+  // Already-picked rows always show, whatever the search says — unticking
+  // something you cannot see is not possible.
+  const { data: selected = [] } = useTransactionsByIds([...picked]);
+  const { data: page } = usePagedTransactions(
+    { search: term.trim() || undefined },
+    0,
+    60,
+  );
+
   const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    // Selected first, then the rest (newest-first as returned), capped.
-    const match = (t: Transaction) =>
-      !term ||
-      (t.merchant ?? "").toLowerCase().includes(term) ||
-      (t.notes ?? "").toLowerCase().includes(term);
-    const sel = txns.filter((t) => picked.has(t.id));
-    const rest = txns.filter((t) => !picked.has(t.id) && match(t));
-    return [...sel.filter(match), ...rest].slice(0, 60);
-  }, [txns, q, picked]);
+    const t = term.trim().toLowerCase();
+    const match = (x: Transaction) =>
+      !t ||
+      (x.merchant ?? "").toLowerCase().includes(t) ||
+      (x.notes ?? "").toLowerCase().includes(t);
+    const rest = (page?.rows ?? []).filter((x: Transaction) => !picked.has(x.id));
+    return [...selected.filter(match), ...rest].slice(0, 60);
+  }, [selected, page, term, picked]);
 
   return (
     <div className="rounded-[2px] border border-rule/60 bg-well">
@@ -1012,7 +1022,7 @@ function TransactionPicker({
       <div className="max-h-60 overflow-y-auto">
         {filtered.length === 0 ? (
           <p className="px-3 py-6 text-center text-xs text-quill-faint">
-            {txns.length === 0 ? "No transactions yet." : "No matches."}
+            {term.trim() ? "No matches." : "No transactions yet."}
           </p>
         ) : (
           <ul className="divide-y divide-rule">

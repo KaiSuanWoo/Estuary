@@ -23,7 +23,7 @@ import {
 import { useAccounts } from "@/hooks/useAccounts";
 import { useCategories } from "@/hooks/useCategories";
 import { useCategorizationRules } from "@/hooks/useCategorizationRules";
-import { useTransactions } from "@/hooks/useTransactions";
+import { useTransferIns } from "@/hooks/useTransactions";
 import { categorize } from "@/lib/categorize";
 import {
   useBulkImport,
@@ -665,7 +665,6 @@ export function Import() {
   const bulk = useBulkImport();
   const deleteBatch = useDeleteBatch();
   const { data: batches = [] } = useImportBatches();
-  const { data: allTxns = [] } = useTransactions();
 
   const categoryKind = useMemo(
     () => new Map(categories.map((c) => [c.id, c.kind])),
@@ -755,13 +754,9 @@ export function Import() {
   // Transfer-ins already recorded into the chosen account — used to auto-flag
   // likely duplicates (e.g. a Wise→CommBank top-up the bank CSV also lists as a
   // "CREDIT TO ACCOUNT" credit, which would double-count the balance).
-  const transferIns = useMemo(
-    () =>
-      allTxns
-        .filter((t) => t.type === "transfer" && t.destination_account_id === accountId)
-        .map((t) => ({ amt: Number(t.destination_amount ?? t.amount), date: t.date })),
-    [allTxns, accountId],
-  );
+  // Asked for directly rather than filtered out of the whole ledger: it is one
+  // account's inbound transfers, which is a query, not a scan.
+  const { data: transferIns = [] } = useTransferIns(accountId);
 
   function isLikelyTransferDup(r: ImportRow): boolean {
     if (r.type !== "income" && r.type !== "adjustment") return false;

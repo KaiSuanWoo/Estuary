@@ -1,12 +1,17 @@
 /**
- * Hand-written to match supabase/migrations/0001_initial_schema.sql.
+ * Hand-written to match the migrations in supabase/migrations/.
  *
- * Once you create a Supabase project and run the migration, regenerate this
- * file from the source of truth instead of editing it by hand:
+ * Deliberately *not* the generated file. `supabase gen types` widens every
+ * CHECK-constrained column to `string`, so `TransactionType`, `BudgetPeriod`,
+ * `Cadence` and the rest of the unions below — which the app relies on to make
+ * a mistyped `type` a compile error rather than a runtime surprise — do not
+ * survive a regeneration. Keep adding by hand, and diff against the generated
+ * output when the schema changes:
  *
- *   supabase gen types typescript --project-id <ref> --schema public > src/lib/database.types.ts
+ *   supabase gen types typescript --project-id <ref> --schema public
  *
- * (or the Supabase MCP `generate_typescript_types` tool).
+ * (or the Supabase MCP `generate_typescript_types` tool) — read it, then
+ * reconcile, rather than overwriting this file with it.
  */
 
 export type Json =
@@ -33,6 +38,13 @@ export type BudgetType = "recurring" | "goal";
 export type CounterpartyType = "person" | "family" | "merchant";
 export type TransactionType = "expense" | "income" | "transfer" | "adjustment";
 export type ReimbursementStatus = "none" | "pending" | "partial" | "settled";
+/** Intervals `recurring_expenses` will report (migration 0031). */
+export type Cadence =
+  | "weekly"
+  | "fortnightly"
+  | "monthly"
+  | "quarterly"
+  | "yearly";
 export type ImportBatchStatus = "committed" | "reverted";
 export type RuleMatchField = "merchant" | "notes" | "amount" | "account";
 export type RuleMatchOperator =
@@ -735,8 +747,169 @@ export interface Database {
         };
         Relationships: [];
       };
+      /**
+       * Every transaction with its gross and net-of-reimbursement value in the
+       * user's base currency (migration 0027). The basis every cashflow and
+       * category aggregate is grouped from.
+       */
+      transaction_net: {
+        Row: {
+          id: string;
+          user_id: string;
+          date: string;
+          account_id: string;
+          category_id: string | null;
+          type: TransactionType;
+          currency: string;
+          amount: number;
+          merchant: string | null;
+          excluded_from_cashflow: boolean;
+          base_currency: string;
+          gross_base: number | null;
+          repaid_base: number;
+          allocated_raw: number;
+          net_base: number | null;
+        };
+        Relationships: [];
+      };
+      /** One row per (repayment, expense) allocation (migration 0027). */
+      reimbursement_allocation: {
+        Row: {
+          user_id: string;
+          expense_id: string;
+          repayment_id: string;
+          repayment_account_id: string;
+          repayment_date: string;
+          amount: number;
+          amount_base: number | null;
+        };
+        Relationships: [];
+      };
+      /** Months the ledger has any entry in (migration 0028). */
+      ledger_months: {
+        Row: { user_id: string; month: string; entries: number };
+        Relationships: [];
+      };
+      /** Per-month income and expense, gross and net (migration 0028). */
+      monthly_cashflow: {
+        Row: {
+          user_id: string;
+          month: string;
+          income_gross: number;
+          expense_gross: number;
+          income_net: number;
+          expense_net: number;
+        };
+        Relationships: [];
+      };
+      /** Per-category, per-month totals (migration 0028). */
+      category_spend_by_month: {
+        Row: {
+          user_id: string;
+          month: string;
+          category_id: string | null;
+          kind: CategoryKind;
+          gross: number;
+          net: number;
+          entries: number;
+        };
+        Relationships: [];
+      };
+      /** Canonical merchant groups and what folds into them (migration 0030). */
+      merchant_groups: {
+        Row: {
+          user_id: string;
+          canonical: string;
+          keys: string[];
+          raws: string[];
+          entries: number;
+        };
+        Relationships: [];
+      };
+      /** Balance immediately after each entry, per account (migration 0032). */
+      account_running_balance: {
+        Row: {
+          transaction_id: string;
+          user_id: string;
+          account_id: string;
+          date: string;
+          balance_after: number;
+        };
+        Relationships: [];
+      };
     };
-    Functions: Record<never, never>;
+    Functions: {
+      /** Net spend per budget in its current window (migration 0029). */
+      budget_spend: {
+        Args: { p_now?: string };
+        Returns: {
+          budget_id: string;
+          window_from: string | null;
+          window_to: string | null;
+          spent: number;
+          spent_to_date: number;
+        }[];
+      };
+      /** Spend per category within each budget (migration 0029). */
+      budget_category_spend: {
+        Args: { p_now?: string };
+        Returns: { budget_id: string; category_id: string; spent: number }[];
+      };
+      /** Spend per closed monthly window per budget (migration 0029). */
+      budget_cycles: {
+        Args: { p_months?: number; p_now?: string };
+        Returns: { budget_id: string; month: string; spent: number }[];
+      };
+      /** Cashflow per month over a range, optionally one account (0032). */
+      cashflow_by_month: {
+        Args: { p_from: string; p_to: string; p_account?: string | null };
+        Returns: {
+          month: string;
+          income_gross: number;
+          expense_gross: number;
+          income_net: number;
+          expense_net: number;
+        }[];
+      };
+      /** Per-category totals over a range, optionally one account (0032). */
+      category_spend: {
+        Args: { p_from: string; p_to: string; p_account?: string | null };
+        Returns: {
+          category_id: string | null;
+          kind: CategoryKind;
+          gross: number;
+          net: number;
+        }[];
+      };
+      /** Spend per day over a range, optionally by category (0035). */
+      daily_spend: {
+        Args: {
+          p_from: string;
+          p_to: string;
+          p_categories?: string[] | null;
+        };
+        Returns: { day: string; gross: number; net: number }[];
+      };
+      /** Spent and saved per goal budget (migration 0034). */
+      goal_funding: {
+        Args: Record<never, never>;
+        Returns: { budget_id: string; spent: number; saved: number }[];
+      };
+      /** Detected subscriptions and regular bills (migration 0031). */
+      recurring_expenses: {
+        Args: { p_now?: string };
+        Returns: {
+          merchant: string;
+          cadence: Cadence;
+          typical_amount: number;
+          monthly_equivalent: number;
+          charge_count: number;
+          last_date: string;
+          next_due: string;
+          maybe_stopped: boolean;
+        }[];
+      };
+    };
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;
   };

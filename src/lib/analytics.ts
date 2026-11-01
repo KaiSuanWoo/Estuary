@@ -7,53 +7,41 @@ import {
   startOfMonth,
   subMonths,
 } from "date-fns";
-import type { Category, Transaction } from "./types";
-import { convert, type RateMap } from "./fx";
-import { reimbursementLinks } from "./reimbursements";
+import type { Category } from "./types";
 import { FALLBACK_HEAD } from "@/lib/constants";
 
-/** Convert to base currency, dropping anything we can't (no rate set). */
-function inBase(
-  amount: number,
-  currency: string,
-  base: string,
-  rates: RateMap,
-): number {
-  const v = convert(amount, currency, base, rates);
-  return v == null ? 0 : v;
-}
+/**
+ * The analytics figures, computed over aggregates rather than over the ledger.
+ *
+ * Everything here used to walk every transaction, and — because a repayment
+ * filed in one month can cancel an expense booked in another — had to walk
+ * *all* of them even to answer a question about a single month. One render of
+ * the Analytics page was roughly eighty-five such passes: twice per month for
+ * twelve months of savings rate, twice per month for seven months of anomaly
+ * history, once per account for currency exposure, and so on. The cost grew as
+ * ledger × history, so it got worse in both directions at once.
+ *
+ * `monthly_cashflow` and `category_spend_by_month` now arrive pre-grouped —
+ * nine rows and a couple of hundred — and what is left in this file is
+ * statistics over them: differences, means, standard deviations, a linear
+ * extrapolation. That is arithmetic on a handful of numbers, which is exactly
+ * what belongs in the browser.
+ */
 
 /**
- * Convert an amount belonging to a transaction, preferring the FX rate stamped
- * at entry (`fx_rate`) — the accountant-correct treatment: P&L at historical
- * rates, so past months don't restate as today's rate moves. On transfers
- * `fx_rate` means source→destination (not →base), so it is never used here.
- * Falls back to the live map for unstamped rows.
+ * "gross" — raw sums with no reimbursement adjustments.
+ * "net"   — reimbursement-aware: linked income is excluded from income totals;
+ *           reimbursable expenses are shown at their net cost.
+ *
+ * Both arrive from the database side by side, so the toggle costs no round trip.
  */
-export function amountInBase(
-  amount: number,
-  t: Transaction,
-  base: string,
-  rates: RateMap,
-): number {
-  if (t.type !== "transfer" && t.fx_rate != null && t.fx_rate > 0 && t.currency !== base)
-    return amount * t.fx_rate;
-  return inBase(amount, t.currency, base, rates);
-}
+export type CashflowMode = "gross" | "net";
 
 export interface Cashflow {
   income: number;
   expense: number;
   net: number;
 }
-
-/**
- * "gross" — raw sums with no reimbursement adjustments. Excluded transactions
- *           are still omitted.
- * "net"   — reimbursement-aware: linked income is excluded from income totals;
- *           reimbursable expenses are shown at their net cost.
- */
-export type CashflowMode = "gross" | "net";
 
 /** Inclusive ISO date bounds (yyyy-MM-dd) for the month containing `now`. */
 export function monthBounds(now = new Date()): { from: string; to: string } {
@@ -70,235 +58,13 @@ export function monthLabel(now = new Date()): string {
 /**
  * Amounts below half a cent are rounding dust, not money. A fully reimbursed
  * expense must net to *nothing* — not to a $0.00 sliver that still puts its
- * category on a chart — so every net-mode total is tested against this rather
- * than against exact zero.
+ * category on a chart.
  */
 const NEGLIGIBLE = 0.005;
 
 /** True when a netted amount is small enough to treat as fully cancelled out. */
 export function isNegligible(value: number): boolean {
   return Math.abs(value) < NEGLIGIBLE;
-}
-
-/**
- * Build a map of expense_id → total amount already reimbursed (in base currency).
- *
- * Always pass the FULL ledger here, never a date- or account-filtered slice:
- * a repayment logged in a different month (or into a different account) still
- * cancels its expense, and looking at a narrow window would silently report
- * that expense at full cost.
- */
-/**
- * How much of each expense has been repaid, in base currency.
- *
- * `scope` is the guard rail for cross-account reimbursements. When a summary
- * is narrowed to one account, only repayments that landed *in that account*
- * may net an expense away: paying on one card and being repaid into another
- * leaves the card genuinely down the money, and netting it there would show a
- * balance the account never got back. Unscoped, every repayment counts —
- * across your accounts as a whole, the money did come home.
- */
-function buildReimbursedMap(
-  txns: Transaction[],
-  base: string,
-  rates: RateMap,
-  scope?: Set<string>,
-): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const t of txns) {
-    if (t.type !== "income") continue;
-    if (scope && !scope.has(t.account_id)) continue;
-    for (const link of reimbursementLinks(t)) {
-      const amt = amountInBase(link.amount, t, base, rates);
-      map.set(link.expense_id, (map.get(link.expense_id) ?? 0) + amt);
-    }
-  }
-  return map;
-}
-
-/**
- * Income/expense/net across a date range, expressed in the base currency.
- *
- * mode = "net" (default):
- *   - Income with reimbursement links → excluded (cost-share repayment)
- *   - Reimbursable expenses → shown at net cost (gross − total reimbursed)
- *
- * mode = "gross":
- *   - All income/expenses at face value; no reimbursement adjustments
- *
- * Both modes: transactions with `excluded_from_cashflow` are always skipped.
- *
- * `ledger` is the full transaction list used to resolve reimbursements; pass it
- * whenever `txns` has been pre-filtered (by period or account).
- */
-export function cashflowForRange(
-  txns: Transaction[],
-  base: string,
-  rates: RateMap,
-  from: string,
-  to: string,
-  mode: CashflowMode = "net",
-  ledger: Transaction[] = txns,
-  /** Accounts this summary covers; omit for the whole book. See the map. */
-  scope?: Set<string>,
-): Cashflow {
-  const reimbursed =
-    mode === "net" ? buildReimbursedMap(ledger, base, rates, scope) : null;
-
-  // The mirror of the guard rail above. A repayment only stops counting as
-  // income if the expense it covers is in the same scope — repaid into this
-  // account for something bought on another, the money really did arrive here
-  // and cancelling it would lose it.
-  const inScopeExpenses =
-    scope && mode === "net"
-      ? new Set(
-          ledger
-            .filter((t) => t.type === "expense" && scope.has(t.account_id))
-            .map((t) => t.id),
-        )
-      : null;
-
-  let income = 0;
-  let expense = 0;
-  for (const t of txns) {
-    if (t.date < from || t.date > to) continue;
-    if (t.excluded_from_cashflow) continue;
-
-    if (t.type === "income") {
-      // In net mode a repayment isn't real income — only the part not allocated
-      // to expenses counts (usually nothing).
-      if (mode === "net") {
-        const links = reimbursementLinks(t).filter(
-          (l) => !inScopeExpenses || inScopeExpenses.has(l.expense_id),
-        );
-        if (links.length > 0) {
-          const allocated = links.reduce((s, l) => s + l.amount, 0);
-          const remainder = Math.max(0, t.amount - allocated);
-          if (!isNegligible(remainder))
-            income += amountInBase(remainder, t, base, rates);
-          continue;
-        }
-      }
-      income += amountInBase(t.amount, t, base, rates);
-    } else if (t.type === "expense") {
-      const gross = amountInBase(t.amount, t, base, rates);
-      if (mode === "net" && reimbursed) {
-        const net = gross - (reimbursed.get(t.id) ?? 0);
-        if (!isNegligible(net)) expense += Math.max(0, net);
-      } else {
-        expense += gross;
-      }
-    }
-  }
-  return { income, expense, net: income - expense };
-}
-
-export interface CategorySlice {
-  id: string;
-  name: string;
-  value: number;
-  color: string;
-}
-
-/**
- * Expense totals grouped by category for a date range, largest first.
- * In "net" mode reimbursable expenses contribute their net cost, and one that
- * has been repaid in full drops out entirely — it cost nothing, so it earns no
- * place in the breakdown. Excluded transactions are always omitted.
- *
- * Pass `ledger` (the full transaction list) whenever `txns` is pre-filtered.
- */
-export function spendingByCategory(
-  txns: Transaction[],
-  categories: Category[],
-  base: string,
-  rates: RateMap,
-  from: string,
-  to: string,
-  mode: CashflowMode = "net",
-  ledger: Transaction[] = txns,
-  scope?: Set<string>,
-): CategorySlice[] {
-  const reimbursed =
-    mode === "net" ? buildReimbursedMap(ledger, base, rates, scope) : null;
-  const byId = new Map(categories.map((c) => [c.id, c]));
-  const slices = new Map<string, CategorySlice>();
-
-  for (const t of txns) {
-    if (t.type !== "expense" || t.date < from || t.date > to) continue;
-    if (t.excluded_from_cashflow) continue;
-
-    const gross = amountInBase(t.amount, t, base, rates);
-    const reimb = reimbursed?.get(t.id) ?? 0;
-    const amount = mode === "net" ? Math.max(0, gross - reimb) : gross;
-    if (isNegligible(amount)) continue;
-
-    const cat = t.category_id ? byId.get(t.category_id) : undefined;
-    const key = cat?.id ?? "uncategorised";
-    const slice = slices.get(key);
-    if (slice) {
-      slice.value += amount;
-    } else {
-      slices.set(key, {
-        id: key,
-        name: cat?.name ?? "Uncategorised",
-        value: amount,
-        color: cat?.color ?? FALLBACK_HEAD,
-      });
-    }
-  }
-
-  return [...slices.values()].sort((a, b) => b.value - a.value);
-}
-
-/**
- * Category breakdown for either flow direction. Expense reuses the spending
- * logic; income nets out reimbursement repayments in "net" mode.
- */
-export function breakdownByCategory(
-  txns: Transaction[],
-  categories: Category[],
-  base: string,
-  rates: RateMap,
-  from: string,
-  to: string,
-  kind: "expense" | "income",
-  mode: CashflowMode = "net",
-  ledger: Transaction[] = txns,
-): CategorySlice[] {
-  if (kind === "expense")
-    return spendingByCategory(txns, categories, base, rates, from, to, mode, ledger);
-
-  const byId = new Map(categories.map((c) => [c.id, c]));
-  const slices = new Map<string, CategorySlice>();
-  for (const t of txns) {
-    if (t.type !== "income" || t.date < from || t.date > to) continue;
-    if (t.excluded_from_cashflow) continue;
-    let amount = amountInBase(t.amount, t, base, rates);
-    if (mode === "net") {
-      const links = reimbursementLinks(t);
-      if (links.length > 0) {
-        // A repayment isn't income — only any unallocated surplus is.
-        const allocated = links.reduce((s, l) => s + l.amount, 0);
-        const remainder = Math.max(0, t.amount - allocated);
-        if (isNegligible(remainder)) continue;
-        amount = amountInBase(remainder, t, base, rates);
-      }
-    }
-    if (isNegligible(amount)) continue;
-    const cat = t.category_id ? byId.get(t.category_id) : undefined;
-    const key = cat?.id ?? "uncategorised";
-    const slice = slices.get(key);
-    if (slice) slice.value += amount;
-    else
-      slices.set(key, {
-        id: key,
-        name: cat?.name ?? "Uncategorised",
-        value: amount,
-        color: cat?.color ?? FALLBACK_HEAD,
-      });
-  }
-  return [...slices.values()].sort((a, b) => b.value - a.value);
 }
 
 /** yyyy-MM strings for every month spanned by an inclusive ISO range. */
@@ -313,13 +79,6 @@ export function monthsBetween(from: string, to: string): string[] {
   return out;
 }
 
-
-export interface MonthlyPoint {
-  label: string;
-  income: number;
-  expense: number;
-}
-
 /** Inclusive ISO bounds spanning the last `months` calendar months up to now. */
 export function rangeBounds(
   months: number,
@@ -331,6 +90,90 @@ export function rangeBounds(
   };
 }
 
+// ─── aggregate row shapes ─────────────────────────────────────────────────────
+
+/** One row of `monthly_cashflow`, or of `cashflow_by_month`. */
+export interface MonthRow {
+  month: string;
+  income_gross: number;
+  expense_gross: number;
+  income_net: number;
+  expense_net: number;
+}
+
+/** One row of `category_spend_by_month`. */
+export interface CategoryMonthRow {
+  month: string;
+  category_id: string | null;
+  kind: string;
+  gross: number;
+  net: number;
+}
+
+/** One row of `category_spend`. */
+export interface CategoryRow {
+  category_id: string | null;
+  kind: string;
+  gross: number;
+  net: number;
+}
+
+const monthKey = (month: string) => month.slice(0, 7);
+
+/** Totals across a set of month rows. */
+export function totalsFor(rows: MonthRow[], mode: CashflowMode): Cashflow {
+  let income = 0;
+  let expense = 0;
+  for (const r of rows) {
+    income += mode === "gross" ? r.income_gross : r.income_net;
+    expense += mode === "gross" ? r.expense_gross : r.expense_net;
+  }
+  return { income, expense, net: income - expense };
+}
+
+export interface CategorySlice {
+  id: string;
+  name: string;
+  value: number;
+  color: string;
+}
+
+/**
+ * Category rows turned into chart slices, largest first.
+ *
+ * A slice whose value is negligible drops out rather than sitting on the chart
+ * at zero: in net mode that is an expense repaid in full, which cost nothing and
+ * so earns no place in the breakdown.
+ */
+export function slicesFor(
+  rows: CategoryRow[],
+  categories: Category[],
+  kind: "expense" | "income",
+  mode: CashflowMode,
+): CategorySlice[] {
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  const out: CategorySlice[] = [];
+  for (const r of rows) {
+    if (r.kind !== kind) continue;
+    const value = mode === "gross" ? r.gross : r.net;
+    if (isNegligible(value) || value <= 0) continue;
+    const cat = r.category_id ? byId.get(r.category_id) : undefined;
+    out.push({
+      id: r.category_id ?? "uncategorised",
+      name: cat?.name ?? "Uncategorised",
+      value,
+      color: cat?.color ?? FALLBACK_HEAD,
+    });
+  }
+  return out.sort((a, b) => b.value - a.value);
+}
+
+export interface MonthlyPoint {
+  label: string;
+  income: number;
+  expense: number;
+}
+
 export interface CategoryMover {
   name: string;
   color: string;
@@ -338,56 +181,45 @@ export interface CategoryMover {
 }
 
 /** Biggest category spend changes: current month vs the previous month. */
-export function categoryMovers(
-  txns: Transaction[],
+export function categoryMoversFor(
+  rows: CategoryMonthRow[],
   categories: Category[],
-  base: string,
-  rates: RateMap,
+  mode: CashflowMode,
   now = new Date(),
-  mode: CashflowMode = "net",
   topN = 5,
 ): CategoryMover[] {
-  const cur = monthBounds(now);
-  const prev = monthBounds(subMonths(now, 1));
-  const curSlices = spendingByCategory(txns, categories, base, rates, cur.from, cur.to, mode);
-  const prevSlices = spendingByCategory(txns, categories, base, rates, prev.from, prev.to, mode);
-  const curMap = new Map(curSlices.map((s) => [s.id, s.value]));
-  const prevMap = new Map(prevSlices.map((s) => [s.id, s.value]));
-  const meta = new Map<string, { name: string; color: string }>();
-  for (const s of [...prevSlices, ...curSlices]) meta.set(s.id, { name: s.name, color: s.color });
+  const cur = format(now, "yyyy-MM");
+  const prev = format(subMonths(now, 1), "yyyy-MM");
+  const byId = new Map(categories.map((c) => [c.id, c]));
 
+  const pick = (mk: string) => {
+    const m = new Map<string, number>();
+    for (const r of rows) {
+      if (r.kind !== "expense" || monthKey(r.month) !== mk) continue;
+      const v = mode === "gross" ? r.gross : r.net;
+      if (isNegligible(v) || v <= 0) continue;
+      m.set(r.category_id ?? "uncategorised", v);
+    }
+    return m;
+  };
+
+  const curMap = pick(cur);
+  const prevMap = pick(prev);
   const movers: CategoryMover[] = [];
   for (const id of new Set([...curMap.keys(), ...prevMap.keys()])) {
     const delta = (curMap.get(id) ?? 0) - (prevMap.get(id) ?? 0);
-    if (Math.abs(delta) < 0.005) continue;
-    const m = meta.get(id)!;
-    movers.push({ name: m.name, color: m.color, delta });
+    if (isNegligible(delta)) continue;
+    const cat = id === "uncategorised" ? undefined : byId.get(id);
+    movers.push({
+      name: cat?.name ?? "Uncategorised",
+      color: cat?.color ?? FALLBACK_HEAD,
+      delta,
+    });
   }
-  return movers.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, topN);
+  return movers
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    .slice(0, topN);
 }
-
-/** Income vs expense for each of the last `months` months, base currency. */
-export function monthlyCashflow(
-  txns: Transaction[],
-  base: string,
-  rates: RateMap,
-  months = 6,
-  now = new Date(),
-  mode: CashflowMode = "net",
-  ledger: Transaction[] = txns,
-  scope?: Set<string>,
-): MonthlyPoint[] {
-  const points: MonthlyPoint[] = [];
-  for (let i = months - 1; i >= 0; i--) {
-    const d = subMonths(now, i);
-    const { from, to } = monthBounds(d);
-    const cf = cashflowForRange(txns, base, rates, from, to, mode, ledger, scope);
-    points.push({ label: format(d, "MMM"), income: cf.income, expense: cf.expense });
-  }
-  return points;
-}
-
-// ─── analyst extensions ───────────────────────────────────────────────────────
 
 export interface SavingsRatePoint {
   label: string;
@@ -397,21 +229,20 @@ export interface SavingsRatePoint {
 }
 
 /** Monthly savings rate (net ÷ income) for the given yyyy-MM months. */
-export function savingsRateSeries(
-  txns: Transaction[],
-  base: string,
-  rates: RateMap,
+export function savingsRateFor(
+  rows: MonthRow[],
   months: string[],
-  mode: CashflowMode = "net",
+  mode: CashflowMode,
 ): SavingsRatePoint[] {
+  const byMonth = new Map(rows.map((r) => [monthKey(r.month), r]));
   return months.map((mk) => {
-    const from = `${mk}-01`;
-    const to = format(endOfMonth(parseISO(from)), "yyyy-MM-dd");
-    const cf = cashflowForRange(txns, base, rates, from, to, mode);
+    const r = byMonth.get(mk);
+    const income = r ? (mode === "gross" ? r.income_gross : r.income_net) : 0;
+    const expense = r ? (mode === "gross" ? r.expense_gross : r.expense_net) : 0;
     return {
-      label: format(parseISO(from), "MMM ''yy"),
+      label: format(parseISO(`${mk}-01`), "MMM ''yy"),
       monthKey: mk,
-      rate: cf.income > 0 ? (cf.net / cf.income) * 100 : null,
+      rate: income > 0 ? ((income - expense) / income) * 100 : null,
     };
   });
 }
@@ -430,35 +261,44 @@ export interface MonthProjection {
 }
 
 /**
- * Month-end spend projection for the CURRENT month: linear extrapolation of
- * the month-to-date pace, compared against the average of up to `lookback`
- * fully-elapsed prior months that had any spending.
+ * Month-end spend projection for the CURRENT month: linear extrapolation of the
+ * month-to-date pace, compared against the average of up to `lookback` fully
+ * elapsed prior months that had any spending.
  */
-export function monthEndProjection(
-  txns: Transaction[],
-  base: string,
-  rates: RateMap,
-  mode: CashflowMode = "net",
+export function monthEndProjectionFor(
+  rows: MonthRow[],
+  mode: CashflowMode,
   now = new Date(),
   lookback = 3,
 ): MonthProjection | null {
   const { from, to } = monthBounds(now);
   const daysInMonth = differenceInCalendarDays(parseISO(to), parseISO(from)) + 1;
-  const daysElapsed = Math.min(daysInMonth, differenceInCalendarDays(now, parseISO(from)) + 1);
+  const daysElapsed = Math.min(
+    daysInMonth,
+    differenceInCalendarDays(now, parseISO(from)) + 1,
+  );
   // Too early in the month for the pace to mean anything.
   if (daysElapsed < 3) return null;
 
-  const spent = cashflowForRange(txns, base, rates, from, to, mode).expense;
+  const byMonth = new Map(rows.map((r) => [monthKey(r.month), r]));
+  const expenseIn = (mk: string) => {
+    const r = byMonth.get(mk);
+    if (!r) return 0;
+    return mode === "gross" ? r.expense_gross : r.expense_net;
+  };
+
+  const spent = expenseIn(format(now, "yyyy-MM"));
   if (spent <= 0) return null;
   const projected = (spent / daysElapsed) * daysInMonth;
 
   const priors: number[] = [];
   for (let i = 1; i <= lookback; i++) {
-    const b = monthBounds(subMonths(now, i));
-    const e = cashflowForRange(txns, base, rates, b.from, b.to, mode).expense;
+    const e = expenseIn(format(subMonths(now, i), "yyyy-MM"));
     if (e > 0) priors.push(e);
   }
-  const priorAvg = priors.length ? priors.reduce((s, x) => s + x, 0) / priors.length : null;
+  const priorAvg = priors.length
+    ? priors.reduce((s, x) => s + x, 0) / priors.length
+    : null;
 
   return {
     spent,
@@ -484,40 +324,55 @@ export interface CategoryAnomaly {
  * from their own trailing-month norm. Needs ≥3 months of history per category
  * to say anything.
  */
-export function categoryAnomalies(
-  txns: Transaction[],
+export function categoryAnomaliesFor(
+  rows: CategoryMonthRow[],
   categories: Category[],
-  base: string,
-  rates: RateMap,
-  mode: CashflowMode = "net",
+  mode: CashflowMode,
   now = new Date(),
   lookback = 6,
   threshold = 2,
 ): CategoryAnomaly[] {
-  const cur = monthBounds(now);
-  const current = spendingByCategory(txns, categories, base, rates, cur.from, cur.to, mode);
-  const history = new Map<string, number[]>();
-  const meta = new Map<string, { name: string; color: string }>();
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  const value = (r: CategoryMonthRow) => (mode === "gross" ? r.gross : r.net);
 
-  for (let i = 1; i <= lookback; i++) {
-    const b = monthBounds(subMonths(now, i));
-    for (const s of spendingByCategory(txns, categories, base, rates, b.from, b.to, mode)) {
-      const xs = history.get(s.id) ?? [];
-      xs.push(s.value);
-      history.set(s.id, xs);
-      meta.set(s.id, { name: s.name, color: s.color });
-    }
+  const curKey = format(now, "yyyy-MM");
+  const priorKeys = new Set(
+    Array.from({ length: lookback }, (_, i) =>
+      format(subMonths(now, i + 1), "yyyy-MM"),
+    ),
+  );
+
+  const current = new Map<string, number>();
+  const history = new Map<string, number[]>();
+  for (const r of rows) {
+    if (r.kind !== "expense") continue;
+    const v = value(r);
+    if (isNegligible(v) || v <= 0) continue;
+    const id = r.category_id ?? "uncategorised";
+    const mk = monthKey(r.month);
+    if (mk === curKey) current.set(id, v);
+    else if (priorKeys.has(mk)) history.set(id, [...(history.get(id) ?? []), v]);
   }
 
   const out: CategoryAnomaly[] = [];
-  for (const s of current) {
-    const xs = history.get(s.id);
+  for (const [id, cur] of current) {
+    const xs = history.get(id);
     if (!xs || xs.length < 3) continue;
     const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
-    const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length);
+    const sd = Math.sqrt(
+      xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length,
+    );
     if (sd < 1) continue; // flat history — any wobble would look extreme
-    const z = (s.value - mean) / sd;
-    if (Math.abs(z) >= threshold) out.push({ name: s.name, color: s.color, z, current: s.value, mean });
+    const z = (cur - mean) / sd;
+    if (Math.abs(z) < threshold) continue;
+    const cat = id === "uncategorised" ? undefined : byId.get(id);
+    out.push({
+      name: cat?.name ?? "Uncategorised",
+      color: cat?.color ?? FALLBACK_HEAD,
+      z,
+      current: cur,
+      mean,
+    });
   }
   return out.sort((a, b) => Math.abs(b.z) - Math.abs(a.z));
 }
@@ -533,6 +388,10 @@ export interface MoneyFlow {
  * node → expense categories, with the surplus flowing to "Saved" (or a
  * "From savings" source covering a deficit). Small categories beyond `topN`
  * fold into "Other".
+ *
+ * Stays in the browser deliberately: it reshapes slices that are already
+ * aggregated — at most a dozen of them — into nodes and links. That is drawing,
+ * not counting.
  */
 export function buildMoneyFlow(
   incomeCats: CategorySlice[],
@@ -546,8 +405,9 @@ export function buildMoneyFlow(
   const fold = (cats: CategorySlice[]) => {
     const top = cats.slice(0, topN);
     const rest = cats.slice(topN).reduce((s, c) => s + c.value, 0);
-    if (rest > 0) top.push({ id: "other", name: "Other", value: rest, color: FALLBACK_HEAD });
-    return top.filter((c) => c.value > 0.005);
+    if (rest > 0)
+      top.push({ id: "other", name: "Other", value: rest, color: FALLBACK_HEAD });
+    return top.filter((c) => c.value > NEGLIGIBLE);
   };
 
   const nodes: MoneyFlow["nodes"] = [];
@@ -559,14 +419,24 @@ export function buildMoneyFlow(
   const outSlices = fold(expenseCats);
   const hub = add("Income", "#7fd1b9", "hub");
 
-  for (const c of inSlices) links.push({ source: add(c.name, c.color, "in"), target: hub, value: c.value });
+  for (const c of inSlices)
+    links.push({ source: add(c.name, c.color, "in"), target: hub, value: c.value });
   // A deficit month still has to balance: the extra spend comes from savings.
-  if (totalOut > totalIn && totalOut - totalIn > 0.005)
-    links.push({ source: add("From savings", "#e0a458", "in"), target: hub, value: totalOut - totalIn });
+  if (totalOut > totalIn && totalOut - totalIn > NEGLIGIBLE)
+    links.push({
+      source: add("From savings", "#e0a458", "in"),
+      target: hub,
+      value: totalOut - totalIn,
+    });
 
-  for (const c of outSlices) links.push({ source: hub, target: add(c.name, c.color, "out"), value: c.value });
-  if (totalIn > totalOut && totalIn - totalOut > 0.005)
-    links.push({ source: hub, target: add("Saved", "#34d399", "out"), value: totalIn - totalOut });
+  for (const c of outSlices)
+    links.push({ source: hub, target: add(c.name, c.color, "out"), value: c.value });
+  if (totalIn > totalOut && totalIn - totalOut > NEGLIGIBLE)
+    links.push({
+      source: hub,
+      target: add("Saved", "#34d399", "out"),
+      value: totalIn - totalOut,
+    });
 
   return links.length ? { nodes, links } : null;
 }

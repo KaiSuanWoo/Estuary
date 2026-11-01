@@ -29,32 +29,37 @@ import {
   RefreshCcw,
   TrendingUp,
 } from "lucide-react";
-import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
+import {
+  useCashflowByMonth,
+  useCategoryEntries,
+  useCategorySpend,
+  useCategorySpendByMonth,
+  useDailySpend,
+  useLedgerMonths,
+  useMonthlyCashflow,
+  useRecurringExpenses,
+} from "@/hooks/useCashflow";
 import { useCategories } from "@/hooks/useCategories";
 import { useAccounts } from "@/hooks/useAccounts";
-import { usePocketsByAccount } from "@/hooks/useAccountCurrencies";
+import { useBalancesByAccount } from "@/hooks/useAccountBalances";
 import { useInvestmentOverrides } from "@/hooks/useInvestmentSnapshot";
 import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
-import { useAliasMap } from "@/hooks/useMerchantAliases";
 import { groupLinks } from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
-import { balancesByCurrency } from "@/lib/balances";
-import { convert, type RateMap } from "@/lib/fx";
-import { detectRecurring } from "@/lib/recurring";
-import { reimbursementLinks } from "@/lib/reimbursements";
+import { sumBalances } from "@/lib/balances";
+import { convert } from "@/lib/fx";
 import {
-  amountInBase,
-  breakdownByCategory,
   buildMoneyFlow,
-  cashflowForRange,
-  categoryAnomalies,
-  categoryMovers,
+  categoryAnomaliesFor,
+  categoryMoversFor,
   isNegligible,
-  monthEndProjection,
+  monthEndProjectionFor,
   monthsBetween,
   rangeBounds,
-  savingsRateSeries,
+  savingsRateFor,
+  slicesFor,
+  totalsFor,
   type CashflowMode,
   type CategorySlice,
 } from "@/lib/analytics";
@@ -71,10 +76,7 @@ import {
   useLedgerInk,
 } from "@/components/ledger";
 import { BudgetsBoard } from "@/components/BudgetsBoard";
-import type { Transaction } from "@/lib/types";
 import { FALLBACK_HEAD } from "@/lib/constants";
-
-const WIDE = { from: "0000-01-01", to: "9999-12-31" };
 
 const PRESETS = [
   { id: "thisMonth", label: "This month" },
@@ -107,64 +109,14 @@ function presetRange(preset: string, now = new Date()): { from: string; to: stri
   }
 }
 
-/**
- * Convert a transaction's amount to base, net of reimbursements in net mode:
- * an expense drops to what it actually cost, and a repayment income drops to
- * whatever part of it wasn't allocated against an expense. Either can land on
- * zero, which means the transaction shouldn't be counted at all — callers test
- * the result with `isNegligible`.
+/*
+ * `txnBaseValue` and `cumulativeSpendSeries` used to live here.
+ *
+ * Both walked the period's transactions; the second then walked them again per
+ * budget, to find the day each one crossed its limit. `transaction_net` already
+ * carries the per-entry net value, and `public.daily_spend` does the daily
+ * grouping — including the category-scoped variant the budget drill needs.
  */
-function txnBaseValue(
-  t: Transaction,
-  base: string,
-  rates: RateMap,
-  reimbursed: Map<string, number>,
-  mode: CashflowMode,
-): number {
-  const gross = amountInBase(t.amount, t, base, rates);
-  if (mode !== "net") return gross;
-  if (t.type === "expense")
-    return Math.max(0, gross - (reimbursed.get(t.id) ?? 0));
-  if (t.type === "income") {
-    const links = reimbursementLinks(t);
-    if (links.length === 0) return gross;
-    const allocated = links.reduce((s, l) => s + l.amount, 0);
-    return amountInBase(Math.max(0, t.amount - allocated), t, base, rates);
-  }
-  return gross;
-}
-
-/**
- * Daily cumulative spend series (net-aware), optionally restricted to a
- * category set — income in those categories nets off as a refund, matching
- * how budgets count spend.
- */
-function cumulativeSpendSeries(
-  txns: Transaction[],
-  base: string,
-  rates: RateMap,
-  reimbursed: Map<string, number>,
-  mode: CashflowMode,
-  categoryIds?: Set<string>,
-): { date: string; label: string; cum: number }[] {
-  const daily = new Map<string, number>();
-  for (const t of txns) {
-    if (t.excluded_from_cashflow) continue;
-    if (categoryIds && (!t.category_id || !categoryIds.has(t.category_id))) continue;
-    if (t.type === "expense") {
-      daily.set(t.date, (daily.get(t.date) ?? 0) + txnBaseValue(t, base, rates, reimbursed, mode));
-    } else if (categoryIds && t.type === "income") {
-      // Refund into a tracked category reduces its spend (mirrors spendForBudget).
-      daily.set(t.date, (daily.get(t.date) ?? 0) - (convert(t.amount, t.currency, base, rates) ?? t.amount));
-    }
-  }
-  const dates = [...daily.keys()].sort();
-  let cum = 0;
-  return dates.map((d) => {
-    cum += daily.get(d)!;
-    return { date: d, label: format(parseISO(d), "d MMM"), cum: Math.max(0, cum) };
-  });
-}
 
 export function Analytics() {
   const ink = useLedgerInk();
@@ -197,30 +149,26 @@ export function Analytics() {
     setParams(p);
   };
 
-  const { data: txns = [], isLoading } = useTransactions();
   const { data: categories = [] } = useCategories();
   const { data: accounts = [] } = useAccounts();
   const { data: budgets = [] } = useBudgets();
   const { data: budgetLinks = [] } = useBudgetLinks();
-  const reimbursedMap = useReimbursedAmountMap();
-  const aliasMap = useAliasMap();
   const overrides = useInvestmentOverrides(accounts);
-  const pockets = usePocketsByAccount();
+  const balancesByAccount = useBalancesByAccount(overrides);
   const base = useBaseCurrency();
   const rates = useRateMap();
 
   // Months that actually have entries — the only ones offered or charted.
-  const monthsWithData = useMemo(() => {
-    const s = new Set(txns.map((t) => t.date.slice(0, 7)));
-    return [...s]
-      .sort()
-      .reverse()
-      .map((key) => ({ key, label: format(parseISO(`${key}-01`), "MMM ''yy") }));
-  }, [txns]);
-  const dataMonthSet = useMemo(
-    () => new Set(monthsWithData.map((m) => m.key)),
-    [monthsWithData],
+  const { data: ledgerMonths = [], isLoading } = useLedgerMonths();
+  const monthsWithData = useMemo(
+    () =>
+      ledgerMonths.map((key) => ({
+        key,
+        label: format(parseISO(`${key}-01`), "MMM ''yy"),
+      })),
+    [ledgerMonths],
   );
+  const dataMonthSet = useMemo(() => new Set(ledgerMonths), [ledgerMonths]);
 
   // Resolve the active period → month list, an in-scope test, a label.
   const period = useMemo(() => {
@@ -228,8 +176,14 @@ export function Analytics() {
       const list = [...selectedMonths].sort();
       const effective = list.length ? list : [format(new Date(), "yyyy-MM")];
       const set = new Set(effective);
+      // The span the selected months sit inside, for the day-grained query.
+      // A non-contiguous selection is filtered back down by `inScope`.
+      const first = effective[0]!;
+      const last = effective[effective.length - 1]!;
       return {
         months: effective,
+        from: `${first}-01`,
+        to: format(endOfMonth(parseISO(`${last}-01`)), "yyyy-MM-dd"),
         inScope: (d: string) => set.has(d.slice(0, 7)),
         label:
           effective.length === 1
@@ -241,6 +195,8 @@ export function Analytics() {
       preset === "custom" ? { from: customFrom, to: customTo } : presetRange(preset);
     return {
       months: monthsBetween(from, to),
+      from,
+      to,
       inScope: (d: string) => d >= from && d <= to,
       label:
         preset === "custom"
@@ -249,24 +205,91 @@ export function Analytics() {
     };
   }, [mode, preset, customFrom, customTo, selectedMonths]);
 
+  /**
+   * A month-aligned period can be served by the per-month views, which cover
+   * every month at once — so the movers, the anomaly history and the
+   * savings-rate trend all read from the same fetch the period totals do. Only
+   * a hand-picked custom range needs its own query, since it can start and end
+   * mid-month.
+   */
+  const monthAligned = mode === "months" || preset !== "custom";
+  const { data: allMonths = [] } = useMonthlyCashflow();
+  const { data: allCategoryMonths = [] } = useCategorySpendByMonth();
+  const { data: rangeMonths = [] } = useCashflowByMonth(
+    monthAligned ? "" : period.from,
+    monthAligned ? "" : period.to,
+  );
+  const { data: rangeCategories = [] } = useCategorySpend(
+    monthAligned ? "" : period.from,
+    monthAligned ? "" : period.to,
+  );
+  const { data: dailyRows = [] } = useDailySpend(period.from, period.to);
+  const { data: recurring = [] } = useRecurringExpenses();
+
   const view = useMemo(() => {
-    const scoped = txns.filter((t) => period.inScope(t.date));
     // Empty months carry no information — drop them from the per-month charts.
     const activeMonths = period.months.filter((mk) => dataMonthSet.has(mk));
-    // `scoped` is the period slice; `txns` is passed as the ledger so a
-    // repayment filed in another month still cancels its expense here.
-    const cf = cashflowForRange(scoped, base, rates, WIDE.from, WIDE.to, txnMode, txns);
-    const expenseCats = breakdownByCategory(scoped, categories, base, rates, WIDE.from, WIDE.to, "expense", txnMode, txns);
-    const incomeCats = breakdownByCategory(scoped, categories, base, rates, WIDE.from, WIDE.to, "income", txnMode, txns);
-    const movers = categoryMovers(txns, categories, base, rates, undefined, txnMode, 5);
-    const cumulative = cumulativeSpendSeries(scoped, base, rates, reimbursedMap, txnMode);
+    const monthSet = new Set(period.months);
+
+    // The period's own months, from whichever source covers it.
+    const periodMonths = monthAligned
+      ? allMonths.filter((r) => monthSet.has(r.month.slice(0, 7)))
+      : rangeMonths;
+    const cf = totalsFor(periodMonths, txnMode);
+
+    // Per-category totals for the period: fold the per-month rows together
+    // when month-aligned, otherwise take the range query's own grouping.
+    const periodCategories = monthAligned
+      ? [
+          ...allCategoryMonths
+            .filter((r) => monthSet.has(r.month.slice(0, 7)))
+            .reduce((acc, r) => {
+              const key = `${r.category_id ?? "null"}:${r.kind}`;
+              const prev = acc.get(key);
+              if (prev) {
+                prev.gross += r.gross;
+                prev.net += r.net;
+              } else {
+                acc.set(key, {
+                  category_id: r.category_id,
+                  kind: r.kind,
+                  gross: r.gross,
+                  net: r.net,
+                });
+              }
+              return acc;
+            }, new Map<string, { category_id: string | null; kind: string; gross: number; net: number }>())
+            .values(),
+        ]
+      : rangeCategories;
+
+    const expenseCats = slicesFor(periodCategories, categories, "expense", txnMode);
+    const incomeCats = slicesFor(periodCategories, categories, "income", txnMode);
+    const movers = categoryMoversFor(allCategoryMonths, categories, txnMode, undefined, 5);
+
+    // Cumulative spend through the period. The day rows are already summed;
+    // a non-contiguous month selection drops the days in between.
+    const cumulative = (() => {
+      let cum = 0;
+      return dailyRows
+        .filter((r) => period.inScope(r.day))
+        .sort((a, b) => a.day.localeCompare(b.day))
+        .map((r) => {
+          cum += txnMode === "gross" ? r.gross : r.net;
+          return {
+            date: r.day,
+            label: format(parseISO(r.day), "d MMM"),
+            cum: Math.max(0, cum),
+          };
+        });
+    })();
 
     // Money flow (Sankey): income sources → hub → categories + saved/deficit.
     const flow = buildMoneyFlow(incomeCats, expenseCats, 6);
 
     // Savings-rate trend over every month that has data (oldest → newest).
     const trendMonths = [...dataMonthSet].sort().slice(-12);
-    const savingsTrend = savingsRateSeries(txns, base, rates, trendMonths, txnMode);
+    const savingsTrend = savingsRateFor(allMonths, trendMonths, txnMode);
 
     // Fixed vs discretionary split of the period's expenses.
     const fixedIds = new Set(categories.filter((c) => c.is_fixed).map((c) => c.id));
@@ -275,18 +298,21 @@ export function Analytics() {
     const fixedTotal = fixedCats.reduce((s, c) => s + c.value, 0);
     const discTotal = discCats.reduce((s, c) => s + c.value, 0);
 
-    // Full-ledger signals (history is the signal — never period-scoped).
-    const recurring = detectRecurring(txns, base, rates, aliasMap);
+    // Signals read across all history, never period-scoped: a pace or a norm
+    // means nothing measured only inside the window being looked at.
     const includesCurrentMonth = period.months.includes(format(new Date(), "yyyy-MM"));
     const projection = includesCurrentMonth
-      ? monthEndProjection(txns, base, rates, txnMode)
+      ? monthEndProjectionFor(allMonths, txnMode)
       : null;
     const anomalies = includesCurrentMonth
-      ? categoryAnomalies(txns, categories, base, rates, txnMode)
+      ? categoryAnomaliesFor(allCategoryMonths, categories, txnMode)
       : [];
 
     // Currency exposure across all accounts (portfolio-wide, not period-scoped).
-    const byCur = balancesByCurrency(accounts, txns, overrides, pockets);
+    // Straight from `account_balances`: re-deriving it here meant one pass over
+    // the whole ledger per account, and could disagree with the figure the
+    // Accounts page shows for the very same pocket.
+    const byCur = sumBalances(accounts, balancesByAccount);
     const exposure = Object.entries(byCur)
       .map(([currency, amount]) => ({
         currency,
@@ -307,18 +333,23 @@ export function Analytics() {
     }[] = [];
     if (period.months.length === 1) {
       const links = groupLinks(budgetLinks);
+      const spentByCategory = new Map(
+        periodCategories
+          .filter((r) => r.kind === "expense" && r.category_id)
+          .map((r) => [r.category_id!, txnMode === "gross" ? r.gross : r.net]),
+      );
+      const refundByCategory = new Map(
+        periodCategories
+          .filter((r) => r.kind === "income" && r.category_id)
+          .map((r) => [r.category_id!, r.gross]),
+      );
       budgetRows = budgets
         .filter((b) => b.type !== "goal" && b.direction !== "saving")
         .map((b) => {
           const catIds = links.get(b.id) ?? new Set<string>();
           let spent = 0;
-          for (const t of scoped) {
-            if (!t.category_id || !catIds.has(t.category_id)) continue;
-            if (t.type === "expense")
-              spent += txnBaseValue(t, base, rates, reimbursedMap, txnMode);
-            else if (t.type === "income")
-              spent -= convert(t.amount, t.currency, base, rates) ?? t.amount;
-          }
+          for (const id of catIds)
+            spent += (spentByCategory.get(id) ?? 0) - (refundByCategory.get(id) ?? 0);
           return {
             id: b.id,
             name: b.name,
@@ -332,7 +363,6 @@ export function Analytics() {
 
     const savingsRate = cf.income > 0 ? cf.net / cf.income : 0;
     return {
-      scoped,
       activeMonths,
       cf,
       expenseCats,
@@ -353,7 +383,25 @@ export function Analytics() {
       budgetRows,
       savingsRate,
     };
-  }, [txns, categories, accounts, budgets, budgetLinks, reimbursedMap, aliasMap, overrides, pockets, base, rates, txnMode, period, dataMonthSet]);
+  }, [
+    categories,
+    accounts,
+    budgets,
+    budgetLinks,
+    balancesByAccount,
+    base,
+    rates,
+    txnMode,
+    period,
+    monthAligned,
+    allMonths,
+    allCategoryMonths,
+    rangeMonths,
+    rangeCategories,
+    dailyRows,
+    recurring,
+    dataMonthSet,
+  ]);
 
   function toggleMonth(k: string) {
     setSelectedMonths((prev) =>
@@ -513,7 +561,7 @@ export function Analytics() {
         </p>
       </div>
 
-      {txns.length === 0 ? (
+      {ledgerMonths.length === 0 ? (
         <EmptyState
           icon={<TrendingUp className="size-6" />}
           title="No data yet"
@@ -655,12 +703,11 @@ export function Analytics() {
             ) : (
               <CategoryBreakdown
                 slices={view.expenseCats}
-                scoped={view.scoped}
                 months={view.activeMonths}
                 kind="expense"
+                from={period.from}
+                to={period.to}
                 base={base}
-                rates={rates}
-                reimbursed={reimbursedMap}
                 mode={txnMode}
               />
             )}
@@ -673,12 +720,11 @@ export function Analytics() {
             ) : (
               <CategoryBreakdown
                 slices={view.incomeCats}
-                scoped={view.scoped}
                 months={view.activeMonths}
                 kind="income"
+                from={period.from}
+                to={period.to}
                 base={base}
-                rates={rates}
-                reimbursed={reimbursedMap}
                 mode={txnMode}
               />
             )}
@@ -748,10 +794,9 @@ export function Analytics() {
             ) : (
               <BudgetsDetail
                 rows={view.budgetRows}
-                scoped={view.scoped}
+                from={period.from}
+                to={period.to}
                 base={base}
-                rates={rates}
-                reimbursed={reimbursedMap}
                 mode={txnMode}
               />
             )}
@@ -815,21 +860,19 @@ export function Analytics() {
 
 function CategoryBreakdown({
   slices,
-  scoped,
   months,
   kind,
+  from,
+  to,
   base,
-  rates,
-  reimbursed,
   mode,
 }: {
   slices: CategorySlice[];
-  scoped: Transaction[];
   months: string[];
   kind: "expense" | "income";
+  from: string;
+  to: string;
   base: string;
-  rates: RateMap;
-  reimbursed: Map<string, number>;
   mode: CashflowMode;
 }) {
   const [open, setOpen] = useState<string | null>(null);
@@ -867,12 +910,11 @@ function CategoryBreakdown({
             {isOpen && (
               <CategoryDetail
                 slice={s}
-                scoped={scoped}
                 months={months}
                 kind={kind}
+                from={from}
+                to={to}
                 base={base}
-                rates={rates}
-                reimbursed={reimbursed}
                 mode={mode}
               />
             )}
@@ -885,38 +927,49 @@ function CategoryBreakdown({
 
 function CategoryDetail({
   slice,
-  scoped,
   months,
   kind,
+  from,
+  to,
   base,
-  rates,
-  reimbursed,
   mode,
 }: {
   slice: CategorySlice;
-  scoped: Transaction[];
   months: string[];
   kind: "expense" | "income";
+  from: string;
+  to: string;
   base: string;
-  rates: RateMap;
-  reimbursed: Map<string, number>;
   mode: CashflowMode;
 }) {
   const ink = useLedgerInk();
-  const inCategory = (t: Transaction) =>
-    slice.id === "uncategorised" ? !t.category_id : t.category_id === slice.id;
+
+  /**
+   * Only this slice's entries, only over the period on screen.
+   *
+   * Drilling into a category genuinely wants rows — but it used to get them by
+   * filtering a fetch of the entire ledger. `transaction_net` returns them with
+   * their base-currency value already worked out, gross and net both.
+   */
+  const { data: rows = [] } = useCategoryEntries(
+    slice.id === "uncategorised" ? null : slice.id,
+    from,
+    to,
+    kind,
+  );
 
   const catTxns = useMemo(
     () =>
-      scoped
-        .filter((t) => t.type === kind && inCategory(t))
-        .map((t) => ({ t, v: txnBaseValue(t, base, rates, reimbursed, mode) }))
+      rows
+        .map((r) => ({
+          t: r,
+          v: Number(mode === "gross" ? r.gross_base : r.net_base) || 0,
+        }))
         // Fully repaid entries cost nothing — they don't belong in the list
         // or its count.
         .filter(({ v }) => !isNegligible(v))
         .sort((a, b) => b.v - a.v),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scoped, slice.id, kind, base, rates, reimbursed, mode],
+    [rows, mode],
   );
 
   const series = useMemo(
@@ -925,7 +978,7 @@ function CategoryDetail({
         label: format(parseISO(`${mk}-01`), "MMM ''yy"),
         value: catTxns
           .filter(({ t }) => t.date.startsWith(mk))
-          .reduce((s, { t: _t, v }) => s + v, 0),
+          .reduce((s, { v }) => s + v, 0),
       })),
     [months, catTxns],
   );
@@ -987,116 +1040,177 @@ function CategoryDetail({
 
 // ─── Budgets detail (single month) ────────────────────────────────────────────
 
+interface BudgetDetailRow {
+  id: string;
+  name: string;
+  color: string;
+  spent: number;
+  amount: number;
+  catIds: Set<string>;
+}
+
 function BudgetsDetail({
   rows,
-  scoped,
+  from,
+  to,
   base,
-  rates,
-  reimbursed,
   mode,
 }: {
-  rows: { id: string; name: string; color: string; spent: number; amount: number; catIds: Set<string> }[];
-  scoped: Transaction[];
+  rows: BudgetDetailRow[];
+  from: string;
+  to: string;
   base: string;
-  rates: RateMap;
-  reimbursed: Map<string, number>;
   mode: CashflowMode;
 }) {
-  const ink = useLedgerInk();
   const [open, setOpen] = useState<string | null>(null);
 
   return (
     <ul className="space-y-1">
-      {rows.map((b) => {
-        const isOpen = open === b.id;
-        const ratio = b.amount > 0 ? b.spent / b.amount : 0;
-        const over = b.spent > b.amount + 0.005;
-        // Daily cumulative spend for this budget's categories → crossing date.
-        const series = cumulativeSpendSeries(scoped, base, rates, reimbursed, mode, b.catIds);
-        const crossed = over ? series.find((p) => p.cum > b.amount) : undefined;
-
-        return (
-          <li key={b.id} className={cn("rounded-[2px] transition-colors", isOpen && "bg-well")}>
-            <button
-              onClick={() => setOpen(isOpen ? null : b.id)}
-              className="block w-full rounded-[2px] px-2 py-2 text-left transition-colors hover:bg-page-edge"
-            >
-              <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                <span className="flex min-w-0 items-center gap-2">
-                  <ChevronDown
-                    className={cn("size-3.5 shrink-0 text-quill-faint transition-transform", !isOpen && "-rotate-90")}
-                  />
-                  <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
-                  <span className="truncate text-quill">{b.name}</span>
-                </span>
-                <span className={cn("tnum shrink-0", over ? "text-debit" : "text-quill-soft")}>
-                  {formatMoney(b.spent, base)}
-                  <span className="text-quill-faint"> / {formatMoney(b.amount, base)}</span>
-                </span>
-              </div>
-              <div className="ml-6 flex h-2 overflow-hidden rounded-full bg-page-edge">
-                {over ? (
-                  <>
-                    <div className="h-full bg-head-3" style={{ width: `${(b.amount / b.spent) * 100}%` }} />
-                    <div className="h-full bg-debit" style={{ width: `${100 - (b.amount / b.spent) * 100}%` }} />
-                  </>
-                ) : (
-                  <div
-                    className={cn("h-full rounded-full", ratio > 0.85 ? "bg-head-3" : "bg-accent")}
-                    style={{ width: `${Math.min(100, ratio * 100)}%` }}
-                  />
-                )}
-              </div>
-              <p className={cn("tnum ml-6 mt-1 text-xs", over ? "text-debit" : "text-quill-faint")}>
-                {over
-                  ? `Over by ${formatMoney(b.spent - b.amount, base)}${crossed ? ` · crossed the limit on ${crossed.label}` : ""}`
-                  : `${formatMoney(b.amount - b.spent, base)} left · ${Math.round(ratio * 100)}% used`}
-              </p>
-            </button>
-
-            {isOpen && (
-              <div className="px-2 pb-3 pl-8">
-                {series.length === 0 ? (
-                  <p className="py-2 text-xs text-quill-faint">No entries this month.</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={150}>
-                    <AreaChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
-                      <defs>
-                        <linearGradient id={`bud-${b.id}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={b.color} stopOpacity={0.35} />
-                          <stop offset="100%" stopColor={b.color} stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
-                      <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} minTickGap={20} />
-                      <YAxis tickLine={false} axisLine={false} width={44} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} tickFormatter={(v) => compact(v, base)} domain={[0, (dataMax: number) => Math.max(dataMax, b.amount) * 1.1]} />
-                      <Tooltip
-                        {...tooltipStyle(ink)}
-                        formatter={(v: number) => [formatMoney(v, base), "Spent so far"]}
-                      />
-                      <ReferenceLine
-                        y={b.amount}
-                        stroke={ink["--color-debit"]}
-                        strokeDasharray="5 4"
-                        label={{ value: "Budget", position: "insideTopRight", fill: ink["--color-debit"], fontSize: 11 }}
-                      />
-                      <Area
-                        type="stepAfter"
-                        dataKey="cum"
-                        stroke={b.color}
-                        strokeWidth={2}
-                        fill={`url(#bud-${b.id})`}
-                        isAnimationActive={false}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            )}
-          </li>
-        );
-      })}
+      {rows.map((b) => (
+        <BudgetDetailItem
+          key={b.id}
+          b={b}
+          from={from}
+          to={to}
+          base={base}
+          mode={mode}
+          isOpen={open === b.id}
+          onToggle={() => setOpen(open === b.id ? null : b.id)}
+        />
+      ))}
     </ul>
+  );
+}
+
+/**
+ * One budget row, with its own daily-spend query.
+ *
+ * A row apiece rather than one list-wide fetch because each budget covers its
+ * own categories, and the crossing date is a property of that set. The series
+ * only loads once the row is opened — a collapsed row shows figures it already
+ * has.
+ */
+function BudgetDetailItem({
+  b,
+  from,
+  to,
+  base,
+  mode,
+  isOpen,
+  onToggle,
+}: {
+  b: BudgetDetailRow;
+  from: string;
+  to: string;
+  base: string;
+  mode: CashflowMode;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const ink = useLedgerInk();
+  const { data: daily = [] } = useDailySpend(
+    isOpen ? from : "",
+    isOpen ? to : "",
+    [...b.catIds],
+  );
+
+  const series = useMemo(() => {
+    let cum = 0;
+    return [...daily]
+      .sort((a, c) => a.day.localeCompare(c.day))
+      .map((r) => {
+        cum += mode === "gross" ? r.gross : r.net;
+        return {
+          date: r.day,
+          label: format(parseISO(r.day), "d MMM"),
+          cum: Math.max(0, cum),
+        };
+      });
+  }, [daily, mode]);
+
+  const ratio = b.amount > 0 ? b.spent / b.amount : 0;
+  const over = b.spent > b.amount + 0.005;
+  const crossed = over ? series.find((p) => p.cum > b.amount) : undefined;
+
+  return (
+    <li className={cn("rounded-[2px] transition-colors", isOpen && "bg-well")}>
+      <button
+        onClick={onToggle}
+        className="block w-full rounded-[2px] px-2 py-2 text-left transition-colors hover:bg-page-edge"
+      >
+        <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+          <span className="flex min-w-0 items-center gap-2">
+            <ChevronDown
+              className={cn("size-3.5 shrink-0 text-quill-faint transition-transform", !isOpen && "-rotate-90")}
+            />
+            <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
+            <span className="truncate text-quill">{b.name}</span>
+          </span>
+          <span className={cn("tnum shrink-0", over ? "text-debit" : "text-quill-soft")}>
+            {formatMoney(b.spent, base)}
+            <span className="text-quill-faint"> / {formatMoney(b.amount, base)}</span>
+          </span>
+        </div>
+        <div className="ml-6 flex h-2 overflow-hidden rounded-full bg-page-edge">
+          {over ? (
+            <>
+              <div className="h-full bg-head-3" style={{ width: `${(b.amount / b.spent) * 100}%` }} />
+              <div className="h-full bg-debit" style={{ width: `${100 - (b.amount / b.spent) * 100}%` }} />
+            </>
+          ) : (
+            <div
+              className={cn("h-full rounded-full", ratio > 0.85 ? "bg-head-3" : "bg-accent")}
+              style={{ width: `${Math.min(100, ratio * 100)}%` }}
+            />
+          )}
+        </div>
+        <p className={cn("tnum ml-6 mt-1 text-xs", over ? "text-debit" : "text-quill-faint")}>
+          {over
+            ? `Over by ${formatMoney(b.spent - b.amount, base)}${crossed ? ` · crossed the limit on ${crossed.label}` : ""}`
+            : `${formatMoney(b.amount - b.spent, base)} left · ${Math.round(ratio * 100)}% used`}
+        </p>
+      </button>
+
+      {isOpen && (
+        <div className="px-2 pb-3 pl-8">
+          {series.length === 0 ? (
+            <p className="py-2 text-xs text-quill-faint">No entries this month.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={150}>
+              <AreaChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
+                <defs>
+                  <linearGradient id={`bud-${b.id}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={b.color} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={b.color} stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} stroke={ink["--color-rule"]} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} minTickGap={20} />
+                <YAxis tickLine={false} axisLine={false} width={44} tick={{ fill: ink["--color-quill-faint"], fontSize: 11 }} tickFormatter={(v) => compact(v, base)} domain={[0, (dataMax: number) => Math.max(dataMax, b.amount) * 1.1]} />
+                <Tooltip
+                  {...tooltipStyle(ink)}
+                  formatter={(v: number) => [formatMoney(v, base), "Spent so far"]}
+                />
+                <ReferenceLine
+                  y={b.amount}
+                  stroke={ink["--color-debit"]}
+                  strokeDasharray="5 4"
+                  label={{ value: "Budget", position: "insideTopRight", fill: ink["--color-debit"], fontSize: 11 }}
+                />
+                <Area
+                  type="stepAfter"
+                  dataKey="cum"
+                  stroke={b.color}
+                  strokeWidth={2}
+                  fill={`url(#bud-${b.id})`}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      )}
+    </li>
   );
 }
 

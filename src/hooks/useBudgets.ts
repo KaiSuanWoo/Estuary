@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { fetchAllPages, supabase } from "@/lib/supabase";
 import { qk } from "@/lib/query";
 import { useAuth } from "@/lib/auth";
 import type { Budget, BudgetInsert, BudgetUpdate } from "@/lib/types";
@@ -77,13 +77,13 @@ export function useBudgetLinks() {
   return useQuery({
     queryKey: qk.budgetLinks,
     enabled: !!user,
-    queryFn: async (): Promise<{ budget_id: string; category_id: string }[]> => {
-      const { data, error } = await supabase
-        .from("budget_category_links")
-        .select("budget_id, category_id");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: (): Promise<{ budget_id: string; category_id: string }[]> =>
+      fetchAllPages((from, to) =>
+        supabase
+          .from("budget_category_links")
+          .select("budget_id, category_id")
+          .range(from, to),
+      ),
   });
 }
 
@@ -93,13 +93,13 @@ export function useBudgetTransactionLinks() {
   return useQuery({
     queryKey: qk.budgetTxnLinks,
     enabled: !!user,
-    queryFn: async (): Promise<{ budget_id: string; transaction_id: string }[]> => {
-      const { data, error } = await supabase
-        .from("budget_transaction_links")
-        .select("budget_id, transaction_id");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: (): Promise<{ budget_id: string; transaction_id: string }[]> =>
+      fetchAllPages((from, to) =>
+        supabase
+          .from("budget_transaction_links")
+          .select("budget_id, transaction_id")
+          .range(from, to),
+      ),
   });
 }
 

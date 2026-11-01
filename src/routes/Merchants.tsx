@@ -1,13 +1,12 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, ChevronLeft, Pencil, RotateCcw, Store, X } from "lucide-react";
-import { useTransactions } from "@/hooks/useTransactions";
 import {
   useAliasMap,
   useRenameMerchant,
   useClearMerchantAliases,
 } from "@/hooks/useMerchantAliases";
-import { groupMerchants, type MerchantGroup } from "@/lib/merchants";
+import { useMerchantGroups, type MerchantGroup } from "@/hooks/useMerchantGroups";
 import { cn } from "@/lib/cn";
 import { Card, EmptyState, Spinner } from "@/components/ui";
 
@@ -17,15 +16,13 @@ import { Card, EmptyState, Spinner } from "@/components/ui";
  * writes alias rows so all analytics aggregate under the new name.
  */
 export function Merchants() {
-  const { data: txns = [], isLoading } = useTransactions();
+  const { data: groups = [], isLoading } = useMerchantGroups();
   const aliasMap = useAliasMap();
   const rename = useRenameMerchant();
   const clear = useClearMerchantAliases();
 
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-
-  const groups = useMemo(() => groupMerchants(txns, aliasMap), [txns, aliasMap]);
 
   async function saveRename(g: MerchantGroup) {
     const name = draft.trim();
@@ -103,7 +100,7 @@ export function Merchants() {
                         )}
                       </p>
                       <p className="truncate text-xs text-quill-faint">
-                        ×{g.count}
+                        ×{g.entries}
                         {g.raws.length > 1 && (
                           <> · folds {g.raws.slice(0, 3).join(", ")}{g.raws.length > 3 ? "…" : ""}</>
                         )}

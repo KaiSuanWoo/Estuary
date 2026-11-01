@@ -8,6 +8,24 @@ export const qk = {
   settings: ["settings"] as const,
   accounts: ["accounts"] as const,
   accountBalances: ["account_balances"] as const,
+  // Server-side aggregates (migrations 0027–0032). All of these are derived
+  // from the ledger, so the mutation cache below clears them together.
+  ledgerMonths: ["ledger_months"] as const,
+  monthlyCashflow: ["monthly_cashflow"] as const,
+  categorySpendByMonth: ["category_spend_by_month"] as const,
+  cashflowByMonth: (from: string, to: string, accountId?: string) =>
+    ["cashflow_by_month", from, to, accountId ?? null] as const,
+  categorySpend: (from: string, to: string, accountId?: string) =>
+    ["category_spend", from, to, accountId ?? null] as const,
+  recurringExpenses: (now: string) => ["recurring_expenses", now] as const,
+  merchantGroups: ["merchant_groups"] as const,
+  budgetSpend: (now: string) => ["budget_spend", now] as const,
+  budgetCategorySpend: (now: string) => ["budget_category_spend", now] as const,
+  budgetCycles: (months: number, now: string) =>
+    ["budget_cycles", months, now] as const,
+  goalFunding: ["goal_funding"] as const,
+  runningBalance: (accountId: string) =>
+    ["account_running_balance", accountId] as const,
   accountCurrencies: ["account_currencies"] as const,
   categories: ["categories"] as const,
   fxRates: ["fx_rates"] as const,
@@ -42,18 +60,40 @@ export const qk = {
 };
 
 /**
- * Balances are computed in Postgres now, which means they go stale the instant
- * anything is written — a transaction, an opening figure, an account.
+ * Everything the database derives from the ledger, listed once.
  *
- * Listing those writers by hand would be two dozen call sites and one of them
- * would eventually be missed, which looks exactly like the bug this replaced:
- * a balance that quietly disagrees with the ledger. So refetch after *any*
- * successful mutation. It is one small query returning a row per pocket, and
- * being occasionally redundant is much cheaper than being occasionally wrong.
+ * All of it goes stale the instant anything is written — one new transaction
+ * can move a balance, a month's cashflow, a category slice, a budget and a
+ * subscription estimate at the same time. Clearing them as a set is what keeps
+ * them agreeing with each other, which was the point of computing them in one
+ * place to begin with.
+ *
+ * Enumerating the *writers* instead would be two dozen call sites, and one of
+ * them would eventually be missed — which looks exactly like the bug all this
+ * replaced: a figure that quietly disagrees with the ledger. So refetch after
+ * *any* successful mutation. These are small, grouped queries; being
+ * occasionally redundant is far cheaper than being occasionally wrong.
  */
+const DERIVED_KEYS = [
+  qk.accountBalances,
+  qk.ledgerMonths,
+  qk.monthlyCashflow,
+  qk.categorySpendByMonth,
+  ["cashflow_by_month"],
+  ["category_spend"],
+  ["recurring_expenses"],
+  qk.merchantGroups,
+  ["budget_spend"],
+  ["budget_category_spend"],
+  ["budget_cycles"],
+  qk.goalFunding,
+  ["account_running_balance"],
+] as const;
+
 const mutationCache = new MutationCache({
   onSuccess: () => {
-    void queryClient.invalidateQueries({ queryKey: qk.accountBalances });
+    for (const key of DERIVED_KEYS)
+      void queryClient.invalidateQueries({ queryKey: key });
   },
 });
 

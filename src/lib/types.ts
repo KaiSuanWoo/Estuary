@@ -64,4 +64,5 @@ export type {
   CounterpartyType,
   TransactionType,
   ReimbursementStatus,
+  Cadence,
 } from "./database.types";

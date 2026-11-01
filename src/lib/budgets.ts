@@ -9,8 +9,7 @@ import {
   startOfWeek,
   startOfYear,
 } from "date-fns";
-import { convert, type RateMap } from "./fx";
-import type { Budget, Transaction } from "./types";
+import type { Budget } from "./types";
 
 const iso = (d: Date) => format(d, "yyyy-MM-dd");
 
@@ -60,40 +59,14 @@ export function periodLabel(b: Budget, now = new Date()): string {
   }
 }
 
-/**
- * Net spend in a budget's assigned categories within its window, in the base
- * currency. The single source of truth for "spent" on both the Budgets page and
- * the dashboard. `direction` only affects display (down vs up), never this.
+/*
+ * `spendForBudget` used to live here.
  *
- * Net = expenses − reimbursed portion − refunds (income in the same categories),
- * floored at 0. `reimbursed` is the base-currency reimbursed-per-transaction map
- * from `useReimbursedAmountMap`.
+ * It walked the whole ledger per budget, and it converted with the live rate
+ * alone — ignoring the rate stamped on the entry, which meant a budget and the
+ * analytics page could report different figures for the very same expense.
+ * `public.budget_spend` replaces it, converting the way everything else does.
  */
-export function spendForBudget(
-  b: Budget,
-  categoryIds: Set<string>,
-  txns: Transaction[],
-  base: string,
-  rates: RateMap,
-  reimbursed: Map<string, number>,
-  now = new Date(),
-): number {
-  if (categoryIds.size === 0) return 0;
-  const w = budgetWindow(b, now);
-  let total = 0;
-  for (const t of txns) {
-    if (!t.category_id || !categoryIds.has(t.category_id)) continue;
-    if (w.from && t.date < w.from) continue;
-    if (w.to && t.date > w.to) continue;
-    if (t.type === "expense") {
-      const gross = convert(t.amount, t.currency, base, rates) ?? t.amount;
-      total += gross - (reimbursed.get(t.id) ?? 0); // reimbursed is base-currency
-    } else if (t.type === "income") {
-      total -= convert(t.amount, t.currency, base, rates) ?? t.amount; // refund
-    }
-  }
-  return Math.max(0, total);
-}
 
 export interface BudgetPacing {
   /** Fraction of the period elapsed (0..1), or null for open-ended windows. */
@@ -200,37 +173,25 @@ export interface GoalFunding {
 }
 
 /**
- * Funding progress for a one-time goal budget. Assigned expenses count as
- * "spent" (net of reimbursement); everything else assigned (money set aside)
- * counts as "saved". Together they fund the target.
+ * Funding progress for a one-time goal budget, from the figures
+ * `public.goal_funding` reports.
+ *
+ * Assigned expenses count as "spent" (net of reimbursement); everything else
+ * assigned — money set aside — counts as "saved". Together they fund the
+ * target. The sums happen in the database; what is left here is the date
+ * arithmetic the due date implies.
  */
 export function goalFunding(
   budget: Budget,
-  txnIds: Set<string>,
-  txns: Transaction[],
-  base: string,
-  rates: RateMap,
-  reimbursed: Map<string, number>,
+  funded: { spent: number; saved: number } | undefined,
   now = new Date(),
 ): GoalFunding {
-  let spent = 0;
-  let saved = 0;
-  if (txnIds.size > 0) {
-    for (const t of txns) {
-      if (!txnIds.has(t.id)) continue;
-      const amt = convert(t.amount, t.currency, base, rates) ?? t.amount;
-      if (t.type === "expense") {
-        spent += amt - (reimbursed.get(t.id) ?? 0);
-      } else {
-        saved += amt;
-      }
-    }
-  }
-  spent = Math.max(0, spent);
-  const funded = spent + saved;
+  const spent = funded?.spent ?? 0;
+  const saved = funded?.saved ?? 0;
+  const total = spent + saved;
   const target = budget.amount;
-  const remaining = Math.max(0, target - funded);
-  const ratio = target > 0 ? funded / target : 0;
+  const remaining = Math.max(0, target - total);
+  const ratio = target > 0 ? total / target : 0;
 
   let daysLeft: number | null = null;
   let perWeek: number | null = null;
@@ -240,5 +201,5 @@ export function goalFunding(
       perWeek = remaining / Math.max(1, Math.ceil(daysLeft / 7));
     }
   }
-  return { spent, saved, funded, remaining, ratio, daysLeft, perWeek };
+  return { spent, saved, funded: total, remaining, ratio, daysLeft, perWeek };
 }

@@ -1,16 +1,21 @@
-import { addMonths, differenceInCalendarDays, format, parseISO } from "date-fns";
-import { budgetWindow, spendForBudget } from "./budgets";
-import { convert, type RateMap } from "./fx";
-import type { Budget, Category, Transaction } from "./types";
+import { differenceInCalendarDays, format, parseISO } from "date-fns";
+import type { Budget, Category } from "./types";
 
 /**
  * Everything the budgets board needs about one budget, worked out once.
  *
- * The board shows figures rather than sentences, so this returns the figures
- * a reader would otherwise have to infer: the share used, the share of the
- * period gone, and the gap between them. That gap is the whole judgement —
- * "on pace" is just `deviation ≈ 0` said in words, and words are what the
- * board is getting rid of.
+ * The board shows figures rather than sentences, so this returns the figures a
+ * reader would otherwise have to infer: the share used, the share of the period
+ * gone, and the gap between them. That gap is the whole judgement — "on pace"
+ * is just `deviation ≈ 0` said in words, and words are what the board is
+ * getting rid of.
+ *
+ * The *sums* no longer happen here. They arrive from `budget_spend`,
+ * `budget_category_spend` and `budget_cycles`, because summing them in the
+ * browser meant a pass over the entire ledger for the headline figure, another
+ * for each category, and another for each history bar — about forty passes for
+ * four budgets, on every render. What remains is arithmetic over a handful of
+ * numbers, which is exactly where it belongs.
  */
 export interface BudgetMetrics {
   budget: Budget;
@@ -75,77 +80,42 @@ export interface BudgetCycle {
   used: number;
 }
 
-/** Only monthly-ish budgets have comparable past windows worth charting. */
-function cycleStarts(b: Budget, count: number, now: Date): Date[] {
-  if (b.period !== "monthly") return [];
-  return Array.from({ length: count }, (_, i) => addMonths(now, -(count - 1 - i)));
-}
-
-/**
- * Spend inside an explicit date range for a set of categories, using the same
- * net-of-reimbursement rule as `spendForBudget` so every figure on the page
- * agrees with every other.
- */
-function spendInRange(
-  categoryIds: Set<string>,
-  txns: Transaction[],
-  base: string,
-  rates: RateMap,
-  reimbursed: Map<string, number>,
-  from: string,
-  to: string,
-): number {
-  if (categoryIds.size === 0) return 0;
-  let total = 0;
-  for (const t of txns) {
-    if (!t.category_id || !categoryIds.has(t.category_id)) continue;
-    if (t.date < from || t.date > to) continue;
-    if (t.type === "expense") {
-      const gross = convert(t.amount, t.currency, base, rates) ?? t.amount;
-      total += gross - (reimbursed.get(t.id) ?? 0);
-    } else if (t.type === "income") {
-      total -= convert(t.amount, t.currency, base, rates) ?? t.amount;
-    }
-  }
-  return Math.max(0, total);
+/** What the server reports for one budget's current window. */
+export interface BudgetSpend {
+  spent: number;
+  /** The part of `spent` already elapsed — entries dated today or earlier. */
+  spentToDate: number;
+  windowFrom: string | null;
+  windowTo: string | null;
 }
 
 export function budgetMetrics(
   budget: Budget,
   categoryIds: Set<string>,
   categories: Category[],
-  txns: Transaction[],
-  base: string,
-  rates: RateMap,
-  reimbursed: Map<string, number>,
-  opts: { now?: Date; cycles?: number } = {},
+  spend: BudgetSpend,
+  categorySpend: Map<string, number>,
+  cycles: { month: string; spent: number }[],
+  opts: { now?: Date } = {},
 ): BudgetMetrics {
   const now = opts.now ?? new Date();
-  const cycles = opts.cycles ?? 6;
-  const w = budgetWindow(budget, now);
 
   const allocated = budget.amount;
-  const spent = spendForBudget(budget, categoryIds, txns, base, rates, reimbursed, now);
+  const spent = spend.spent;
+  const toDate = spend.spentToDate;
 
-  // Entries dated ahead of today are committed but haven't happened, so they
-  // must not feed a run-rate — rent booked for the 28th would otherwise imply
-  // you spend that much every day.
-  const today = format(now, "yyyy-MM-dd");
-  const booked = txns.filter((t) => t.date <= today);
-  const toDate = spendForBudget(budget, categoryIds, booked, base, rates, reimbursed, now);
-
-  const byIdEarly = new Map(categories.map((c) => [c.id, c]));
+  const byId = new Map(categories.map((c) => [c.id, c]));
   // Fixed heads are committed, not accrued. A budget with nothing variable in
   // it has no pace to be ahead or behind of.
   const paces =
     categoryIds.size === 0 ||
-    [...categoryIds].some((id) => !byIdEarly.get(id)?.is_fixed);
+    [...categoryIds].some((id) => !byId.get(id)?.is_fixed);
 
   let elapsed: number | null = null;
   let daysLeft: number | null = null;
-  if (w.from && w.to) {
-    const from = parseISO(w.from);
-    const to = parseISO(w.to);
+  if (spend.windowFrom && spend.windowTo) {
+    const from = parseISO(spend.windowFrom);
+    const to = parseISO(spend.windowTo);
     const total = differenceInCalendarDays(to, from) + 1;
     daysLeft = Math.max(0, differenceInCalendarDays(to, now) + 1);
     elapsed = total > 0 ? Math.min(1, Math.max(0, (total - daysLeft) / total)) : null;
@@ -158,11 +128,9 @@ export function budgetMetrics(
   const projected =
     paces && elapsed && elapsed > 0.15 ? toDate / elapsed + (spent - toDate) : null;
 
-  const byId = byIdEarly;
   const breakdown: BudgetCategorySpend[] = [...categoryIds]
     .map((id) => {
-      const one = new Set([id]);
-      const catSpent = spendForBudget(budget, one, txns, base, rates, reimbursed, now);
+      const catSpent = categorySpend.get(id) ?? 0;
       const cat = byId.get(id);
       return {
         id,
@@ -175,19 +143,12 @@ export function budgetMetrics(
     })
     .sort((a, b) => b.spent - a.spent);
 
-  const history: BudgetCycle[] = cycleStarts(budget, cycles, now).map((when) => {
-    const cw = budgetWindow(budget, when);
-    const cSpent =
-      cw.from && cw.to
-        ? spendInRange(categoryIds, txns, base, rates, reimbursed, cw.from, cw.to)
-        : 0;
-    return {
-      label: format(when, "MMM"),
-      spent: cSpent,
-      allocated,
-      used: allocated > 0 ? cSpent / allocated : 0,
-    };
-  });
+  const history: BudgetCycle[] = cycles.map((c) => ({
+    label: format(parseISO(c.month), "MMM"),
+    spent: c.spent,
+    allocated,
+    used: allocated > 0 ? c.spent / allocated : 0,
+  }));
 
   return {
     budget,

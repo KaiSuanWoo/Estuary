@@ -2,15 +2,15 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { useBaseCurrency } from "@/hooks/useSettings";
-import { useRateMap } from "@/hooks/useFxRates";
 import { useCategories } from "@/hooks/useCategories";
-import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
+import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
 import {
-  useBudgets,
-  useBudgetLinks,
-  useBudgetTransactionLinks,
-} from "@/hooks/useBudgets";
-import { goalFunding, groupLinks, groupTxnLinks, periodLabel } from "@/lib/budgets";
+  useBudgetCategorySpend,
+  useBudgetCycles,
+  useBudgetSpend,
+  useGoalFunding,
+} from "@/hooks/useBudgetSpend";
+import { goalFunding, groupLinks, periodLabel } from "@/lib/budgets";
 import { budgetMetrics, type BudgetMetrics } from "@/lib/budget-metrics";
 import { readBudgetDensity, writeBudgetDensity, type Density } from "@/lib/ledger";
 import { formatMoney } from "@/lib/format";
@@ -40,35 +40,43 @@ const signedPct = (n: number) =>
  */
 export function BudgetsBoard() {
   const base = useBaseCurrency();
-  const rates = useRateMap();
-  const { data: txns = [], isLoading } = useTransactions();
+  const { data: budgets = [], isLoading } = useBudgets();
   const { data: categories = [] } = useCategories();
-  const { data: budgets = [] } = useBudgets();
   const { data: budgetLinks = [] } = useBudgetLinks();
-  const { data: budgetTxnLinks = [] } = useBudgetTransactionLinks();
-  const reimbursed = useReimbursedAmountMap();
+  // Every figure on the board, grouped in the database: the headline per
+  // budget, the breakdown per category, the closed windows behind the bars.
+  const { data: spendRows = [] } = useBudgetSpend();
+  const categorySpend = useBudgetCategorySpend();
+  const cycles = useBudgetCycles();
+  const funding = useGoalFunding();
 
   const [density, setDensity] = useState<Density>(readBudgetDensity);
   const [open, setOpen] = useState<Set<string>>(new Set());
 
   const view = useMemo(() => {
     const links = groupLinks(budgetLinks);
-    const txnLinks = groupTxnLinks(budgetTxnLinks);
+    const spend = new Map(spendRows.map((r) => [r.budget_id, r]));
+    const metricsFor = (b: (typeof budgets)[number]) => {
+      const row = spend.get(b.id);
+      return budgetMetrics(
+        b,
+        links.get(b.id) ?? new Set<string>(),
+        categories,
+        {
+          spent: row?.spent ?? 0,
+          spentToDate: row?.spent_to_date ?? 0,
+          windowFrom: row?.window_from ?? null,
+          windowTo: row?.window_to ?? null,
+        },
+        categorySpend.get(b.id) ?? new Map<string, number>(),
+        cycles.get(b.id) ?? [],
+      );
+    };
 
     const spending = budgets.filter(
       (b) => b.type !== "goal" && b.direction !== "saving",
     );
-    const rows = spending.map((b) =>
-      budgetMetrics(
-        b,
-        links.get(b.id) ?? new Set<string>(),
-        categories,
-        txns,
-        base,
-        rates,
-        reimbursed,
-      ),
-    );
+    const rows = spending.map(metricsFor);
 
     const allocated = rows.reduce((s, r) => s + r.allocated, 0);
     const spent = rows.reduce((s, r) => s + r.spent, 0);
@@ -91,34 +99,17 @@ export function BudgetsBoard() {
 
     const saving = budgets
       .filter((b) => b.type !== "goal" && b.direction === "saving")
-      .map((b) =>
-        budgetMetrics(
-          b,
-          links.get(b.id) ?? new Set<string>(),
-          categories,
-          txns,
-          base,
-          rates,
-          reimbursed,
-        ),
-      );
+      .map(metricsFor);
 
     const goals = budgets
       .filter((b) => b.type === "goal")
       .map((b) => ({
         b,
-        funding: goalFunding(
-          b,
-          txnLinks.get(b.id) ?? new Set<string>(),
-          txns,
-          base,
-          rates,
-          reimbursed,
-        ),
+        funding: goalFunding(b, funding.get(b.id)),
       }));
 
     return { rows, saving, goals, allocated, spent, daysLeft, elapsed, pacingUsed };
-  }, [budgets, budgetLinks, budgetTxnLinks, txns, categories, base, rates, reimbursed]);
+  }, [budgets, budgetLinks, categories, spendRows, categorySpend, cycles, funding]);
 
   if (isLoading) {
     return (
