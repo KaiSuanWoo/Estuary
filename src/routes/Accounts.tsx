@@ -9,14 +9,13 @@ import {
   useArchiveAccount,
   useReorderAccounts,
 } from "@/hooks/useAccounts";
-import { useTransactions } from "@/hooks/useTransactions";
 import { useBalancesByAccount } from "@/hooks/useAccountBalances";
 import {
   useReconciliations,
   useCreateReconciliation,
 } from "@/hooks/useReconciliations";
 import { useInvestmentOverrides } from "@/hooks/useInvestmentSnapshot";
-import { accountBalancesByCurrency, isMultiCurrency } from "@/lib/balances";
+import { isMultiCurrency } from "@/lib/balances";
 import {
   usePocketsByAccount,
   useAddPocket,
@@ -682,12 +681,14 @@ function PocketRegister({ account }: { account: Account }) {
  * currency.
  */
 function ReconcileSection({ account }: { account: Account }) {
-  const { data: txns = [] } = useTransactions();
   const { data: checks = [] } = useReconciliations();
   const create = useCreateReconciliation();
 
   const pockets = usePocketsByAccount().get(account.id) ?? [];
-  const balances = accountBalancesByCurrency(account, txns, undefined, pockets);
+  // The same figure the list shows. A check that compared the statement
+  // against a separately derived number could disagree with the balance on
+  // screen, which would make the drift it reports meaningless.
+  const balances = useBalancesByAccount().get(account.id) ?? {};
 
   // A statement states a balance in one currency, so a check is against one
   // pocket. The primary leads; the rest follow in the order they are held.
