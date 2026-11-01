@@ -148,40 +148,34 @@ select
   t.merchant,
   t.excluded_from_cashflow,
   s.base_currency,
-  public.fx_to_base(
-    t.user_id, t.amount, t.currency, s.base_currency,
-    t.fx_rate, t.date, t.type = 'transfer'
-  ) as gross_base,
-  coalesce(r.repaid_base, 0) as repaid_base,
+  g.gross_base,
+  coalesce(r.repaid_base, 0)   as repaid_base,
   coalesce(a.allocated_raw, 0) as allocated_raw,
   case
     when t.type = 'expense' then
-      case
-        when abs(
-          public.fx_to_base(t.user_id, t.amount, t.currency, s.base_currency,
-                            t.fx_rate, t.date, false)
-          - coalesce(r.repaid_base, 0)
-        ) < 0.005 then 0
-        else greatest(0,
-          public.fx_to_base(t.user_id, t.amount, t.currency, s.base_currency,
-                            t.fx_rate, t.date, false)
-          - coalesce(r.repaid_base, 0))
+      case when abs(g.gross_base - coalesce(r.repaid_base, 0)) < 0.005 then 0
+           else greatest(0, g.gross_base - coalesce(r.repaid_base, 0))
       end
     when t.type = 'income' and a.allocated_raw is not null then
-      case
-        when greatest(0, t.amount - a.allocated_raw) < 0.005 then 0
-        else public.fx_to_base(
-               t.user_id, greatest(0, t.amount - a.allocated_raw), t.currency,
-               s.base_currency, t.fx_rate, t.date, false)
+      case when greatest(0, t.amount - a.allocated_raw) < 0.005 then 0
+           else public.fx_to_base(
+                  t.user_id, greatest(0, t.amount - a.allocated_raw), t.currency,
+                  s.base_currency, t.fx_rate, t.date, false)
       end
-    else public.fx_to_base(
-           t.user_id, t.amount, t.currency, s.base_currency,
-           t.fx_rate, t.date, t.type = 'transfer')
+    else g.gross_base
   end as net_base
 from public.transactions t
 join public.settings s on s.user_id = t.user_id
 left join repaid    r on r.expense_id   = t.id
-left join allocated a on a.repayment_id = t.id;
+left join allocated a on a.repayment_id = t.id
+-- One `fx_to_base` call per row rather than five: the gross figure is the same
+-- in every branch below, so it is computed once here and reused.
+cross join lateral (
+  select public.fx_to_base(
+    t.user_id, t.amount, t.currency, s.base_currency,
+    t.fx_rate, t.date, t.type = 'transfer'
+  ) as gross_base
+) g;
 
 comment on view public.transaction_net is
   'Every transaction with gross_base and net_base (net of reimbursements) in the user''s base currency. The basis for every cashflow and category aggregate — it is what lets them be scoped to a date range.';
