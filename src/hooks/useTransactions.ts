@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { fetchAllPages, supabase } from "@/lib/supabase";
 import { qk } from "@/lib/query";
 import { useAuth } from "@/lib/auth";
 import { useBaseCurrency } from "@/hooks/useSettings";
@@ -24,20 +24,31 @@ export function useTransactions(filters: TransactionFilters = {}) {
     queryKey: qk.transactions(filters as Record<string, unknown>),
     enabled: !!user,
     queryFn: async (): Promise<Transaction[]> => {
-      let q = supabase
-        .from("transactions")
-        .select("*")
-        .order("date", { ascending: false })
-        .order("created_at", { ascending: false });
+      // Rebuilt per page: `.range()` is not re-applicable to a spent builder.
+      const page = (from: number, to: number) => {
+        let q = supabase
+          .from("transactions")
+          .select("*")
+          .order("date", { ascending: false })
+          .order("created_at", { ascending: false });
 
-      if (filters.accountId) q = q.eq("account_id", filters.accountId);
-      if (filters.from) q = q.gte("date", filters.from);
-      if (filters.to) q = q.lte("date", filters.to);
-      if (filters.limit) q = q.limit(filters.limit);
+        if (filters.accountId) q = q.eq("account_id", filters.accountId);
+        if (filters.from) q = q.gte("date", filters.from);
+        if (filters.to) q = q.lte("date", filters.to);
+        return q.range(from, to);
+      };
 
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+      // An explicit limit is a deliberate ceiling (recent-activity lists), so
+      // honour it in one request rather than paging past it.
+      if (filters.limit) {
+        const { data, error } = await page(0, filters.limit - 1);
+        if (error) throw error;
+        return data ?? [];
+      }
+
+      // Balances read the whole ledger — a short page would just look like
+      // money going missing. See `fetchAllPages`.
+      return fetchAllPages(page);
     },
   });
 }

@@ -550,7 +550,11 @@ function EditAccountSheet({
         <div className="mt-3 border-t border-rule pt-3">
           {confirmArchive ? (
             <div className="flex items-center gap-3">
-              <p className="flex-1 text-xs text-quill-soft">Archive this account?</p>
+              <p className="flex-1 text-xs text-quill-soft">
+                {isLinked
+                  ? "Zenith still reports this account — the next sync will bring it back. Archive anyway?"
+                  : "Archive this account?"}
+              </p>
               <button
                 onClick={() => setConfirmArchive(false)}
                 className="text-xs text-quill-soft hover:text-quill"

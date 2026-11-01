@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { fetchAllPages, supabase } from "@/lib/supabase";
 import { qk } from "@/lib/query";
 import { useAuth } from "@/lib/auth";
 import { categorize } from "@/lib/categorize";
@@ -94,24 +94,30 @@ export function useApplyRules() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: async (): Promise<{ updated: number; scanned: number }> => {
-      const [{ data: rules }, { data: cats }, { data: txns }] =
-        await Promise.all([
-          supabase
-            .from("categorization_rules")
-            .select("*")
-            .eq("is_enabled", true)
-            .order("priority", { ascending: true })
-            .order("created_at", { ascending: true }),
-          supabase.from("categories").select("id, kind"),
+      const [{ data: rules }, { data: cats }, txns] = await Promise.all([
+        supabase
+          .from("categorization_rules")
+          .select("*")
+          .eq("is_enabled", true)
+          .order("priority", { ascending: true })
+          .order("created_at", { ascending: true }),
+        supabase.from("categories").select("id, kind"),
+        // Every uncategorised entry, not just the first page of them — a sweep
+        // that silently skips the older half is worse than one that does
+        // nothing, because the count it reports looks like success.
+        fetchAllPages((from, to) =>
           supabase
             .from("transactions")
             .select("id, type, merchant, notes, amount, account_id")
             .is("category_id", null)
-            .in("type", ["expense", "income"]),
-        ]);
+            .in("type", ["expense", "income"])
+            .order("date", { ascending: false })
+            .range(from, to),
+        ),
+      ]);
 
       const rulesList = rules ?? [];
-      const txList = txns ?? [];
+      const txList = txns;
       const kindOf = new Map((cats ?? []).map((c) => [c.id, c.kind]));
 
       // Group transaction ids by the (category, reimbursable) effect to apply.
