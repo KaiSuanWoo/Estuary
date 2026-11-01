@@ -10,6 +10,7 @@ import {
   useReorderAccounts,
 } from "@/hooks/useAccounts";
 import { useTransactions } from "@/hooks/useTransactions";
+import { useBalancesByAccount } from "@/hooks/useAccountBalances";
 import {
   useReconciliations,
   useCreateReconciliation,
@@ -28,8 +29,7 @@ import { cn } from "@/lib/cn";
 import { ACCOUNT_TYPE_COLORS, ACCOUNT_TYPE_LABELS } from "@/lib/account-colors";
 import { Button, Card, EmptyState, PageHeader, Sheet, Skeleton } from "@/components/ui";
 import { CURRENCIES } from "@/lib/constants";
-import type { Account, AccountCurrency, AccountType } from "@/lib/types";
-import type { Transaction } from "@/lib/types";
+import type { Account, AccountType } from "@/lib/types";
 
 const inputCls =
   "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
@@ -50,8 +50,8 @@ export function Accounts() {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const { data: accounts = [], isLoading } = useAccounts();
-  const { data: txns = [] } = useTransactions();
   const overrides = useInvestmentOverrides(accounts);
+  const balancesByAccount = useBalancesByAccount(overrides);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -93,7 +93,7 @@ export function Accounts() {
           )}
           <AccountList
             accounts={accounts}
-            txns={txns}
+            balancesByAccount={balancesByAccount}
             overrides={overrides}
             onEdit={setEditing}
           />
@@ -112,17 +112,16 @@ export function Accounts() {
 
 function AccountList({
   accounts,
-  txns,
+  balancesByAccount,
   overrides,
   onEdit,
 }: {
   accounts: Account[];
-  txns: Transaction[];
+  balancesByAccount: Map<string, Record<string, number>>;
   overrides: Map<string, BalanceOverride>;
   onEdit: (a: Account) => void;
 }) {
   const reorder = useReorderAccounts();
-  const pocketsByAccount = usePocketsByAccount();
   // Local order drives rendering during a drag; resynced when the query updates.
   const [order, setOrder] = useState<Account[]>(accounts);
   const orderRef = useRef(order);
@@ -152,9 +151,8 @@ function AccountList({
         <AccountRow
           key={a.id}
           account={a}
-          txns={txns}
+          balances={balancesByAccount.get(a.id) ?? {}}
           overrides={overrides}
-          pockets={pocketsByAccount.get(a.id) ?? []}
           isDefault={i === 0}
           onEdit={onEdit}
           onCommit={commit}
@@ -170,23 +168,21 @@ function AccountList({
  */
 function AccountRow({
   account: a,
-  txns,
+  balances,
   overrides,
-  pockets,
   isDefault,
   onEdit,
   onCommit,
 }: {
   account: Account;
-  txns: Transaction[];
+  /** Straight from the `account_balances` view, Zenith override applied. */
+  balances: Record<string, number>;
   overrides: Map<string, BalanceOverride>;
-  pockets: AccountCurrency[];
   isDefault: boolean;
   onEdit: (a: Account) => void;
   onCommit: () => void;
 }) {
   const controls = useDragControls();
-  const balances = accountBalancesByCurrency(a, txns, overrides, pockets);
   const multi = a.is_multi_currency || isMultiCurrency(balances);
   const isCredit = a.type === "credit";
   const owed = isCredit ? -(balances[a.currency] ?? 0) : 0;

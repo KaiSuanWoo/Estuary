@@ -77,3 +77,23 @@ export function balancesByCurrency(
   }
   return totals;
 }
+
+/**
+ * Roll per-account balances — as they come from the `account_balances` view —
+ * into one per-currency total across the given accounts.
+ *
+ * The map is already authoritative (computed in Postgres, Zenith overrides
+ * applied), so this only has to add up, where {@link balancesByCurrency} had
+ * to re-derive each account from the whole ledger first.
+ */
+export function sumBalances(
+  accounts: Account[],
+  byAccount: Map<string, Record<string, number>>,
+): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const a of accounts) {
+    for (const [currency, amount] of Object.entries(byAccount.get(a.id) ?? {}))
+      totals[currency] = (totals[currency] ?? 0) + amount;
+  }
+  return totals;
+}
