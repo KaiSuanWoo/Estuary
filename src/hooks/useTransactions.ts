@@ -9,49 +9,19 @@ import { convert } from "@/lib/fx";
 import { reimbursementLinks } from "@/lib/reimbursements";
 import type { Transaction, TransactionInsert, TransactionUpdate } from "@/lib/types";
 
-export interface TransactionFilters {
-  limit?: number;
-  accountId?: string;
-  /** Inclusive ISO date bounds (yyyy-MM-dd). */
-  from?: string;
-  to?: string;
-}
-
-export function useTransactions(filters: TransactionFilters = {}) {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: qk.transactions(filters as Record<string, unknown>),
-    enabled: !!user,
-    queryFn: async (): Promise<Transaction[]> => {
-      // Rebuilt per page: `.range()` is not re-applicable to a spent builder.
-      const page = (from: number, to: number) => {
-        let q = supabase
-          .from("transactions")
-          .select("*")
-          .order("date", { ascending: false })
-          .order("created_at", { ascending: false });
-
-        if (filters.accountId) q = q.eq("account_id", filters.accountId);
-        if (filters.from) q = q.gte("date", filters.from);
-        if (filters.to) q = q.lte("date", filters.to);
-        return q.range(from, to);
-      };
-
-      // An explicit limit is a deliberate ceiling (recent-activity lists), so
-      // honour it in one request rather than paging past it.
-      if (filters.limit) {
-        const { data, error } = await page(0, filters.limit - 1);
-        if (error) throw error;
-        return data ?? [];
-      }
-
-      // Balances read the whole ledger — a short page would just look like
-      // money going missing. See `fetchAllPages`.
-      return fetchAllPages(page);
-    },
-  });
-}
+/*
+ * `useTransactions` — the whole-ledger fetch — used to live here.
+ *
+ * Nothing needs it any more. Every screen that called it was folding the rows
+ * up into one figure, and those figures are grouped in the database now; the
+ * three places that genuinely want rows ask for the rows they want
+ * (`useTransactionsByIds`, `useTransferIns`, the paged Activity list).
+ *
+ * It is deleted rather than left exported, because it was the shape of the
+ * original bug: PostgREST caps an unbounded select at 1000 rows without
+ * saying so, and the next caller to reach for it would have reintroduced a
+ * total that quietly disagrees with the ledger.
+ */
 
 /**
  * Balance immediately after each entry in one account, keyed by transaction id.

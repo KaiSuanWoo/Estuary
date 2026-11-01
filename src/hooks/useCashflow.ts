@@ -35,15 +35,23 @@ export interface CategorySpendRow {
   net: number;
 }
 
-export interface RecurringRow {
+/**
+ * One detected subscription. Field names stay as the UI had them — the view
+ * reads a subscription, not a result set.
+ */
+export interface RecurringItem {
   merchant: string;
   cadence: Cadence;
-  typical_amount: number;
-  monthly_equivalent: number;
-  charge_count: number;
-  last_date: string;
-  next_due: string;
-  maybe_stopped: boolean;
+  /** Typical charge (median), in base currency. */
+  typicalAmount: number;
+  /** typicalAmount expressed per month, for a comparable subscription total. */
+  monthlyEquivalent: number;
+  count: number;
+  lastDate: string;
+  /** Estimated next charge date (last + median interval), ISO. */
+  nextDue: string;
+  /** True when the next charge is already overdue — possibly cancelled. */
+  maybeStopped: boolean;
 }
 
 /** Months the ledger has any entry in — the only ones worth offering. */
@@ -152,10 +160,82 @@ export function useRecurringExpenses() {
   return useQuery({
     queryKey: qk.recurringExpenses(now),
     enabled: !!user,
-    queryFn: async (): Promise<RecurringRow[]> => {
+    queryFn: async (): Promise<RecurringItem[]> => {
       const { data, error } = await supabase.rpc("recurring_expenses", {
         p_now: now,
       });
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        merchant: r.merchant,
+        cadence: r.cadence,
+        typicalAmount: Number(r.typical_amount),
+        monthlyEquivalent: Number(r.monthly_equivalent),
+        count: Number(r.charge_count),
+        lastDate: r.last_date,
+        nextDue: r.next_due,
+        maybeStopped: r.maybe_stopped,
+      }));
+    },
+  });
+}
+
+/**
+ * Spend per day over a range, optionally restricted to a set of categories.
+ *
+ * `undefined` categories means the whole book; an empty array means a budget
+ * with no categories assigned, which has no spend by definition — so the query
+ * is skipped rather than sent asking for nothing.
+ */
+export function useDailySpend(
+  from: string,
+  to: string,
+  categoryIds?: string[],
+) {
+  const { user } = useAuth();
+  const key = categoryIds ? [...categoryIds].sort() : null;
+
+  return useQuery({
+    queryKey: ["daily_spend", from, to, key] as const,
+    enabled: !!user && !!from && !!to && (key === null || key.length > 0),
+    queryFn: async (): Promise<{ day: string; gross: number; net: number }[]> => {
+      const { data, error } = await supabase.rpc("daily_spend", {
+        p_from: from,
+        p_to: to,
+        p_categories: key,
+      });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * The entries behind one category slice, with their base-currency value
+ * already worked out. Drilling into a slice genuinely wants rows — but only
+ * that slice's rows, over the period on screen.
+ */
+export function useCategoryEntries(
+  categoryId: string | null,
+  from: string,
+  to: string,
+  kind: "expense" | "income",
+  enabled = true,
+) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["transaction_net", "category", categoryId, from, to, kind] as const,
+    enabled: !!user && enabled && !!from && !!to,
+    queryFn: async () => {
+      let q = supabase
+        .from("transaction_net")
+        .select("id, date, merchant, currency, amount, gross_base, net_base")
+        .eq("type", kind)
+        .eq("excluded_from_cashflow", false)
+        .gte("date", from)
+        .lte("date", to);
+      q = categoryId === null ? q.is("category_id", null) : q.eq("category_id", categoryId);
+      const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
     },

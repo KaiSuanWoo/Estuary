@@ -881,6 +881,15 @@ export interface Database {
           net: number;
         }[];
       };
+      /** Spend per day over a range, optionally by category (0035). */
+      daily_spend: {
+        Args: {
+          p_from: string;
+          p_to: string;
+          p_categories?: string[] | null;
+        };
+        Returns: { day: string; gross: number; net: number }[];
+      };
       /** Spent and saved per goal budget (migration 0034). */
       goal_funding: {
         Args: Record<never, never>;
