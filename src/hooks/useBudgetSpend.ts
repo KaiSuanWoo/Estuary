@@ -25,6 +25,8 @@ export interface BudgetSpendRow {
   window_from: string | null;
   window_to: string | null;
   spent: number;
+  /** The part of `spent` already elapsed — entries dated today or earlier. */
+  spent_to_date: number;
 }
 
 /** Spend and window per budget, keyed by budget id. */
@@ -107,4 +109,29 @@ export function useBudgetCycles(
     }
     return m;
   }, [data]);
+}
+
+/** Spent and saved per goal budget, keyed by budget id. */
+export function useGoalFunding(): Map<string, { spent: number; saved: number }> {
+  const { user } = useAuth();
+  const { data = [] } = useQuery({
+    queryKey: qk.goalFunding,
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("goal_funding");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  return useMemo(
+    () =>
+      new Map(
+        data.map((r) => [
+          r.budget_id,
+          { spent: Number(r.spent), saved: Number(r.saved) },
+        ]),
+      ),
+    [data],
+  );
 }

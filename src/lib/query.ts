@@ -23,6 +23,7 @@ export const qk = {
   budgetCategorySpend: (now: string) => ["budget_category_spend", now] as const,
   budgetCycles: (months: number, now: string) =>
     ["budget_cycles", months, now] as const,
+  goalFunding: ["goal_funding"] as const,
   runningBalance: (accountId: string) =>
     ["account_running_balance", accountId] as const,
   accountCurrencies: ["account_currencies"] as const,
@@ -85,6 +86,7 @@ const DERIVED_KEYS = [
   ["budget_spend"],
   ["budget_category_spend"],
   ["budget_cycles"],
+  qk.goalFunding,
   ["account_running_balance"],
 ] as const;
 

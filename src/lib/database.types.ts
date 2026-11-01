@@ -847,6 +847,7 @@ export interface Database {
           window_from: string | null;
           window_to: string | null;
           spent: number;
+          spent_to_date: number;
         }[];
       };
       /** Spend per category within each budget (migration 0029). */
@@ -879,6 +880,11 @@ export interface Database {
           gross: number;
           net: number;
         }[];
+      };
+      /** Spent and saved per goal budget (migration 0034). */
+      goal_funding: {
+        Args: Record<never, never>;
+        Returns: { budget_id: string; spent: number; saved: number }[];
       };
       /** Detected subscriptions and regular bills (migration 0031). */
       recurring_expenses: {

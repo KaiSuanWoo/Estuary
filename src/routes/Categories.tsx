@@ -22,10 +22,9 @@ import {
   useSeedCategories,
 } from "@/hooks/useCategories";
 import { HEAD_SWATCHES, SEED_CATEGORIES } from "@/lib/constants";
-import { useTransactions } from "@/hooks/useTransactions";
+import { useCategorySpend } from "@/hooks/useCashflow";
 import { useBaseCurrency } from "@/hooks/useSettings";
-import { useRateMap } from "@/hooks/useFxRates";
-import { spendingByCategory, monthBounds } from "@/lib/analytics";
+import { monthBounds } from "@/lib/analytics";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Button, Card, Sheet, Skeleton, Spinner } from "@/components/ui";
@@ -115,12 +114,10 @@ export function Categories() {
   const [editing, setEditing] = useState<Category | null>(null);
   const [reordering, setReordering] = useState(false);
   const { data = [], isLoading } = useCategories();
-  const { data: txns = [] } = useTransactions();
   const archive = useArchiveCategory();
   const seed = useSeedCategories();
   const reorder = useReorderCategories();
   const baseCurrency = useBaseCurrency();
-  const rates = useRateMap();
 
   // Persist a group's new order — only the rows whose position changed.
   function persistOrder(ordered: Category[]) {
@@ -131,12 +128,15 @@ export function Categories() {
     if (changed.length) reorder.mutate(changed);
   }
 
+  // This month's spend per category, grouped in the database. A fully repaid
+  // expense nets to nothing, so a category whose every entry came back shows
+  // no spend rather than a zero.
   const { from, to } = monthBounds();
+  const { data: spend = [] } = useCategorySpend(from, to);
   const spendMap = new Map(
-    spendingByCategory(txns, data, baseCurrency, rates, from, to).map((s) => [
-      s.id,
-      s.value,
-    ]),
+    spend
+      .filter((r) => r.kind === "expense" && r.net > 0)
+      .map((r) => [r.category_id ?? "uncategorised", r.net]),
   );
 
   const expense = data.filter((c) => c.kind === "expense");

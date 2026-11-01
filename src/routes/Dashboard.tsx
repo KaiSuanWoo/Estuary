@@ -17,8 +17,12 @@ import {
 import { useLeafScroll, Overlay } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useBalancesByAccount } from "@/hooks/useAccountBalances";
-import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
+import {
+  useBudgetCategorySpend,
+  useBudgetSpendMap,
+} from "@/hooks/useBudgetSpend";
+import { useCashflowByMonth, useCategorySpend } from "@/hooks/useCashflow";
 import { groupLinks } from "@/lib/budgets";
 import { budgetMetrics } from "@/lib/budget-metrics";
 import { useCategories } from "@/hooks/useCategories";
@@ -33,14 +37,12 @@ import { investmentTotalInBase } from "@/lib/investments";
 import { sumBalances } from "@/lib/balances";
 import { convert, totalInBase, type RateMap } from "@/lib/fx";
 import {
-  cashflowForRange,
   monthBounds,
-  monthlyCashflow,
   monthLabel,
-  spendingByCategory,
   type CashflowMode,
   type MonthlyPoint,
 } from "@/lib/analytics";
+import { FALLBACK_HEAD } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useReducedMotion } from "@/lib/motion";
@@ -75,14 +77,14 @@ export function Dashboard() {
   const [accountFilter, setAccountFilter] = useState<string>("");
 
   const accountsQ = useAccounts();
-  const allTxnsQ = useTransactions();
   const categoriesQ = useCategories();
   const baseCurrency = useBaseCurrency();
   const rates = useRateMap();
 
   const { data: budgets = [] } = useBudgets();
   const { data: budgetLinks = [] } = useBudgetLinks();
-  const reimbursedMap = useReimbursedAmountMap();
+  const spendByBudget = useBudgetSpendMap();
+  const budgetCategorySpend = useBudgetCategorySpend();
   const { data: investSnapshot } = useInvestmentSnapshot();
   const { data: investHistory = [] } = useInvestmentHistory();
 
@@ -92,23 +94,14 @@ export function Dashboard() {
   const reduce = useReducedMotion();
 
   const accounts = accountsQ.data ?? [];
-  const txns = allTxnsQ.data ?? [];
 
   // ── Account scope ──────────────────────────────────────────────────────────
   // When an account is selected, every stat/chart/list below reflects only it.
   const scopedAccounts = accountFilter
     ? accounts.filter((a) => a.id === accountFilter)
     : accounts;
-  const scopedTxns = useMemo(
-    () =>
-      accountFilter
-        ? txns.filter((t) => t.account_id === accountFilter)
-        : txns,
-    [txns, accountFilter],
-  );
 
-  // Balances use the FULL txns (so transfers into a scoped account still credit
-  // it) but only over the scoped account(s). Zenith-linked investment accounts
+  // Balances cover only the scoped account(s). Zenith-linked investment accounts
   // report Zenith's live valuation via `overrides`, so they fold into net worth
   // exactly once.
   const overrides = useInvestmentOverrides(accounts);
@@ -139,22 +132,45 @@ export function Dashboard() {
   );
   const navigate = useNavigate();
   const { from, to } = monthBounds(refDate);
-  // Narrowing the book to one account narrows what may cancel an expense: a
-  // repayment into a *different* account never came back to this one, so it
-  // must not net anything away here. Unscoped, everything cancels as before.
-  const scope = accountFilter ? new Set([accountFilter]) : undefined;
-  // Each of these sums a scoped slice but resolves reimbursements against the
-  // full ledger (`txns`) — a repayment in another month or account still counts.
-  const month = cashflowForRange(scopedTxns, baseCurrency, rates, from, to, cashflowMode, txns, scope);
-  // Six months of received-vs-expended; each bar carries its yyyy-MM so a click
-  // can open that month in Analytics.
-  const trend = useMemo(
-    () =>
-      monthlyCashflow(scopedTxns, baseCurrency, rates, 6, undefined, cashflowMode, txns, scope).map(
-        (p, i) => ({ ...p, monthKey: format(subMonths(new Date(), 5 - i), "yyyy-MM") }),
-      ),
-    [scopedTxns, txns, baseCurrency, rates, cashflowMode],
-  );
+  // Narrowing the book to one account also narrows what may cancel an expense:
+  // a repayment into a *different* account never came back to this one, so it
+  // must not net anything away here. The server applies that rule — it is not
+  // something a caller can filter for afterwards.
+  const scopeId = accountFilter || undefined;
+
+  // Six months of received-vs-expended, back to the start of the window the
+  // trend covers; each bar carries its yyyy-MM so a click can open that month
+  // in Analytics.
+  const trendFrom = monthBounds(subMonths(new Date(), 5)).from;
+  const trendTo = monthBounds(new Date()).to;
+  const { data: trendRows = [] } = useCashflowByMonth(trendFrom, trendTo, scopeId);
+  const { data: monthRows = [] } = useCashflowByMonth(from, to, scopeId);
+  const { data: categoryRows = [] } = useCategorySpend(from, to, scopeId);
+
+  const gross = cashflowMode === "gross";
+  const month = useMemo(() => {
+    const r = monthRows[0];
+    const income = r ? (gross ? r.income_gross : r.income_net) : 0;
+    const expense = r ? (gross ? r.expense_gross : r.expense_net) : 0;
+    return { income, expense, net: income - expense };
+  }, [monthRows, gross]);
+
+  // Every month in the window, including the ones with nothing in them — a gap
+  // in the bars is information, an absent bar is just a shorter chart.
+  const trend = useMemo(() => {
+    const byMonth = new Map(trendRows.map((r) => [r.month.slice(0, 7), r]));
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = subMonths(new Date(), 5 - i);
+      const key = format(d, "yyyy-MM");
+      const r = byMonth.get(key);
+      return {
+        label: format(d, "MMM"),
+        income: r ? (gross ? r.income_gross : r.income_net) : 0,
+        expense: r ? (gross ? r.expense_gross : r.expense_net) : 0,
+        monthKey: key,
+      };
+    });
+  }, [trendRows, gross]);
 
   // Only the budgets pinned from the editor reach the front page, and only
   // ever as one line each — Home is a glance, not the board.
@@ -162,31 +178,44 @@ export function Dashboard() {
     const links = groupLinks(budgetLinks);
     return budgets
       .filter((b) => b.show_on_home && b.type !== "goal")
-      .map((b) =>
-        budgetMetrics(
+      .map((b) => {
+        const row = spendByBudget.get(b.id);
+        return budgetMetrics(
           b,
           links.get(b.id) ?? new Set<string>(),
           categoriesQ.data ?? [],
-          txns,
-          baseCurrency,
-          rates,
-          reimbursedMap,
-          { cycles: 0 },
-        ),
-      );
-  }, [budgets, budgetLinks, categoriesQ.data, txns, baseCurrency, rates, reimbursedMap]);
+          {
+            spent: row?.spent ?? 0,
+            spentToDate: row?.spent_to_date ?? 0,
+            windowFrom: row?.window_from ?? null,
+            windowTo: row?.window_to ?? null,
+          },
+          budgetCategorySpend.get(b.id) ?? new Map<string, number>(),
+          // Home is a glance, not the board: no history bars here.
+          [],
+        );
+      });
+  }, [budgets, budgetLinks, categoriesQ.data, spendByBudget, budgetCategorySpend]);
 
-  const categorySlices = spendingByCategory(
-    scopedTxns,
-    categoriesQ.data ?? [],
-    baseCurrency,
-    rates,
-    from,
-    to,
-    cashflowMode,
-    txns,
-    scope,
-  );
+  // This month's expenses by category. A fully repaid expense nets to nothing,
+  // so in net mode its category drops out entirely rather than sitting on the
+  // chart at zero.
+  const categorySlices = useMemo(() => {
+    const byId = new Map((categoriesQ.data ?? []).map((c) => [c.id, c]));
+    return categoryRows
+      .filter((r) => r.kind === "expense")
+      .map((r) => {
+        const cat = r.category_id ? byId.get(r.category_id) : undefined;
+        return {
+          id: r.category_id ?? "uncategorised",
+          name: cat?.name ?? "Uncategorised",
+          value: gross ? r.gross : r.net,
+          color: cat?.color ?? FALLBACK_HEAD,
+        };
+      })
+      .filter((sl) => sl.value > 0.005)
+      .sort((a, b) => b.value - a.value);
+  }, [categoryRows, categoriesQ.data, gross]);
 
   if (accountsQ.isLoading) {
     return (
