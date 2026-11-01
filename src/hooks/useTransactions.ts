@@ -53,6 +53,67 @@ export function useTransactions(filters: TransactionFilters = {}) {
   });
 }
 
+/**
+ * Balance immediately after each entry in one account, keyed by transaction id.
+ *
+ * This was the last reason the Activity list fetched the whole ledger: one
+ * column, on one screen, when a single account is selected. The database runs
+ * the same accumulation as a window function and returns the account's rows
+ * alone.
+ */
+export function useRunningBalance(accountId: string | undefined) {
+  const { user } = useAuth();
+
+  const { data = [] } = useQuery({
+    queryKey: qk.runningBalance(accountId ?? ""),
+    enabled: !!user && !!accountId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("account_running_balance")
+        .select("transaction_id, balance_after")
+        .eq("account_id", accountId!);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  return useMemo(
+    () => new Map(data.map((r) => [r.transaction_id, Number(r.balance_after)])),
+    [data],
+  );
+}
+
+/**
+ * Inbound transfers into one account: amount as it landed, and the date.
+ *
+ * The importer uses these to flag a likely duplicate — a Wise→CommBank top-up
+ * that the bank's own CSV also lists as a plain credit, which would otherwise
+ * be counted twice. It used to filter them out of a full-ledger fetch, which
+ * is a scan for what is really a two-column query on one account.
+ */
+export function useTransferIns(accountId: string | undefined) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["transactions", "transfer_ins", accountId ?? null] as const,
+    enabled: !!user && !!accountId,
+    queryFn: async (): Promise<{ amt: number; date: string }[]> => {
+      const rows = await fetchAllPages((from, to) =>
+        supabase
+          .from("transactions")
+          .select("amount, destination_amount, date")
+          .eq("type", "transfer")
+          .eq("destination_account_id", accountId!)
+          .range(from, to),
+      );
+      return rows.map((t) => ({
+        amt: Number(t.destination_amount ?? t.amount),
+        date: t.date,
+      }));
+    },
+  });
+}
+
 export function useCreateTransaction() {
   const client = useQueryClient();
   const { user } = useAuth();

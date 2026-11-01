@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { fetchAllPages, supabase } from "@/lib/supabase";
 import { qk } from "@/lib/query";
 import { useAuth } from "@/lib/auth";
 import type { Tag } from "@/lib/types";
@@ -89,12 +89,15 @@ export function useAllTransactionTags() {
   return useQuery({
     queryKey: qk.transactionTags,
     enabled: !!user,
-    queryFn: async (): Promise<{ tag_id: string; transaction_id: string }[]> => {
-      const { data, error } = await supabase
-        .from("transaction_tags")
-        .select("tag_id, transaction_id");
-      if (error) throw error;
-      return data ?? [];
-    },
+    // Paged: one row per tag per transaction, so this table outgrows
+    // PostgREST's silent 1000-row ceiling long before the ledger does — and a
+    // short page here reads as tags simply having come off transactions.
+    queryFn: (): Promise<{ tag_id: string; transaction_id: string }[]> =>
+      fetchAllPages((from, to) =>
+        supabase
+          .from("transaction_tags")
+          .select("tag_id, transaction_id")
+          .range(from, to),
+      ),
   });
 }

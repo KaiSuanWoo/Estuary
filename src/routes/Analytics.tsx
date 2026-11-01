@@ -32,14 +32,14 @@ import {
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useCategories } from "@/hooks/useCategories";
 import { useAccounts } from "@/hooks/useAccounts";
-import { usePocketsByAccount } from "@/hooks/useAccountCurrencies";
+import { useBalancesByAccount } from "@/hooks/useAccountBalances";
 import { useInvestmentOverrides } from "@/hooks/useInvestmentSnapshot";
 import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
 import { useAliasMap } from "@/hooks/useMerchantAliases";
 import { groupLinks } from "@/lib/budgets";
 import { useBaseCurrency } from "@/hooks/useSettings";
 import { useRateMap } from "@/hooks/useFxRates";
-import { balancesByCurrency } from "@/lib/balances";
+import { sumBalances } from "@/lib/balances";
 import { convert, type RateMap } from "@/lib/fx";
 import { detectRecurring } from "@/lib/recurring";
 import { reimbursementLinks } from "@/lib/reimbursements";
@@ -205,7 +205,7 @@ export function Analytics() {
   const reimbursedMap = useReimbursedAmountMap();
   const aliasMap = useAliasMap();
   const overrides = useInvestmentOverrides(accounts);
-  const pockets = usePocketsByAccount();
+  const balancesByAccount = useBalancesByAccount(overrides);
   const base = useBaseCurrency();
   const rates = useRateMap();
 
@@ -286,7 +286,10 @@ export function Analytics() {
       : [];
 
     // Currency exposure across all accounts (portfolio-wide, not period-scoped).
-    const byCur = balancesByCurrency(accounts, txns, overrides, pockets);
+    // Straight from `account_balances`: re-deriving it here meant one pass over
+    // the whole ledger per account, and could disagree with the figure the
+    // Accounts page shows for the very same pocket.
+    const byCur = sumBalances(accounts, balancesByAccount);
     const exposure = Object.entries(byCur)
       .map(([currency, amount]) => ({
         currency,
@@ -353,7 +356,7 @@ export function Analytics() {
       budgetRows,
       savingsRate,
     };
-  }, [txns, categories, accounts, budgets, budgetLinks, reimbursedMap, aliasMap, overrides, pockets, base, rates, txnMode, period, dataMonthSet]);
+  }, [txns, categories, accounts, budgets, budgetLinks, reimbursedMap, aliasMap, balancesByAccount, base, rates, txnMode, period, dataMonthSet]);
 
   function toggleMonth(k: string) {
     setSelectedMonths((prev) =>
