@@ -16,7 +16,7 @@ import {
 } from "recharts";
 import { useLeafScroll, Overlay } from "@/components/leaf-scroll";
 import { useAccounts } from "@/hooks/useAccounts";
-import { usePocketsByAccount } from "@/hooks/useAccountCurrencies";
+import { useBalancesByAccount } from "@/hooks/useAccountBalances";
 import { useTransactions, useReimbursedAmountMap } from "@/hooks/useTransactions";
 import { useBudgets, useBudgetLinks } from "@/hooks/useBudgets";
 import { groupLinks } from "@/lib/budgets";
@@ -30,7 +30,7 @@ import {
   useInvestmentSnapshot,
 } from "@/hooks/useInvestmentSnapshot";
 import { investmentTotalInBase } from "@/lib/investments";
-import { balancesByCurrency } from "@/lib/balances";
+import { sumBalances } from "@/lib/balances";
 import { convert, totalInBase, type RateMap } from "@/lib/fx";
 import {
   cashflowForRange,
@@ -112,8 +112,8 @@ export function Dashboard() {
   // report Zenith's live valuation via `overrides`, so they fold into net worth
   // exactly once.
   const overrides = useInvestmentOverrides(accounts);
-  const pockets = usePocketsByAccount();
-  const byCurrency = balancesByCurrency(scopedAccounts, txns, overrides, pockets);
+  const balancesByAccount = useBalancesByAccount(overrides);
+  const byCurrency = sumBalances(scopedAccounts, balancesByAccount);
   const { total: netWorth, missing } = totalInBase(byCurrency, baseCurrency, rates);
 
   // Cash / investments split. A snapshot whose accounts aren't materialised yet
@@ -125,7 +125,7 @@ export function Dashboard() {
       ? investmentTotalInBase(investSnapshot, baseCurrency, rates)
       : 0;
   const linkedInvest = totalInBase(
-    balancesByCurrency(investAccounts, txns, overrides, pockets),
+    sumBalances(investAccounts, balancesByAccount),
     baseCurrency,
     rates,
   ).total;

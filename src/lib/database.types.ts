@@ -724,7 +724,18 @@ export interface Database {
         Relationships: [];
       };
     };
-    Views: Record<never, never>;
+    Views: {
+      /** Per-pocket balance computed in Postgres (migration 0024). */
+      account_balances: {
+        Row: {
+          user_id: string;
+          account_id: string;
+          currency: string;
+          balance: number;
+        };
+        Relationships: [];
+      };
+    };
     Functions: Record<never, never>;
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;
