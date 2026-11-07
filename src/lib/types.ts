@@ -6,6 +6,17 @@ type Tables = Database["public"]["Tables"];
 export type Account = Tables["accounts"]["Row"];
 export type AccountInsert = Tables["accounts"]["Insert"];
 
+/**
+ * How much history an account holds — see `useAccountUsage`.
+ *
+ * `user_id` is dropped: RLS already scopes the view to the caller, so fetching
+ * it would be a column the app can never do anything with.
+ */
+export type AccountUsage = Omit<
+  Database["public"]["Views"]["account_usage"]["Row"],
+  "user_id"
+>;
+
 /** One declared currency balance inside an account — a Wise "pocket". */
 export type AccountCurrency = Tables["account_currencies"]["Row"];
 export type AccountCurrencyInsert = Tables["account_currencies"]["Insert"];

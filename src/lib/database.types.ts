@@ -737,6 +737,21 @@ export interface Database {
       };
     };
     Views: {
+      /**
+       * How much history each account holds (migration 0037) — what a delete
+       * would destroy, for the archived-accounts confirmation.
+       */
+      account_usage: {
+        Row: {
+          user_id: string;
+          account_id: string;
+          transaction_count: number;
+          incoming_transfer_count: number;
+          first_entry: string | null;
+          last_entry: string | null;
+        };
+        Relationships: [];
+      };
       /** Per-pocket balance computed in Postgres (migration 0024). */
       account_balances: {
         Row: {

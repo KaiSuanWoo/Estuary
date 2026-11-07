@@ -7,6 +7,10 @@ export const qk = {
   profilesAll: ["profiles"] as const,
   settings: ["settings"] as const,
   accounts: ["accounts"] as const,
+  // Prefixed with "accounts" so every existing qk.accounts invalidation clears
+  // it too — the archived list goes stale on exactly the same writes.
+  archivedAccounts: ["accounts", "archived"] as const,
+  accountUsage: ["account_usage"] as const,
   accountBalances: ["account_balances"] as const,
   // Server-side aggregates (migrations 0027–0032). All of these are derived
   // from the ledger, so the mutation cache below clears them together.
@@ -76,6 +80,7 @@ export const qk = {
  */
 const DERIVED_KEYS = [
   qk.accountBalances,
+  qk.accountUsage,
   qk.ledgerMonths,
   qk.monthlyCashflow,
   qk.categorySpendByMonth,
