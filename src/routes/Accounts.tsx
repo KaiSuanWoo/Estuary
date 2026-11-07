@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { GripVertical, MoreHorizontal, Plus, Wallet } from "lucide-react";
+import { Archive, GripVertical, MoreHorizontal, Plus, Wallet } from "lucide-react";
 import { Reorder, useDragControls } from "motion/react";
 import {
   useAccounts,
+  useArchivedAccounts,
+  useAccountUsage,
   useCreateAccount,
   useUpdateAccount,
   useArchiveAccount,
+  useRestoreAccount,
+  useDeleteAccount,
   useReorderAccounts,
 } from "@/hooks/useAccounts";
 import { useBalancesByAccount } from "@/hooks/useAccountBalances";
@@ -28,7 +32,7 @@ import { cn } from "@/lib/cn";
 import { ACCOUNT_TYPE_COLORS, ACCOUNT_TYPE_LABELS } from "@/lib/account-colors";
 import { Button, Card, EmptyState, PageHeader, Sheet, Skeleton } from "@/components/ui";
 import { CURRENCIES } from "@/lib/constants";
-import type { Account, AccountType } from "@/lib/types";
+import type { Account, AccountType, AccountUsage } from "@/lib/types";
 
 const inputCls =
   "h-9 w-full rounded-[2px] border border-rule bg-well px-3 text-sm text-quill placeholder:text-quill-faint focus:border-accent focus:outline-none";
@@ -48,7 +52,9 @@ const ACCOUNT_TYPES: AccountType[] = [
 export function Accounts() {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
   const { data: accounts = [], isLoading } = useAccounts();
+  const { data: archived = [] } = useArchivedAccounts();
   const overrides = useInvestmentOverrides(accounts);
   const balancesByAccount = useBalancesByAccount(overrides);
 
@@ -99,11 +105,232 @@ export function Accounts() {
         </>
       )}
 
+      {/* Closed accounts are still part of the record — the ledger keeps their
+          entries — so they get a way back to them rather than a tab competing
+          with the live list for the top of the page. */}
+      {archived.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowArchive(true)}
+          className="tap mt-5 flex w-full items-center justify-center gap-2 border-t border-rule pt-4 text-xs italic text-quill-faint transition-colors hover:text-quill"
+        >
+          <Archive className="size-3.5" />
+          Archived accounts
+          <span className="tnum not-italic">({archived.length})</span>
+        </button>
+      )}
+
       {adding && <AddAccountSheet onClose={() => setAdding(false)} />}
       {editing && (
         <EditAccountSheet account={editing} onClose={() => setEditing(null)} />
       )}
+      {showArchive && (
+        <ArchivedAccountsSheet
+          accounts={archived}
+          balancesByAccount={balancesByAccount}
+          onClose={() => setShowArchive(false)}
+        />
+      )}
     </div>
+  );
+}
+
+// ─── Archive ──────────────────────────────────────────────────────────────────
+
+/**
+ * The closed accounts, with a way to reopen one or remove it for good.
+ *
+ * Archiving and deleting are not two strengths of the same action. Archiving
+ * hides an account and keeps every entry booked to it, so the months it was
+ * open still add up. Deleting cascades: the entries go too, and a transfer that
+ * landed here keeps its outgoing leg and loses the incoming one — money leaves
+ * the funding account and arrives nowhere. So the confirmation names the cost
+ * in rows before it offers the button.
+ */
+function ArchivedAccountsSheet({
+  accounts,
+  balancesByAccount,
+  onClose,
+}: {
+  accounts: Account[];
+  balancesByAccount: Map<string, Record<string, number>>;
+  onClose: () => void;
+}) {
+  const usage = useAccountUsage();
+  const restore = useRestoreAccount();
+  const del = useDeleteAccount();
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  return (
+    <Sheet title="Archived accounts" onClose={onClose}>
+      <p className="mb-3 text-xs text-quill-faint">
+        Hidden from the accounts list, the pickers and net worth. Their entries
+        are still in the ledger and still count towards past months.
+      </p>
+
+      {accounts.length === 0 && (
+        <p className="py-6 text-center text-sm italic text-quill-faint">
+          Nothing archived.
+        </p>
+      )}
+
+      <ul className="divide-y divide-rule">
+        {accounts.map((a) => (
+          <ArchivedRow
+            key={a.id}
+            account={a}
+            balances={balancesByAccount.get(a.id) ?? {}}
+            usage={usage.get(a.id)}
+            confirming={confirming === a.id}
+            onConfirm={() => setConfirming(a.id)}
+            onCancel={() => setConfirming(null)}
+            onRestore={() => restore(a.id)}
+            onDelete={() => del.mutate(a.id)}
+            deleting={del.isPending}
+          />
+        ))}
+      </ul>
+
+      {del.isError && (
+        <p className="mt-3 text-xs text-debit">
+          Couldn't delete. {(del.error as Error).message}
+        </p>
+      )}
+    </Sheet>
+  );
+}
+
+function ArchivedRow({
+  account: a,
+  balances,
+  usage,
+  confirming,
+  onConfirm,
+  onCancel,
+  onRestore,
+  onDelete,
+  deleting,
+}: {
+  account: Account;
+  balances: Record<string, number>;
+  usage: AccountUsage | undefined;
+  confirming: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  onRestore: () => void;
+  onDelete: () => void;
+  deleting: boolean;
+}) {
+  const own = usage?.transaction_count ?? 0;
+  const incoming = usage?.incoming_transfer_count ?? 0;
+  const isLinked = a.external_source === "zenith";
+  const held = Object.entries(balances).filter(([, v]) => Math.abs(v) >= 0.005);
+
+  // What the account is carrying, in one line: how many entries and over what
+  // span. An empty shell says so plainly — it is the one safe thing to delete.
+  const history =
+    own === 0
+      ? "No entries"
+      : `${own} ${own === 1 ? "entry" : "entries"}${
+          usage?.first_entry && usage.last_entry
+            ? ` · ${formatDate(usage.first_entry)} – ${formatDate(usage.last_entry)}`
+            : ""
+        }`;
+
+  return (
+    <li className="py-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="flex min-w-0 items-baseline gap-2">
+          <span
+            className="truncate tracking-[0.08em] text-quill"
+            style={{ fontVariant: "small-caps" }}
+          >
+            {a.name}
+          </span>
+          <span className="shrink-0 text-xs italic text-quill-faint">
+            {ACCOUNT_TYPE_LABELS[a.type].toLowerCase()} · {a.currency}
+          </span>
+          {isLinked && (
+            <span className="shrink-0 text-xs italic text-head-5">· Zenith</span>
+          )}
+        </p>
+        {held.length > 0 && (
+          <span className="tnum shrink-0 text-sm text-quill-soft">
+            {held.map(([c, v]) => formatMoney(v, c)).join(" · ")}
+          </span>
+        )}
+      </div>
+
+      <p className="mt-0.5 text-xs italic text-quill-faint">{history}</p>
+
+      {confirming ? (
+        <div className="mt-2 rounded-[2px] border border-debit/40 bg-debit/5 p-2.5">
+          <p className="text-xs text-quill-soft">
+            {own === 0 && incoming === 0 ? (
+              <>Delete {a.name}? It holds no entries, so nothing else changes.</>
+            ) : (
+              <>
+                Deleting {a.name} also deletes{" "}
+                <strong className="text-quill">
+                  {own} {own === 1 ? "entry" : "entries"}
+                </strong>
+                {incoming > 0 && (
+                  <>
+                    {" "}
+                    and strands{" "}
+                    <strong className="text-quill">
+                      {incoming} transfer{incoming === 1 ? "" : "s"}
+                    </strong>{" "}
+                    into it — the money will leave the funding account and
+                    arrive nowhere
+                  </>
+                )}
+                . Past months will change. This can't be undone.
+              </>
+            )}
+          </p>
+          <div className="mt-2 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-xs text-quill-soft hover:text-quill"
+            >
+              Cancel
+            </button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={onDelete}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting…" : "Delete for good"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-1.5 flex items-center gap-4">
+          <button
+            type="button"
+            onClick={onRestore}
+            className="tap text-xs text-quill-faint transition-colors hover:text-quill"
+          >
+            Restore
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="tap text-xs text-quill-faint transition-colors hover:text-debit"
+          >
+            Delete
+          </button>
+          {isLinked && (
+            <span className="text-xs italic text-quill-faint">
+              Zenith still reports this — the next sync restores it
+            </span>
+          )}
+        </div>
+      )}
+    </li>
   );
 }
 
